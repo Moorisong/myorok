@@ -1,16 +1,21 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
     View,
     Text,
     StyleSheet,
     Pressable,
     ScrollView,
+    Animated,
+    Easing,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
-
+import { Gesture, GestureDetector, Directions } from 'react-native-gesture-handler';
+import { Feather } from '@expo/vector-icons';
 import { COLORS } from '../../constants';
 import { getMonthRecords, getDayDetail, CalendarDayData, getTodayDateString } from '../../services';
+
+
 
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
 const FREE_DAYS_LIMIT = 15;
@@ -23,12 +28,36 @@ export default function CalendarScreen() {
     const [selectedDate, setSelectedDate] = useState<string | null>(null);
     const [selectedDayData, setSelectedDayData] = useState<CalendarDayData | null>(null);
     const [loading, setLoading] = useState(true);
+    const fadeAnim = React.useRef(new Animated.Value(1)).current;
+
+    const animateTransition = (callback: () => void) => {
+        Animated.timing(fadeAnim, {
+            toValue: 0,
+            duration: 100,
+            useNativeDriver: true,
+            easing: Easing.ease,
+        }).start(() => {
+            callback();
+            Animated.timing(fadeAnim, {
+                toValue: 1,
+                duration: 200,
+                useNativeDriver: true,
+                easing: Easing.ease,
+            }).start();
+        });
+    };
+
     const isPremium = false; // TODO: 유료 상태 연동
 
     useFocusEffect(
         useCallback(() => {
             loadMonthData();
-        }, [currentYear, currentMonth])
+            if (selectedDate) {
+                getDayDetail(selectedDate).then(detail => {
+                    setSelectedDayData(detail);
+                });
+            }
+        }, [currentYear, currentMonth, selectedDate])
     );
 
     const loadMonthData = async () => {
@@ -44,25 +73,80 @@ export default function CalendarScreen() {
     };
 
     const handlePrevMonth = () => {
-        if (currentMonth === 1) {
-            setCurrentYear(currentYear - 1);
-            setCurrentMonth(12);
-        } else {
-            setCurrentMonth(currentMonth - 1);
-        }
-        setSelectedDate(null);
-        setSelectedDayData(null);
+        animateTransition(() => {
+            if (currentMonth === 1) {
+                setCurrentYear(currentYear - 1);
+                setCurrentMonth(12);
+            } else {
+                setCurrentMonth(currentMonth - 1);
+            }
+            setSelectedDate(null);
+            setSelectedDayData(null);
+        });
     };
 
     const handleNextMonth = () => {
-        if (currentMonth === 12) {
-            setCurrentYear(currentYear + 1);
-            setCurrentMonth(1);
-        } else {
-            setCurrentMonth(currentMonth + 1);
-        }
-        setSelectedDate(null);
-        setSelectedDayData(null);
+        animateTransition(() => {
+            if (currentMonth === 12) {
+                setCurrentYear(currentYear + 1);
+                setCurrentMonth(1);
+            } else {
+                setCurrentMonth(currentMonth + 1);
+            }
+            setSelectedDate(null);
+            setSelectedDayData(null);
+        });
+    };
+
+    const handleToday = () => {
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = today.getMonth() + 1;
+        const dateStr = getTodayDateString();
+
+        animateTransition(() => {
+            setCurrentYear(year);
+            setCurrentMonth(month);
+            handleDateSelect(dateStr);
+        });
+    };
+
+    const handlePrevDay = () => {
+        if (!selectedDate) return;
+        const d = new Date(selectedDate);
+        d.setDate(d.getDate() - 1);
+
+        const year = d.getFullYear();
+        const month = d.getMonth() + 1;
+        const day = d.getDate();
+        const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+        animateTransition(() => {
+            if (year !== currentYear || month !== currentMonth) {
+                setCurrentYear(year);
+                setCurrentMonth(month);
+            }
+            handleDateSelect(dateStr);
+        });
+    };
+
+    const handleNextDay = () => {
+        if (!selectedDate) return;
+        const d = new Date(selectedDate);
+        d.setDate(d.getDate() + 1);
+
+        const year = d.getFullYear();
+        const month = d.getMonth() + 1;
+        const day = d.getDate();
+        const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+        animateTransition(() => {
+            if (year !== currentYear || month !== currentMonth) {
+                setCurrentYear(year);
+                setCurrentMonth(month);
+            }
+            handleDateSelect(dateStr);
+        });
     };
 
     const handleDateSelect = async (dateStr: string) => {
@@ -104,6 +188,48 @@ export default function CalendarScreen() {
         return DAY_NAMES[date.getDay()];
     };
 
+    const flingLeft = Gesture.Fling()
+        .direction(Directions.LEFT)
+        .runOnJS(true)
+        .onEnd(() => {
+            handleNextMonth();
+        });
+
+    const flingRight = Gesture.Fling()
+        .direction(Directions.RIGHT)
+        .runOnJS(true)
+        .onEnd(() => {
+            handlePrevMonth();
+        });
+
+    const gestures = Gesture.Simultaneous(flingLeft, flingRight);
+
+    const dayFlingLeft = Gesture.Fling()
+        .direction(Directions.LEFT)
+        .runOnJS(true)
+        .onEnd(() => {
+            handleNextDay();
+        });
+
+    const dayFlingRight = Gesture.Fling()
+        .direction(Directions.RIGHT)
+        .runOnJS(true)
+        .onEnd(() => {
+            handlePrevDay();
+        });
+
+    const dayGestures = Gesture.Simultaneous(dayFlingLeft, dayFlingRight);
+
+    // Auto-select today on mount
+    useEffect(() => {
+        const todayStr = getTodayDateString();
+        setSelectedDate(todayStr);
+        // Load initial detail
+        getDayDetail(todayStr).then(detail => {
+            setSelectedDayData(detail);
+        });
+    }, []);
+
     const renderCalendarGrid = () => {
         const daysInMonth = getDaysInMonth(currentYear, currentMonth);
         const firstDay = getFirstDayOfMonth(currentYear, currentMonth);
@@ -112,7 +238,7 @@ export default function CalendarScreen() {
 
         // Empty cells for days before start
         for (let i = 0; i < firstDay; i++) {
-            cells.push(<View key={`empty-${i}`} style={styles.dayCell} />);
+            cells.push(<View key={`empty-${i}`} style={[styles.dayCell, styles.emptyCell]} />);
         }
 
         // Day cells
@@ -125,22 +251,25 @@ export default function CalendarScreen() {
             cells.push(
                 <Pressable
                     key={day}
-                    style={[
-                        styles.dayCell,
-                        isSelected && styles.dayCellSelected,
-                        isTodayDate && styles.dayCellToday,
-                    ]}
+                    style={[styles.dayCell]}
                     onPress={() => handleDateSelect(dateStr)}
                 >
-                    <Text
-                        style={[
-                            styles.dayText,
-                            isSelected && styles.dayTextSelected,
-                            isTodayDate && styles.dayTextToday,
-                        ]}
-                    >
-                        {day}
-                    </Text>
+                    <View style={[
+                        styles.dateNumberContainer,
+                        isSelected && styles.selectedDateContainer,
+                        isTodayDate && !isSelected && styles.todayDateContainer
+                    ]}>
+                        <Text
+                            style={[
+                                styles.dayText,
+                                isSelected && styles.selectedDayText,
+                                isTodayDate && !isSelected && styles.todayDayText,
+                            ]}
+                        >
+                            {day}
+                        </Text>
+                    </View>
+
                     {dayData && (
                         <View style={styles.indicators}>
                             {dayData.hasDiarrheaOrVomit && (
@@ -149,14 +278,22 @@ export default function CalendarScreen() {
                             {dayData.hasRecord && !dayData.hasDiarrheaOrVomit && (
                                 <View style={[styles.dot, styles.dotNormal]} />
                             )}
-                            {dayData.hasMedicine && <Text style={styles.miniIcon}>💊</Text>}
-                            {dayData.hasFluid && <Text style={styles.miniIcon}>💧</Text>}
+                            {/* Icons */}
+                            {dayData.hasMedicine && <Text style={styles.miniIconText}>💊</Text>}
+                            {dayData.hasFluid && <Feather name="activity" size={10} color={COLORS.primary} style={styles.miniIcon} />}
                         </View>
                     )}
                 </Pressable>
             );
 
             if ((firstDay + day) % 7 === 0 || day === daysInMonth) {
+                // If it's the end of the month, fill the remaining cells
+                if (day === daysInMonth) {
+                    while (cells.length < 7) {
+                        cells.push(<View key={`empty-end-${cells.length}`} style={[styles.dayCell, styles.emptyCell]} />);
+                    }
+                }
+
                 rows.push(
                     <View key={`row-${rows.length}`} style={styles.weekRow}>
                         {cells}
@@ -164,18 +301,6 @@ export default function CalendarScreen() {
                 );
                 cells = [];
             }
-        }
-
-        // Fill remaining cells
-        while (cells.length > 0 && cells.length < 7) {
-            cells.push(<View key={`empty-end-${cells.length}`} style={styles.dayCell} />);
-        }
-        if (cells.length > 0) {
-            rows.push(
-                <View key={`row-${rows.length}`} style={styles.weekRow}>
-                    {cells}
-                </View>
-            );
         }
 
         return rows;
@@ -215,7 +340,7 @@ export default function CalendarScreen() {
                                 {(dailyRecord.peeCount > 0 || dailyRecord.poopCount > 0) && (
                                     <Text style={styles.summaryItem}>
                                         💩 배변 {dailyRecord.poopCount}회
-                                        {dailyRecord.diarrheaCount > 0 && ` (묽은 변 ${dailyRecord.diarrheaCount})`}
+                                        {dailyRecord.diarrheaCount > 0 && ` / 🚨 묽은 변 ${dailyRecord.diarrheaCount}회`}
                                         {dailyRecord.peeCount > 0 && ` / 💧 소변 ${dailyRecord.peeCount}회`}
                                     </Text>
                                 )}
@@ -246,7 +371,7 @@ export default function CalendarScreen() {
                             <View style={styles.summarySection}>
                                 {fluidRecords.map((f, i) => (
                                     <Text key={i} style={styles.summaryItem}>
-                                        💧 {f.fluidType === 'subcutaneous' ? '피하수액' : '정맥수액'}
+                                        <Feather name="activity" size={14} color={COLORS.primary} /> {f.fluidType === 'subcutaneous' ? '피하수액' : '정맥수액'}
                                         {f.volume && ` ${f.volume}ml`}
                                     </Text>
                                 ))}
@@ -273,14 +398,20 @@ export default function CalendarScreen() {
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
             <View style={styles.header}>
-                <Pressable onPress={handlePrevMonth} style={styles.navButton}>
-                    <Text style={styles.navButtonText}>◀</Text>
-                </Pressable>
-                <Text style={styles.monthTitle}>
-                    {currentYear}년 {currentMonth}월
-                </Text>
-                <Pressable onPress={handleNextMonth} style={styles.navButton}>
-                    <Text style={styles.navButtonText}>▶</Text>
+                <View style={styles.monthNav}>
+                    <Pressable onPress={handlePrevMonth} style={styles.navButton}>
+                        <Text style={styles.navButtonText}>◀</Text>
+                    </Pressable>
+                    <Text style={styles.monthTitle}>
+                        {currentYear}년 {currentMonth}월
+                    </Text>
+                    <Pressable onPress={handleNextMonth} style={styles.navButton}>
+                        <Text style={styles.navButtonText}>▶</Text>
+                    </Pressable>
+                </View>
+
+                <Pressable onPress={handleToday} style={styles.todayButton}>
+                    <Text style={styles.todayButtonText}>오늘</Text>
                 </Pressable>
             </View>
 
@@ -300,15 +431,46 @@ export default function CalendarScreen() {
             </View>
 
             <ScrollView style={styles.scrollView}>
-                <View style={styles.calendarGrid}>
-                    {renderCalendarGrid()}
-                </View>
+                <GestureDetector gesture={gestures}>
+                    <View>
+                        <Animated.View style={[styles.calendarGrid, { opacity: fadeAnim }]}>
+                            {renderCalendarGrid()}
+                        </Animated.View>
 
-                {renderDaySummary()}
+                        {/* Legend included in Month Swipe Zone */}
+                        <View style={styles.legendContainer}>
+                            <View style={styles.legendItem}>
+                                <View style={[styles.dot, styles.dotWarning]} />
+                                <Text style={styles.legendText}>구토/묽은변</Text>
+                            </View>
+                            <View style={styles.legendItem}>
+                                <View style={[styles.dot, styles.dotNormal]} />
+                                <Text style={styles.legendText}>배변/소변</Text>
+                            </View>
+                            <View style={styles.legendItem}>
+                                <Text style={styles.miniIconText}>💊</Text>
+                                <Text style={styles.legendText}>약</Text>
+                            </View>
+                            <View style={styles.legendItem}>
+                                <Feather name="activity" size={10} color={COLORS.primary} />
+                                <Text style={styles.legendText}>수액</Text>
+                            </View>
+                        </View>
+                    </View>
+                </GestureDetector>
 
-                <View style={styles.bottomPadding} />
+                <View style={styles.zoneDivider} />
+
+
+
+                <GestureDetector gesture={dayGestures}>
+                    <Animated.View style={{ opacity: fadeAnim, minHeight: 400 }}>
+                        {renderDaySummary()}
+                        <View style={styles.bottomPadding} />
+                    </Animated.View>
+                </GestureDetector>
             </ScrollView>
-        </SafeAreaView>
+        </SafeAreaView >
     );
 }
 
@@ -319,33 +481,56 @@ const styles = StyleSheet.create({
     },
     header: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
+        justifyContent: 'center', // Center the nav
         alignItems: 'center',
-        paddingHorizontal: 20,
-        paddingTop: 40,
-        paddingBottom: 16,
+        paddingHorizontal: 16,
+        paddingTop: 30,
+        paddingBottom: 10,
+        position: 'relative', // For absolute positioning of today button
+    },
+    // headerLeftSpacer removed
+    monthNav: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
     },
     navButton: {
         padding: 8,
     },
+    todayButton: {
+        position: 'absolute',
+        right: 16,
+        bottom: 12, // Align vertically with month nav
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        backgroundColor: COLORS.background,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        borderRadius: 14,
+    },
+    todayButtonText: {
+        fontSize: 11,
+        color: COLORS.primary,
+        fontWeight: '600',
+    },
     navButtonText: {
-        fontSize: 18,
+        fontSize: 16,
         color: COLORS.primary,
     },
     monthTitle: {
-        fontSize: 20,
+        fontSize: 18,
         fontWeight: '600',
         color: COLORS.textPrimary,
     },
     weekHeader: {
         flexDirection: 'row',
         paddingHorizontal: 16,
-        paddingBottom: 8,
+        paddingBottom: 4,
     },
     weekDayText: {
         flex: 1,
         textAlign: 'center',
-        fontSize: 14,
+        fontSize: 13,
         color: COLORS.textSecondary,
     },
     sundayText: {
@@ -358,49 +543,67 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     calendarGrid: {
-        paddingHorizontal: 12,
+        paddingHorizontal: 0,
+        marginBottom: 10,
     },
     weekRow: {
         flexDirection: 'row',
+        width: '100%',
+        justifyContent: 'space-between',
+        marginBottom: 0, // Removed gap
     },
     dayCell: {
-        flex: 1,
-        aspectRatio: 1,
+        width: '14.28%',
+        height: 52, // Reduced from 60
+        alignItems: 'center',
+        paddingTop: 4,
+    },
+    emptyCell: {
+    },
+    dateNumberContainer: {
+        width: 28, // Reduced from 32
+        height: 28,
+        borderRadius: 14,
         alignItems: 'center',
         justifyContent: 'center',
-        margin: 2,
-        borderRadius: 8,
-        backgroundColor: COLORS.surface,
+        marginBottom: 2,
     },
-    dayCellSelected: {
-        backgroundColor: COLORS.primaryLight,
-        borderWidth: 2,
+    selectedDateContainer: {
+        backgroundColor: COLORS.primary,
+        shadowColor: COLORS.primary,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.2,
+        shadowRadius: 2,
+        elevation: 2,
+    },
+    todayDateContainer: {
+        backgroundColor: COLORS.surface,
+        borderWidth: 1,
         borderColor: COLORS.primary,
     },
-    dayCellToday: {
-        backgroundColor: COLORS.primary,
-    },
     dayText: {
-        fontSize: 16,
+        fontSize: 14, // Reduced from 16
         color: COLORS.textPrimary,
+        fontWeight: '500',
     },
-    dayTextSelected: {
-        fontWeight: '600',
-        color: COLORS.primary,
-    },
-    dayTextToday: {
+    selectedDayText: {
         color: COLORS.surface,
-        fontWeight: '600',
+        fontWeight: '700',
+    },
+    todayDayText: {
+        color: COLORS.primary,
+        fontWeight: '700',
     },
     indicators: {
         flexDirection: 'row',
-        marginTop: 2,
-        gap: 2,
+        gap: 3,
+        height: 10,
+        alignItems: 'center',
     },
     dot: {
-        width: 6,
-        height: 6,
-        borderRadius: 3,
+        width: 5,
+        height: 5,
+        borderRadius: 2.5,
     },
     dotNormal: {
         backgroundColor: COLORS.primary,
@@ -409,7 +612,29 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.error,
     },
     miniIcon: {
-        fontSize: 8,
+        // Icon style adjustment
+        marginTop: 1,
+    },
+    miniIconText: {
+        fontSize: 10,
+        lineHeight: 12,
+    },
+    legendContainer: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        flexWrap: 'wrap',
+        gap: 12,
+        marginBottom: 16,
+        paddingHorizontal: 16,
+    },
+    legendItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+    },
+    legendText: {
+        fontSize: 12,
+        color: COLORS.textSecondary,
     },
     summaryCard: {
         backgroundColor: COLORS.surface,
@@ -439,10 +664,20 @@ const styles = StyleSheet.create({
         borderRadius: 8,
     },
     editButtonText: {
-        fontSize: 14,
         color: COLORS.surface,
-        fontWeight: '500',
+        fontSize: 12,
+        fontWeight: '600',
     },
+    zoneDivider: {
+        height: 1,
+        backgroundColor: COLORS.border,
+        marginHorizontal: 16,
+        marginVertical: 10,
+    },
+    bottomPadding: {
+        height: 100,
+    },
+
     noRecordText: {
         fontSize: 14,
         color: COLORS.textSecondary,
@@ -494,7 +729,5 @@ const styles = StyleSheet.create({
         color: COLORS.surface,
         fontWeight: '600',
     },
-    bottomPadding: {
-        height: 32,
-    },
+
 });
