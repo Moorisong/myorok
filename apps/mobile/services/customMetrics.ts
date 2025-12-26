@@ -1,0 +1,108 @@
+import { getDatabase, getDefaultPetId, generateId, getTodayDateString } from './database';
+
+export interface CustomMetric {
+    id: string;
+    petId: string;
+    name: string;
+    unit: string | null;
+    createdAt: string;
+}
+
+export interface CustomMetricRecord {
+    id: string;
+    metricId: string;
+    date: string;
+    value: number;
+    memo: string | null;
+    createdAt: string;
+}
+
+// Metric definition management
+export async function addCustomMetric(
+    name: string,
+    unit?: string
+): Promise<CustomMetric> {
+    const db = await getDatabase();
+    const petId = await getDefaultPetId();
+    const now = new Date().toISOString();
+    const id = generateId();
+
+    await db.runAsync(
+        `INSERT INTO custom_metrics (id, petId, name, unit, createdAt)
+     VALUES (?, ?, ?, ?, ?)`,
+        [id, petId, name, unit || null, now]
+    );
+
+    return { id, petId, name, unit: unit || null, createdAt: now };
+}
+
+export async function getCustomMetrics(): Promise<CustomMetric[]> {
+    const db = await getDatabase();
+    const petId = await getDefaultPetId();
+
+    const metrics = await db.getAllAsync<CustomMetric>(
+        `SELECT * FROM custom_metrics WHERE petId = ? ORDER BY createdAt ASC`,
+        [petId]
+    );
+
+    return metrics;
+}
+
+// Metric value records
+export async function addMetricRecord(
+    metricId: string,
+    value: number,
+    date?: string,
+    memo?: string
+): Promise<CustomMetricRecord> {
+    const db = await getDatabase();
+    const recordDate = date || getTodayDateString();
+    const now = new Date().toISOString();
+    const id = generateId();
+
+    await db.runAsync(
+        `INSERT INTO custom_metric_records (id, metricId, date, value, memo, createdAt)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+        [id, metricId, recordDate, value, memo || null, now]
+    );
+
+    return {
+        id,
+        metricId,
+        date: recordDate,
+        value,
+        memo: memo || null,
+        createdAt: now,
+    };
+}
+
+export async function getMetricRecords(metricId: string, limit = 30): Promise<CustomMetricRecord[]> {
+    const db = await getDatabase();
+
+    const records = await db.getAllAsync<CustomMetricRecord>(
+        `SELECT * FROM custom_metric_records 
+     WHERE metricId = ? 
+     ORDER BY date DESC
+     LIMIT ?`,
+        [metricId, limit]
+    );
+
+    return records;
+}
+
+export async function getAllMetricRecords(limit = 100): Promise<(CustomMetricRecord & { metricName: string; metricUnit: string | null })[]> {
+    const db = await getDatabase();
+    const petId = await getDefaultPetId();
+
+    const records = await db.getAllAsync<CustomMetricRecord & { metricName: string; metricUnit: string | null }>(
+        `SELECT cmr.*, cm.name as metricName, cm.unit as metricUnit
+     FROM custom_metric_records cmr
+     JOIN custom_metrics cm ON cmr.metricId = cm.id
+     WHERE cm.petId = ?
+     ORDER BY cmr.date DESC, cmr.createdAt DESC
+     LIMIT ?`,
+        [petId, limit]
+    );
+
+    return records;
+}
