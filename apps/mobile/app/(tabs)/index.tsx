@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
     View,
     Text,
@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 
 import { COLORS } from '../../constants';
+import { Toast, NumberEditModal } from '../../components';
 import {
     getTodayRecord,
     updateDailyRecord,
@@ -20,11 +21,18 @@ import {
     toggleSupplementTaken,
     getTodayFluidRecords,
     addFluidRecord,
+    getDatabase,
     Supplement,
     FluidRecord,
 } from '../../services';
 
 type VomitColor = '투명' | '흰색' | '사료토' | '노란색' | '갈색' | '혈색';
+type ActionType = 'pee' | 'poop' | 'diarrhea' | 'vomit' | 'fluid';
+
+interface LastAction {
+    type: ActionType;
+    fluidRecordId?: number; // 수액 기록 ID (Undo 시 삭제용)
+}
 
 const VOMIT_COLORS: VomitColor[] = ['투명', '흰색', '사료토', '노란색', '갈색', '혈색'];
 
@@ -47,11 +55,23 @@ export default function TodayScreen() {
     const [showFluidInput, setShowFluidInput] = useState(false);
     const [fluidVolume, setFluidVolume] = useState('');
 
+    // UI States
     const [loading, setLoading] = useState(true);
+    const [toastVisible, setToastVisible] = useState(false);
+    const [toastMessage, setToastMessage] = useState('');
+    const [lastAction, setLastAction] = useState<LastAction | null>(null);
+    const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Edit Modal States
+    const [editModalVisible, setEditModalVisible] = useState(false);
+    const [editTarget, setEditTarget] = useState<ActionType | null>(null);
 
     useFocusEffect(
         useCallback(() => {
             loadAllData();
+            return () => {
+                if (timerRef.current) clearTimeout(timerRef.current);
+            };
         }, [])
     );
 
@@ -86,23 +106,83 @@ export default function TodayScreen() {
         }
     };
 
+    // Toast Helper
+    const showToast = (message: string, action: LastAction) => {
+        if (timerRef.current) clearTimeout(timerRef.current);
+        setToastMessage(message);
+        setLastAction(action);
+        setToastVisible(true);
+        timerRef.current = setTimeout(() => setToastVisible(false), 3000);
+    };
+
+    // Undo Handler
+    const handleUndo = async () => {
+        setToastVisible(false);
+        if (!lastAction) return;
+
+        try {
+            switch (lastAction.type) {
+                case 'pee':
+                    const newPee = Math.max(0, peeCount - 1);
+                    setPeeCount(newPee);
+                    await updateDailyRecord({ peeCount: newPee });
+                    break;
+                case 'poop':
+                    const newPoop = Math.max(0, poopCount - 1);
+                    setPoopCount(newPoop);
+                    await updateDailyRecord({ poopCount: newPoop });
+                    break;
+                case 'diarrhea':
+                    const newDiarrhea = Math.max(0, diarrheaCount - 1);
+                    setDiarrheaCount(newDiarrhea);
+                    await updateDailyRecord({ diarrheaCount: newDiarrhea });
+                    break;
+                case 'vomit':
+                    const newVomit = Math.max(0, vomitCount - 1);
+                    setVomitCount(newVomit);
+                    // Remove last color if exists
+                    const newColors = [...vomitColors];
+                    if (newColors.length > 0) newColors.pop(); // Simple logic: remove last added
+                    setVomitColors(newColors);
+                    await updateDailyRecord({
+                        vomitCount: newVomit,
+                        vomitTypes: JSON.stringify(newColors)
+                    });
+                    break;
+                case 'fluid':
+                    if (lastAction.fluidRecordId) {
+                        const db = await getDatabase();
+                        await db.runAsync('DELETE FROM fluid_records WHERE id = ?', [lastAction.fluidRecordId]);
+                        const fluids = await getTodayFluidRecords();
+                        setTodayFluids(fluids);
+                    }
+                    break;
+            }
+        } catch (error) {
+            Alert.alert('오류', '실행 취소 중 문제가 발생했습니다.');
+        }
+    };
+
     // Count handlers
     const handlePeeAdd = async () => {
         const newCount = peeCount + 1;
         setPeeCount(newCount);
         await updateDailyRecord({ peeCount: newCount });
+        showToast('소변 기록 완료. 실행 취소?', { type: 'pee' });
     };
 
     const handlePoopAdd = async () => {
         const newCount = poopCount + 1;
         setPoopCount(newCount);
         await updateDailyRecord({ poopCount: newCount });
+        showToast('배변 기록 완료. 실행 취소?', { type: 'poop' });
     };
 
     const handleDiarrheaAdd = async () => {
         const newCount = diarrheaCount + 1;
         setDiarrheaCount(newCount);
         await updateDailyRecord({ diarrheaCount: newCount });
+        showToast('묽은 변 기록 완료. 실행 취소?', { type: 'diarrhea' });
     };
 
     const handleVomitAdd = () => {
@@ -119,6 +199,41 @@ export default function TodayScreen() {
             vomitCount: newCount,
             vomitTypes: JSON.stringify(newColors),
         });
+        showToast('구토 기록 완료. 실행 취소?', { type: 'vomit' });
+    };
+
+    // Edit Handlers
+    const openEditModal = (target: ActionType) => {
+        setEditTarget(target);
+        setEditModalVisible(true);
+    };
+
+    const handleEditSave = async (newValue: number) => {
+        setEditModalVisible(false);
+        if (!editTarget) return;
+
+        try {
+            switch (editTarget) {
+                case 'pee':
+                    setPeeCount(newValue);
+                    await updateDailyRecord({ peeCount: newValue });
+                    break;
+                case 'poop':
+                    setPoopCount(newValue);
+                    await updateDailyRecord({ poopCount: newValue });
+                    break;
+                case 'diarrhea':
+                    setDiarrheaCount(newValue);
+                    await updateDailyRecord({ diarrheaCount: newValue });
+                    break;
+                case 'vomit':
+                    setVomitCount(newValue);
+                    await updateDailyRecord({ vomitCount: newValue });
+                    break;
+            }
+        } catch (error) {
+            Alert.alert('오류', '저장 중 문제가 발생했습니다.');
+        }
     };
 
     // Supplement handler
@@ -142,11 +257,17 @@ export default function TodayScreen() {
             return;
         }
         try {
-            await addFluidRecord('subcutaneous', parseInt(fluidVolume, 10));
+            const volume = parseInt(fluidVolume, 10);
+            if (isNaN(volume)) {
+                Alert.alert('알림', '올바른 숫자를 입력해주세요.');
+                return;
+            }
+            const record = await addFluidRecord('subcutaneous', volume);
             const fluids = await getTodayFluidRecords();
             setTodayFluids(fluids);
             setFluidVolume('');
             setShowFluidInput(false);
+            showToast('수액 기록 완료. 실행 취소?', { type: 'fluid', fluidRecordId: record.id });
         } catch (error) {
             Alert.alert('오류', '수액 기록 중 문제가 발생했습니다.');
         }
@@ -167,6 +288,26 @@ export default function TodayScreen() {
     const today = new Date();
     const dateString = `${today.getMonth() + 1}월 ${today.getDate()}일`;
     const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+
+    const getEditInitialValue = () => {
+        switch (editTarget) {
+            case 'pee': return peeCount;
+            case 'poop': return poopCount;
+            case 'diarrhea': return diarrheaCount;
+            case 'vomit': return vomitCount;
+            default: return 0;
+        }
+    };
+
+    const getEditTitle = () => {
+        switch (editTarget) {
+            case 'pee': return '소변 횟수 수정';
+            case 'poop': return '배변 횟수 수정';
+            case 'diarrhea': return '묽은 변 횟수 수정';
+            case 'vomit': return '구토 횟수 수정';
+            default: return '';
+        }
+    };
 
     if (loading) {
         return (
@@ -192,10 +333,36 @@ export default function TodayScreen() {
                     <Text style={styles.sectionTitle}>배변 / 배뇨</Text>
 
                     <View style={styles.counterGrid}>
-                        <CounterButton emoji="💧" label="소변" count={peeCount} onPress={handlePeeAdd} />
-                        <CounterButton emoji="💩" label="배변" count={poopCount} onPress={handlePoopAdd} />
-                        <CounterButton emoji="🚨" label="묽은 변" count={diarrheaCount} onPress={handleDiarrheaAdd} warning />
-                        <CounterButton emoji="🤮" label="구토" count={vomitCount} onPress={handleVomitAdd} warning />
+                        <CounterButton
+                            emoji="💧"
+                            label="소변"
+                            count={peeCount}
+                            onPressAdd={handlePeeAdd}
+                            onPressCount={() => openEditModal('pee')}
+                        />
+                        <CounterButton
+                            emoji="💩"
+                            label="배변"
+                            count={poopCount}
+                            onPressAdd={handlePoopAdd}
+                            onPressCount={() => openEditModal('poop')}
+                        />
+                        <CounterButton
+                            emoji="🚨"
+                            label="묽은 변"
+                            count={diarrheaCount}
+                            onPressAdd={handleDiarrheaAdd}
+                            onPressCount={() => openEditModal('diarrhea')}
+                            warning
+                        />
+                        <CounterButton
+                            emoji="🤮"
+                            label="구토"
+                            count={vomitCount}
+                            onPressAdd={handleVomitAdd}
+                            onPressCount={() => openEditModal('vomit')}
+                            warning
+                        />
                     </View>
 
                     {showVomitColors && (
@@ -216,7 +383,7 @@ export default function TodayScreen() {
                     )}
 
                     {vomitColors.length > 0 && (
-                        <Text style={styles.vomitHistory}>기록된 색상: {vomitColors.join(', ')}</Text>
+                        <Text style={styles.vomitHistory}>기록된 구토 색상: {vomitColors.join(', ')}</Text>
                     )}
                 </View>
 
@@ -237,6 +404,7 @@ export default function TodayScreen() {
                                 keyboardType="numeric"
                                 value={fluidVolume}
                                 onChangeText={setFluidVolume}
+                                autoFocus
                             />
                             <Pressable style={styles.fluidAddBtn} onPress={handleFluidAdd}>
                                 <Text style={styles.fluidAddBtnText}>추가</Text>
@@ -290,28 +458,52 @@ export default function TodayScreen() {
 
                 <View style={styles.bottomPadding} />
             </ScrollView>
+
+            {/* Toast Alert */}
+            <Toast
+                visible={toastVisible}
+                message={toastMessage}
+                onUndo={handleUndo}
+            />
+
+            {/* Number Edit Modal */}
+            <NumberEditModal
+                visible={editModalVisible}
+                title={getEditTitle()}
+                initialValue={getEditInitialValue()}
+                onSave={handleEditSave}
+                onCancel={() => setEditModalVisible(false)}
+            />
         </SafeAreaView>
     );
 }
 
 // Counter Button Component
-function CounterButton({ emoji, label, count, onPress, warning = false }: {
+function CounterButton({ emoji, label, count, onPressAdd, onPressCount, warning = false }: {
     emoji: string;
     label: string;
     count: number;
-    onPress: () => void;
+    onPressAdd: () => void;
+    onPressCount: () => void; // New prop for editing count
     warning?: boolean;
 }) {
     return (
-        <Pressable
-            style={[styles.counterBtn, warning && styles.counterBtnWarning]}
-            onPress={onPress}
-        >
-            <Text style={styles.counterEmoji}>{emoji}</Text>
-            <Text style={styles.counterLabel}>{label}</Text>
-            <Text style={styles.counterCount}>{count}회</Text>
-            <Text style={styles.counterPlus}>+1</Text>
-        </Pressable>
+        <View style={[styles.counterBtn, warning && styles.counterBtnWarning]}>
+            <Pressable style={styles.counterContent} onPress={onPressCount}>
+                <Text style={styles.counterEmoji}>{emoji}</Text>
+                <Text style={styles.counterLabel}>{label}</Text>
+                <Text style={styles.counterCount}>{count}회</Text>
+            </Pressable>
+            <Pressable
+                style={[
+                    styles.plusButton,
+                    { backgroundColor: warning ? COLORS.error : COLORS.primary }
+                ]}
+                onPress={onPressAdd}
+            >
+                <Text style={styles.counterPlusWhite}>+ 1</Text>
+            </Pressable>
+        </View>
     );
 }
 
@@ -335,9 +527,9 @@ const styles = StyleSheet.create({
     header: {
         flexDirection: 'row',
         alignItems: 'baseline',
-        paddingHorizontal: 20,
-        paddingTop: 16,
-        paddingBottom: 8,
+        paddingHorizontal: 24,
+        paddingTop: 24,
+        paddingBottom: 14,
     },
     dateText: {
         fontSize: 26,
@@ -356,16 +548,17 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         padding: 16,
     },
+
     sectionHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
+        marginBottom: 12,
     },
     sectionTitle: {
         fontSize: 16,
         fontWeight: '600',
         color: COLORS.textPrimary,
-        marginBottom: 12,
     },
     totalBadge: {
         fontSize: 14,
@@ -379,33 +572,47 @@ const styles = StyleSheet.create({
     },
     counterBtn: {
         width: '48%',
-        backgroundColor: COLORS.background,
-        borderRadius: 12,
-        padding: 12,
+        backgroundColor: COLORS.surface,
+        borderRadius: 16, // 모서리 더 둥글게
+        overflow: 'hidden',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+        elevation: 2,
+        marginBottom: 10,
+    },
+    counterContent: {
+        padding: 16,
         alignItems: 'center',
+        width: '100%',
+    },
+    plusButton: {
+        paddingVertical: 12,
+        alignItems: 'center',
+        width: '100%',
     },
     counterBtnWarning: {
         backgroundColor: '#FFF8E1',
     },
     counterEmoji: {
-        fontSize: 28,
+        fontSize: 32, // 이모지 조금 더 크게
+        marginBottom: 4,
     },
     counterLabel: {
         fontSize: 14,
         color: COLORS.textSecondary,
-        marginTop: 4,
+        marginBottom: 2,
     },
     counterCount: {
-        fontSize: 20,
-        fontWeight: '700',
+        fontSize: 24, // 숫자 강조
+        fontWeight: '800',
         color: COLORS.textPrimary,
-        marginTop: 4,
     },
-    counterPlus: {
-        fontSize: 12,
-        color: COLORS.primary,
-        fontWeight: '600',
-        marginTop: 4,
+    counterPlusWhite: {
+        fontSize: 16,
+        color: '#FFFFFF', // 흰색 텍스트
+        fontWeight: '800',
     },
     colorSelector: {
         marginTop: 12,
@@ -538,6 +745,6 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
     bottomPadding: {
-        height: 32,
+        height: 80, // Toast 공간 확보를 위해 늘림
     },
 });

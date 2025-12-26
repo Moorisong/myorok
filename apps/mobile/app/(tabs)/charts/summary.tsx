@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { COLORS } from '../../../constants';
 import { Header, Card } from '../../../components';
@@ -6,8 +7,8 @@ import { Header, Card } from '../../../components';
 // 임시 데이터 (나중에 DB 연동)
 const MOCK_DATA = [
     { date: '12/20', poop: 2, diarrhea: 0, vomit: 0 },
-    { date: '12/21', poop: 3, diarrhea: 1, vomit: 0 },
-    { date: '12/22', poop: 2, diarrhea: 0, vomit: 1 },
+    { date: '12/21', poop: 3, diarrhea: 1, vomit: 1 },
+    { date: '12/22', poop: 2, diarrhea: 0, vomit: 0 },
     { date: '12/23', poop: 2, diarrhea: 0, vomit: 0 },
     { date: '12/24', poop: 3, diarrhea: 0, vomit: 0 },
     { date: '12/25', poop: 2, diarrhea: 0, vomit: 0 },
@@ -22,7 +23,7 @@ export default function SummaryChartScreen() {
     const maxValue = Math.max(...MOCK_DATA.map(d => d.poop + d.diarrhea + d.vomit), 5);
 
     return (
-        <View style={styles.container}>
+        <SafeAreaView style={styles.container} edges={['top']}>
             <Header title="병원용 요약 차트" showBack />
 
             <ScrollView style={styles.content}>
@@ -100,7 +101,7 @@ export default function SummaryChartScreen() {
 
                 <View style={styles.bottomPadding} />
             </ScrollView>
-        </View>
+        </SafeAreaView>
     );
 }
 

@@ -216,7 +216,7 @@ export default function TodayScreen() {
 
                     {vomitColors.length > 0 && (
                         <View style={styles.vomitColorList}>
-                            <Text style={styles.vomitColorListLabel}>기록된 색상:</Text>
+                            <Text style={styles.vomitColorListLabel}>기록된 구토 색상:</Text>
                             <Text style={styles.vomitColorListValue}>
                                 {vomitColors.join(', ')}
                             </Text>

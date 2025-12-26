@@ -1,18 +1,19 @@
 import { Tabs } from 'expo-router';
-import { Text, View, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Feather } from '@expo/vector-icons';
 
 import { COLORS } from '../../constants';
 
 interface TabIconProps {
-    emoji: string;
+    name: any;
     focused: boolean;
 }
 
-function TabIcon({ emoji, focused }: TabIconProps) {
+function TabIcon({ name, focused }: TabIconProps) {
     return (
         <View style={[styles.iconContainer, focused && styles.iconFocused]}>
-            <Text style={styles.emoji}>{emoji}</Text>
+            <Feather name={name} size={24} color={focused ? COLORS.primary : COLORS.textSecondary} />
         </View>
     );
 }
@@ -38,28 +39,28 @@ export default function TabLayout() {
                 name="index"
                 options={{
                     title: '오늘',
-                    tabBarIcon: ({ focused }) => <TabIcon emoji="📋" focused={focused} />,
+                    tabBarIcon: ({ focused }) => <TabIcon name="edit-3" focused={focused} />,
                 }}
             />
             <Tabs.Screen
                 name="calendar"
                 options={{
                     title: '캘린더',
-                    tabBarIcon: ({ focused }) => <TabIcon emoji="📅" focused={focused} />,
+                    tabBarIcon: ({ focused }) => <TabIcon name="calendar" focused={focused} />,
                 }}
             />
             <Tabs.Screen
                 name="charts"
                 options={{
                     title: '차트',
-                    tabBarIcon: ({ focused }) => <TabIcon emoji="📊" focused={focused} />,
+                    tabBarIcon: ({ focused }) => <TabIcon name="bar-chart-2" focused={focused} />,
                 }}
             />
             <Tabs.Screen
                 name="settings"
                 options={{
                     title: '설정',
-                    tabBarIcon: ({ focused }) => <TabIcon emoji="⚙️" focused={focused} />,
+                    tabBarIcon: ({ focused }) => <TabIcon name="settings" focused={focused} />,
                 }}
             />
             <Tabs.Screen
@@ -89,12 +90,10 @@ const styles = StyleSheet.create({
         fontWeight: '500',
     },
     iconContainer: {
-        padding: 4,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     iconFocused: {
         transform: [{ scale: 1.1 }],
-    },
-    emoji: {
-        fontSize: 22,
     },
 });
