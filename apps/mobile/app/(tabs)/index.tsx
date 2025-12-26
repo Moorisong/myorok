@@ -7,6 +7,8 @@ import {
     ScrollView,
     TextInput,
     Alert,
+    KeyboardAvoidingView,
+    Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -329,108 +331,117 @@ export default function TodayScreen() {
 
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
-            <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-                {/* Header */}
-                <View style={styles.header}>
-                    <Text style={styles.dateText}>{dateString}</Text>
-                    <Text style={styles.dayText}>{dayNames[today.getDay()]}요일</Text>
-                </View>
-
-                {/* 배변/배뇨 섹션 */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>배변 / 배뇨</Text>
-
-                    <View style={styles.counterGrid}>
-                        <CounterButton
-                            emoji="💧"
-                            label="소변"
-                            count={peeCount}
-                            onPressAdd={handlePeeAdd}
-                            onPressCount={() => openEditModal('pee')}
-                        />
-                        <CounterButton
-                            emoji="💩"
-                            label="배변"
-                            count={poopCount}
-                            onPressAdd={handlePoopAdd}
-                            onPressCount={() => openEditModal('poop')}
-                        />
-                        <CounterButton
-                            emoji="🚨"
-                            label="묽은 변"
-                            count={diarrheaCount}
-                            onPressAdd={handleDiarrheaAdd}
-                            onPressCount={() => openEditModal('diarrhea')}
-                            warning
-                        />
-                        <CounterButton
-                            emoji="🤮"
-                            label="구토"
-                            count={vomitCount}
-                            onPressAdd={handleVomitAdd}
-                            onPressCount={() => openEditModal('vomit')}
-                            warning
-                        />
+            <KeyboardAvoidingView
+                style={{ flex: 1 }}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                keyboardVerticalOffset={0}
+            >
+                <ScrollView
+                    style={styles.scrollView}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                >
+                    {/* Header */}
+                    <View style={styles.header}>
+                        <Text style={styles.dateText}>{dateString}</Text>
+                        <Text style={styles.dayText}>{dayNames[today.getDay()]}요일</Text>
                     </View>
 
-                    {showVomitColors && (
-                        <View style={styles.colorSelector}>
-                            <Text style={styles.colorTitle}>구토 색상 선택</Text>
-                            <View style={styles.colorOptions}>
-                                {VOMIT_COLORS.map(color => (
-                                    <Pressable
-                                        key={color}
-                                        style={styles.colorOption}
-                                        onPress={() => handleVomitColorSelect(color)}
-                                    >
-                                        <Text style={styles.colorText}>{color}</Text>
-                                    </Pressable>
-                                ))}
-                            </View>
+                    {/* 배변/배뇨 섹션 */}
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>배변 / 배뇨</Text>
+
+                        <View style={styles.counterGrid}>
+                            <CounterButton
+                                emoji="💧"
+                                label="소변"
+                                count={peeCount}
+                                onPressAdd={handlePeeAdd}
+                                onPressCount={() => openEditModal('pee')}
+                            />
+                            <CounterButton
+                                emoji="💩"
+                                label="배변"
+                                count={poopCount}
+                                onPressAdd={handlePoopAdd}
+                                onPressCount={() => openEditModal('poop')}
+                            />
+                            <CounterButton
+                                emoji="🚨"
+                                label="묽은 변"
+                                count={diarrheaCount}
+                                onPressAdd={handleDiarrheaAdd}
+                                onPressCount={() => openEditModal('diarrhea')}
+                                warning
+                            />
+                            <CounterButton
+                                emoji="🤮"
+                                label="구토"
+                                count={vomitCount}
+                                onPressAdd={handleVomitAdd}
+                                onPressCount={() => openEditModal('vomit')}
+                                warning
+                            />
                         </View>
-                    )}
 
-                    {vomitColors.length > 0 && (
-                        <Text style={styles.vomitHistory}>기록된 구토 색상: {vomitColors.join(', ')}</Text>
-                    )}
-                </View>
+                        {showVomitColors && (
+                            <View style={styles.colorSelector}>
+                                <Text style={styles.colorTitle}>구토 색상 선택</Text>
+                                <View style={styles.colorOptions}>
+                                    {VOMIT_COLORS.map(color => (
+                                        <Pressable
+                                            key={color}
+                                            style={styles.colorOption}
+                                            onPress={() => handleVomitColorSelect(color)}
+                                        >
+                                            <Text style={styles.colorText}>{color}</Text>
+                                        </Pressable>
+                                    ))}
+                                </View>
+                            </View>
+                        )}
 
+                        {vomitColors.length > 0 && (
+                            <Text style={styles.vomitHistory}>기록된 구토 색상: {vomitColors.join(', ')}</Text>
+                        )}
+                    </View>
 
-                {/* 수액 섹션 */}
-                <FluidInputSection
-                    todayFluids={todayFluids}
-                    onAddFluid={handleFluidAdd}
-                    onDeleteFluid={handleFluidDelete}
-                />
-
-
-                {/* 약/영양제 섹션 */}
-                <SupplementChecklist
-                    supplements={supplements}
-                    takenStatus={takenStatus}
-                    onToggle={handleSupplementToggle}
-                />
-
-
-                {/* 메모 섹션 */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>특이사항</Text>
-                    <TextInput
-                        style={styles.memoInput}
-                        placeholder="오늘의 특이사항을 기록하세요"
-                        placeholderTextColor={COLORS.textSecondary}
-                        value={memo}
-                        onChangeText={setMemo}
-                        multiline
-                        numberOfLines={3}
+                    {/* 수액 섹션 */}
+                    <FluidInputSection
+                        todayFluids={todayFluids}
+                        onAddFluid={handleFluidAdd}
+                        onDeleteFluid={handleFluidDelete}
                     />
-                    <Pressable style={styles.memoSaveBtn} onPress={handleMemoSave}>
-                        <Text style={styles.memoSaveBtnText}>메모 저장</Text>
-                    </Pressable>
-                </View>
 
-                <View style={styles.bottomPadding} />
-            </ScrollView>
+
+                    {/* 약/영양제 섹션 */}
+                    <SupplementChecklist
+                        supplements={supplements}
+                        takenStatus={takenStatus}
+                        onToggle={handleSupplementToggle}
+                    />
+
+
+                    {/* 메모 섹션 */}
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>특이사항</Text>
+                        <TextInput
+                            style={styles.memoInput}
+                            placeholder="오늘의 특이사항을 기록하세요"
+                            placeholderTextColor={COLORS.textSecondary}
+                            value={memo}
+                            onChangeText={setMemo}
+                            multiline
+                            numberOfLines={3}
+                        />
+                        <Pressable style={styles.memoSaveBtn} onPress={handleMemoSave}>
+                            <Text style={styles.memoSaveBtnText}>메모 저장</Text>
+                        </Pressable>
+                    </View>
+
+                    <View style={styles.bottomPadding} />
+                </ScrollView>
+            </KeyboardAvoidingView>
 
             {/* Toast Alert */}
             <Toast
