@@ -1,5 +1,6 @@
 export const COLORS = {
   primary: '#5DB075',       // Soft Green
+  primaryLight: '#E8F5E9',  // Light Green (for selection)
   secondary: '#6B6B6B',     // Warm Gray
   background: '#F7F7F7',    // Light Gray
   surface: '#FFFFFF',       // White

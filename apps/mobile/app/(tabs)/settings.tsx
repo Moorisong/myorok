@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { COLORS } from '../../constants';
 import { Card } from '../../components';
@@ -31,8 +32,16 @@ function SettingItem({ emoji, title, description, onPress, danger }: SettingItem
 export default function SettingsScreen() {
     const router = useRouter();
 
+    const handlePinSetup = () => {
+        Alert.alert('잠금 설정', '잠금 기능은 추후 업데이트에서 제공될 예정입니다.');
+    };
+
     const handleBackup = () => {
         Alert.alert('백업', '백업 기능은 추후 업데이트에서 제공될 예정입니다.');
+    };
+
+    const handleRestore = () => {
+        Alert.alert('복원', '복원 기능은 추후 업데이트에서 제공될 예정입니다.');
     };
 
     const handleReset = () => {
@@ -47,66 +56,77 @@ export default function SettingsScreen() {
     };
 
     return (
-        <ScrollView style={styles.container}>
-            <View style={styles.header}>
-                <Text style={styles.headerTitle}>설정</Text>
-            </View>
+        <SafeAreaView style={styles.container} edges={['top']}>
+            <ScrollView style={styles.scrollView}>
+                <View style={styles.header}>
+                    <Text style={styles.headerTitle}>설정</Text>
+                </View>
 
-            <Card style={styles.card}>
-                <SettingItem
-                    emoji="☁️"
-                    title="데이터 백업"
-                    description="기록을 안전하게 백업하세요"
-                    onPress={handleBackup}
-                />
-                <SettingItem
-                    emoji="⬇️"
-                    title="데이터 복원"
-                    description="백업한 기록을 복원합니다"
-                    onPress={handleBackup}
-                />
-            </Card>
+                <Card style={styles.card}>
+                    <SettingItem
+                        emoji="🔒"
+                        title="잠금(PIN) 설정"
+                        description="앱 접근 보호"
+                        onPress={handlePinSetup}
+                    />
+                </Card>
 
-            <Card style={styles.card}>
-                <SettingItem
-                    emoji="⭐"
-                    title="Pro 업그레이드"
-                    description="모든 기록을 무제한으로"
-                    onPress={() => router.push('/pro')}
-                />
-            </Card>
+                <Card style={styles.card}>
+                    <SettingItem
+                        emoji="☁️"
+                        title="데이터 백업"
+                        description="기록을 안전하게 백업하세요"
+                        onPress={handleBackup}
+                    />
+                    <SettingItem
+                        emoji="⬇️"
+                        title="데이터 복원"
+                        description="백업한 기록을 복원합니다"
+                        onPress={handleRestore}
+                    />
+                </Card>
 
-            <Card style={styles.card}>
-                <SettingItem
-                    emoji="ℹ️"
-                    title="앱 정보"
-                    description="묘록 v1.0.0"
-                    onPress={() => router.push('/about')}
-                />
-                <SettingItem
-                    emoji="📄"
-                    title="개인정보 처리방침"
-                    onPress={() => { }}
-                />
-                <SettingItem
-                    emoji="📋"
-                    title="이용약관"
-                    onPress={() => { }}
-                />
-            </Card>
+                <Card style={styles.card}>
+                    <SettingItem
+                        emoji="⭐"
+                        title="Pro 업그레이드"
+                        description="모든 기록을 무제한으로"
+                        onPress={() => router.push('/pro')}
+                    />
+                </Card>
 
-            <Card style={styles.card}>
-                <SettingItem
-                    emoji="🗑️"
-                    title="데이터 초기화"
-                    description="모든 기록을 삭제합니다"
-                    onPress={handleReset}
-                    danger
-                />
-            </Card>
+                <Card style={styles.card}>
+                    <SettingItem
+                        emoji="ℹ️"
+                        title="앱 정보"
+                        description="묘록 v1.0.0"
+                        onPress={() => router.push('/about')}
+                    />
+                    <SettingItem
+                        emoji="📄"
+                        title="개인정보 처리방침"
+                        onPress={() => { }}
+                    />
+                    <SettingItem
+                        emoji="📋"
+                        title="이용약관"
+                        onPress={() => { }}
+                    />
+                </Card>
 
-            <View style={styles.bottomPadding} />
-        </ScrollView>
+                <Card style={styles.card}>
+                    <SettingItem
+                        emoji="🗑️"
+                        title="데이터 초기화"
+                        description="모든 기록을 삭제합니다"
+                        onPress={handleReset}
+                        danger
+                    />
+                </Card>
+
+                <View style={styles.bottomPadding} />
+            </ScrollView>
+        </SafeAreaView>
     );
 }
 
@@ -115,9 +135,11 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: COLORS.background,
     },
+    scrollView: {
+        flex: 1,
+    },
     header: {
         padding: 20,
-        paddingTop: 60,
     },
     headerTitle: {
         fontSize: 28,

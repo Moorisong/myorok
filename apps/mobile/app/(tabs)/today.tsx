@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
     View,
     Text,
@@ -6,9 +6,14 @@ import {
     Pressable,
     ScrollView,
     TextInput,
+    Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from 'expo-router';
 
 import { COLORS } from '../../constants';
+import { Button } from '../../components';
+import { getTodayRecord, updateDailyRecord, DailyRecord } from '../../services';
 
 type VomitColor = '투명' | '흰색' | '사료토' | '노란색' | '갈색' | '혈색';
 
@@ -29,148 +34,219 @@ export default function TodayScreen() {
     const [vomitColors, setVomitColors] = useState<VomitColor[]>([]);
     const [memo, setMemo] = useState('');
     const [showVomitColors, setShowVomitColors] = useState(false);
+    const [loading, setLoading] = useState(true);
+
+    useFocusEffect(
+        useCallback(() => {
+            loadTodayRecord();
+        }, [])
+    );
+
+    const loadTodayRecord = async () => {
+        try {
+            const todayRecord = await getTodayRecord();
+            setPeeCount(todayRecord.peeCount);
+            setPoopCount(todayRecord.poopCount);
+            setDiarrheaCount(todayRecord.diarrheaCount);
+            setVomitCount(todayRecord.vomitCount);
+            setMemo(todayRecord.memo || '');
+
+            if (todayRecord.vomitTypes) {
+                try {
+                    setVomitColors(JSON.parse(todayRecord.vomitTypes));
+                } catch {
+                    setVomitColors([]);
+                }
+            }
+        } catch (error) {
+            console.error('Failed to load record:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handlePeeAdd = async () => {
+        const newCount = peeCount + 1;
+        setPeeCount(newCount);
+        await updateDailyRecord({ peeCount: newCount });
+    };
+
+    const handlePoopAdd = async () => {
+        const newCount = poopCount + 1;
+        setPoopCount(newCount);
+        await updateDailyRecord({ poopCount: newCount });
+    };
+
+    const handleDiarrheaAdd = async () => {
+        const newCount = diarrheaCount + 1;
+        setDiarrheaCount(newCount);
+        await updateDailyRecord({ diarrheaCount: newCount });
+    };
 
     const handleVomitAdd = () => {
-        setVomitCount(prev => prev + 1);
         setShowVomitColors(true);
     };
 
-    const handleVomitColorSelect = (color: VomitColor) => {
-        setVomitColors(prev => [...prev, color]);
+    const handleVomitColorSelect = async (color: VomitColor) => {
+        const newColors = [...vomitColors, color];
+        const newCount = vomitCount + 1;
+        setVomitColors(newColors);
+        setVomitCount(newCount);
         setShowVomitColors(false);
+
+        await updateDailyRecord({
+            vomitCount: newCount,
+            vomitTypes: JSON.stringify(newColors),
+        });
     };
 
+    const handleSave = async () => {
+        try {
+            await updateDailyRecord({ memo: memo || null });
+            Alert.alert('저장 완료', '오늘의 기록이 저장되었습니다.');
+        } catch (error) {
+            Alert.alert('오류', '저장 중 문제가 발생했습니다.');
+        }
+    };
+
+    if (loading) {
+        return (
+            <SafeAreaView style={styles.container} edges={['top']}>
+                <View style={styles.loadingContainer}>
+                    <Text style={styles.loadingText}>로딩 중...</Text>
+                </View>
+            </SafeAreaView>
+        );
+    }
+
     return (
-        <ScrollView style={styles.container}>
-            <View style={styles.section}>
-                <Text style={styles.sectionTitle}>배변/배뇨</Text>
+        <SafeAreaView style={styles.container} edges={['top']}>
+            <ScrollView style={styles.scrollView}>
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>배변/배뇨</Text>
 
-                <View style={styles.counterRow}>
-                    <View style={styles.counterInfo}>
-                        <Text style={styles.counterEmoji}>💧</Text>
-                        <Text style={styles.counterLabel}>오줌</Text>
-                    </View>
-                    <View style={styles.counterControls}>
-                        <Text style={styles.counterValue}>{peeCount}회</Text>
-                        <Pressable
-                            style={styles.addButton}
-                            onPress={() => setPeeCount(prev => prev + 1)}
-                        >
-                            <Text style={styles.addButtonText}>+1</Text>
-                        </Pressable>
-                    </View>
-                </View>
-
-                <View style={styles.counterRow}>
-                    <View style={styles.counterInfo}>
-                        <Text style={styles.counterEmoji}>💩</Text>
-                        <Text style={styles.counterLabel}>똥</Text>
-                    </View>
-                    <View style={styles.counterControls}>
-                        <Text style={styles.counterValue}>{poopCount}회</Text>
-                        <Pressable
-                            style={styles.addButton}
-                            onPress={() => setPoopCount(prev => prev + 1)}
-                        >
-                            <Text style={styles.addButtonText}>+1</Text>
-                        </Pressable>
-                    </View>
-                </View>
-
-                <View style={styles.counterRow}>
-                    <View style={styles.counterInfo}>
-                        <Text style={styles.counterEmoji}>🚨</Text>
-                        <Text style={styles.counterLabel}>설사</Text>
-                    </View>
-                    <View style={styles.counterControls}>
-                        <Text style={styles.counterValue}>{diarrheaCount}회</Text>
-                        <Pressable
-                            style={[styles.addButton, styles.warningButton]}
-                            onPress={() => setDiarrheaCount(prev => prev + 1)}
-                        >
-                            <Text style={styles.addButtonText}>+1</Text>
-                        </Pressable>
-                    </View>
-                </View>
-            </View>
-
-            <View style={styles.section}>
-                <Text style={styles.sectionTitle}>구토</Text>
-
-                <View style={styles.counterRow}>
-                    <View style={styles.counterInfo}>
-                        <Text style={styles.counterEmoji}>🤮</Text>
-                        <Text style={styles.counterLabel}>구토</Text>
-                    </View>
-                    <View style={styles.counterControls}>
-                        <Text style={styles.counterValue}>{vomitCount}회</Text>
-                        <Pressable
-                            style={[styles.addButton, styles.warningButton]}
-                            onPress={handleVomitAdd}
-                        >
-                            <Text style={styles.addButtonText}>+1</Text>
-                        </Pressable>
-                    </View>
-                </View>
-
-                {showVomitColors && (
-                    <View style={styles.colorSelector}>
-                        <Text style={styles.colorSelectorTitle}>구토 색상 선택</Text>
-                        <View style={styles.colorOptions}>
-                            {VOMIT_COLORS.map(color => (
-                                <Pressable
-                                    key={color}
-                                    style={[
-                                        styles.colorOption,
-                                        color === '혈색' && styles.dangerOption,
-                                    ]}
-                                    onPress={() => handleVomitColorSelect(color)}
-                                >
-                                    <Text
-                                        style={[
-                                            styles.colorOptionText,
-                                            color === '혈색' && styles.dangerText,
-                                        ]}
-                                    >
-                                        {color}
-                                    </Text>
-                                </Pressable>
-                            ))}
+                    <View style={styles.counterRow}>
+                        <View style={styles.counterInfo}>
+                            <Text style={styles.counterEmoji}>💧</Text>
+                            <Text style={styles.counterLabel}>소변</Text>
                         </View>
-                        {vomitColors.includes('혈색') && (
-                            <Text style={styles.warningText}>
-                                ⚠️ 혈액이 의심되는 경우 병원 상담을 권장합니다.
+                        <View style={styles.counterControls}>
+                            <Text style={styles.counterValue}>{peeCount}회</Text>
+                            <Pressable style={styles.addButton} onPress={handlePeeAdd}>
+                                <Text style={styles.addButtonText}>+1</Text>
+                            </Pressable>
+                        </View>
+                    </View>
+
+                    <View style={styles.counterRow}>
+                        <View style={styles.counterInfo}>
+                            <Text style={styles.counterEmoji}>💩</Text>
+                            <Text style={styles.counterLabel}>배변</Text>
+                        </View>
+                        <View style={styles.counterControls}>
+                            <Text style={styles.counterValue}>{poopCount}회</Text>
+                            <Pressable style={styles.addButton} onPress={handlePoopAdd}>
+                                <Text style={styles.addButtonText}>+1</Text>
+                            </Pressable>
+                        </View>
+                    </View>
+
+                    <View style={styles.counterRow}>
+                        <View style={styles.counterInfo}>
+                            <Text style={styles.counterEmoji}>🚨</Text>
+                            <Text style={styles.counterLabel}>묽은 변</Text>
+                        </View>
+                        <View style={styles.counterControls}>
+                            <Text style={styles.counterValue}>{diarrheaCount}회</Text>
+                            <Pressable
+                                style={[styles.addButton, styles.warningButton]}
+                                onPress={handleDiarrheaAdd}
+                            >
+                                <Text style={styles.addButtonText}>+1</Text>
+                            </Pressable>
+                        </View>
+                    </View>
+                </View>
+
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>구토</Text>
+
+                    <View style={styles.counterRow}>
+                        <View style={styles.counterInfo}>
+                            <Text style={styles.counterEmoji}>🤮</Text>
+                            <Text style={styles.counterLabel}>구토</Text>
+                        </View>
+                        <View style={styles.counterControls}>
+                            <Text style={styles.counterValue}>{vomitCount}회</Text>
+                            <Pressable
+                                style={[styles.addButton, styles.warningButton]}
+                                onPress={handleVomitAdd}
+                            >
+                                <Text style={styles.addButtonText}>+1</Text>
+                            </Pressable>
+                        </View>
+                    </View>
+
+                    {showVomitColors && (
+                        <View style={styles.colorSelector}>
+                            <Text style={styles.colorSelectorTitle}>구토 색상 선택</Text>
+                            <View style={styles.colorOptions}>
+                                {VOMIT_COLORS.map(color => (
+                                    <Pressable
+                                        key={color}
+                                        style={[
+                                            styles.colorOption,
+                                            color === '혈색' && styles.dangerOption,
+                                        ]}
+                                        onPress={() => handleVomitColorSelect(color)}
+                                    >
+                                        <Text
+                                            style={[
+                                                styles.colorOptionText,
+                                                color === '혈색' && styles.dangerText,
+                                            ]}
+                                        >
+                                            {color}
+                                        </Text>
+                                    </Pressable>
+                                ))}
+                            </View>
+                        </View>
+                    )}
+
+                    {vomitColors.length > 0 && (
+                        <View style={styles.vomitColorList}>
+                            <Text style={styles.vomitColorListLabel}>기록된 색상:</Text>
+                            <Text style={styles.vomitColorListValue}>
+                                {vomitColors.join(', ')}
                             </Text>
-                        )}
-                    </View>
-                )}
+                        </View>
+                    )}
+                </View>
 
-                {vomitColors.length > 0 && (
-                    <View style={styles.vomitColorList}>
-                        <Text style={styles.vomitColorListLabel}>기록된 색상:</Text>
-                        <Text style={styles.vomitColorListValue}>
-                            {vomitColors.join(', ')}
-                        </Text>
-                    </View>
-                )}
-            </View>
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>특이사항</Text>
+                    <TextInput
+                        style={styles.memoInput}
+                        placeholder="특이사항을 입력하세요"
+                        placeholderTextColor={COLORS.textSecondary}
+                        value={memo}
+                        onChangeText={setMemo}
+                        multiline
+                        numberOfLines={4}
+                        textAlignVertical="top"
+                    />
+                </View>
 
-            <View style={styles.section}>
-                <Text style={styles.sectionTitle}>특이사항</Text>
-                <TextInput
-                    style={styles.memoInput}
-                    placeholder="특이사항을 입력하세요"
-                    placeholderTextColor={COLORS.textSecondary}
-                    value={memo}
-                    onChangeText={setMemo}
-                    multiline
-                    numberOfLines={4}
-                    textAlignVertical="top"
+                <Button
+                    title="저장하기"
+                    onPress={handleSave}
+                    style={styles.saveButton}
                 />
-            </View>
 
-            <View style={styles.bottomPadding} />
-        </ScrollView>
+                <View style={styles.bottomPadding} />
+            </ScrollView>
+        </SafeAreaView>
     );
 }
 
@@ -178,6 +254,18 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: COLORS.background,
+    },
+    scrollView: {
+        flex: 1,
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    loadingText: {
+        fontSize: 16,
+        color: COLORS.textSecondary,
     },
     section: {
         backgroundColor: COLORS.surface,
@@ -273,14 +361,6 @@ const styles = StyleSheet.create({
     dangerText: {
         color: COLORS.error,
     },
-    warningText: {
-        marginTop: 12,
-        padding: 12,
-        backgroundColor: '#FFF5F5',
-        borderRadius: 8,
-        color: COLORS.error,
-        fontSize: 14,
-    },
     vomitColorList: {
         marginTop: 12,
         flexDirection: 'row',
@@ -302,6 +382,10 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: COLORS.textPrimary,
         minHeight: 100,
+    },
+    saveButton: {
+        marginHorizontal: 16,
+        marginTop: 24,
     },
     bottomPadding: {
         height: 32,

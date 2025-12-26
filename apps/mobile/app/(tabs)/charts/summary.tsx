@@ -69,11 +69,11 @@ export default function SummaryChartScreen() {
                     <View style={styles.legend}>
                         <View style={styles.legendItem}>
                             <View style={[styles.legendColor, styles.barPoop]} />
-                            <Text style={styles.legendText}>똥</Text>
+                            <Text style={styles.legendText}>배변</Text>
                         </View>
                         <View style={styles.legendItem}>
                             <View style={[styles.legendColor, styles.barDiarrhea]} />
-                            <Text style={styles.legendText}>설사</Text>
+                            <Text style={styles.legendText}>묽은 변</Text>
                         </View>
                         <View style={styles.legendItem}>
                             <View style={[styles.legendColor, styles.barVomit]} />

@@ -1,5 +1,6 @@
 import { Tabs } from 'expo-router';
 import { Text, View, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { COLORS } from '../../constants';
 
@@ -17,11 +18,17 @@ function TabIcon({ emoji, focused }: TabIconProps) {
 }
 
 export default function TabLayout() {
+    const insets = useSafeAreaInsets();
+
     return (
         <Tabs
             screenOptions={{
                 headerShown: false,
-                tabBarStyle: styles.tabBar,
+                tabBarStyle: {
+                    ...styles.tabBar,
+                    height: 60 + insets.bottom,
+                    paddingBottom: insets.bottom,
+                },
                 tabBarActiveTintColor: COLORS.primary,
                 tabBarInactiveTintColor: COLORS.textSecondary,
                 tabBarLabelStyle: styles.tabLabel,
@@ -30,15 +37,15 @@ export default function TabLayout() {
             <Tabs.Screen
                 name="index"
                 options={{
-                    title: '홈',
-                    tabBarIcon: ({ focused }) => <TabIcon emoji="🏠" focused={focused} />,
+                    title: '오늘',
+                    tabBarIcon: ({ focused }) => <TabIcon emoji="📋" focused={focused} />,
                 }}
             />
             <Tabs.Screen
-                name="records"
+                name="calendar"
                 options={{
-                    title: '기록',
-                    tabBarIcon: ({ focused }) => <TabIcon emoji="📝" focused={focused} />,
+                    title: '캘린더',
+                    tabBarIcon: ({ focused }) => <TabIcon emoji="📅" focused={focused} />,
                 }}
             />
             <Tabs.Screen
@@ -61,6 +68,12 @@ export default function TabLayout() {
                     href: null,
                 }}
             />
+            <Tabs.Screen
+                name="records"
+                options={{
+                    href: null,
+                }}
+            />
         </Tabs>
     );
 }
@@ -70,7 +83,6 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.surface,
         borderTopColor: COLORS.border,
         paddingTop: 8,
-        height: 60,
     },
     tabLabel: {
         fontSize: 12,
