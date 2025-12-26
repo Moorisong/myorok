@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
     View,
     Text,
@@ -9,6 +9,7 @@ import {
     Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Feather } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 
 import { COLORS } from '../../constants';
@@ -21,6 +22,7 @@ import {
     toggleSupplementTaken,
     getTodayFluidRecords,
     addFluidRecord,
+    deleteFluidRecord,
     getDatabase,
     Supplement,
     FluidRecord,
@@ -71,6 +73,7 @@ export default function TodayScreen() {
             loadAllData();
             return () => {
                 if (timerRef.current) clearTimeout(timerRef.current);
+                setToastVisible(false);
             };
         }, [])
     );
@@ -228,11 +231,31 @@ export default function TodayScreen() {
                     break;
                 case 'vomit':
                     setVomitCount(newValue);
-                    await updateDailyRecord({ vomitCount: newValue });
+                    if (newValue === 0) {
+                        setVomitColors([]);
+                        await updateDailyRecord({
+                            vomitCount: 0,
+                            vomitTypes: JSON.stringify([])
+                        });
+                    } else {
+                        await updateDailyRecord({ vomitCount: newValue });
+                    }
                     break;
             }
         } catch (error) {
             Alert.alert('오류', '저장 중 문제가 발생했습니다.');
+        }
+    };
+
+    const handleFluidDelete = async (id: string) => {
+        try {
+            await deleteFluidRecord(id);
+            const fluids = await getTodayFluidRecords();
+            setTodayFluids(fluids);
+            showToast('수액 기록이 삭제되었습니다.', { type: 'fluid', fluidRecordId: undefined });
+            setToastVisible(false); // Hide existing toast if any
+        } catch (error) {
+            Alert.alert('오류', '삭제 중 문제가 발생했습니다.');
         }
     };
 
@@ -372,10 +395,10 @@ export default function TodayScreen() {
                                 {VOMIT_COLORS.map(color => (
                                     <Pressable
                                         key={color}
-                                        style={[styles.colorOption, color === '혈색' && styles.dangerOption]}
+                                        style={styles.colorOption}
                                         onPress={() => handleVomitColorSelect(color)}
                                     >
-                                        <Text style={[styles.colorText, color === '혈색' && styles.dangerText]}>{color}</Text>
+                                        <Text style={styles.colorText}>{color}</Text>
                                     </Pressable>
                                 ))}
                             </View>
@@ -390,11 +413,33 @@ export default function TodayScreen() {
                 {/* 수액 섹션 */}
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
-                        <Text style={styles.sectionTitle}>💧 수액</Text>
+                        <Text style={styles.sectionTitle}>수액</Text>
                         {totalFluidVolume > 0 && (
                             <Text style={styles.totalBadge}>오늘 {totalFluidVolume}ml</Text>
                         )}
                     </View>
+
+                    {todayFluids.length > 0 && (
+                        <View style={styles.fluidList}>
+                            {todayFluids.map((record) => (
+                                <View key={record.id} style={styles.fluidItem}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                                        <Feather name="activity" size={14} color={COLORS.primary} style={{ marginRight: 6 }} />
+                                        <Text style={styles.fluidText}>
+                                            {record.fluidType === 'subcutaneous' ? '피하수액' : '정맥수액'} {record.volume}ml
+                                        </Text>
+                                    </View>
+                                    <Pressable
+                                        style={styles.deleteButton}
+                                        onPress={() => handleFluidDelete(record.id)}
+                                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                    >
+                                        <Feather name="minus-circle" size={18} color={COLORS.textSecondary} style={{ opacity: 0.5 }} />
+                                    </Pressable>
+                                </View>
+                            ))}
+                        </View>
+                    )}
 
                     {showFluidInput ? (
                         <View style={styles.fluidInputRow}>
@@ -404,7 +449,6 @@ export default function TodayScreen() {
                                 keyboardType="numeric"
                                 value={fluidVolume}
                                 onChangeText={setFluidVolume}
-                                autoFocus
                             />
                             <Pressable style={styles.fluidAddBtn} onPress={handleFluidAdd}>
                                 <Text style={styles.fluidAddBtnText}>추가</Text>
@@ -423,7 +467,7 @@ export default function TodayScreen() {
                 {/* 약/영양제 섹션 */}
                 {supplements.length > 0 && (
                     <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>💊 약 / 영양제</Text>
+                        <Text style={styles.sectionTitle}>약 / 영양제</Text>
                         {supplements.map(supp => (
                             <Pressable
                                 key={supp.id}
@@ -441,7 +485,7 @@ export default function TodayScreen() {
 
                 {/* 메모 섹션 */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>📝 특이사항</Text>
+                    <Text style={styles.sectionTitle}>특이사항</Text>
                     <TextInput
                         style={styles.memoInput}
                         placeholder="오늘의 특이사항을 기록하세요"
@@ -480,28 +524,48 @@ export default function TodayScreen() {
 
 // Counter Button Component
 function CounterButton({ emoji, label, count, onPressAdd, onPressCount, warning = false }: {
-    emoji: string;
+    emoji: React.ReactNode;
     label: string;
     count: number;
     onPressAdd: () => void;
-    onPressCount: () => void; // New prop for editing count
+    onPressCount: () => void;
     warning?: boolean;
 }) {
     return (
         <View style={[styles.counterBtn, warning && styles.counterBtnWarning]}>
-            <Pressable style={styles.counterContent} onPress={onPressCount}>
-                <Text style={styles.counterEmoji}>{emoji}</Text>
+            {/* Edit Area (Top) */}
+            <Pressable
+                style={({ pressed }) => [
+                    styles.counterContent,
+                    pressed && { backgroundColor: 'rgba(0,0,0,0.02)' }
+                ]}
+                onPress={onPressCount}
+            >
+                <View style={styles.editIconContainer}>
+                    <Feather name="edit-2" size={12} color={COLORS.textSecondary} style={{ opacity: 0.5 }} />
+                </View>
+                <View style={{ height: 40, justifyContent: 'center', marginBottom: 4 }}>
+                    {typeof emoji === 'string' ? (
+                        <Text style={styles.counterEmoji}>{emoji}</Text>
+                    ) : (
+                        emoji
+                    )}
+                </View>
                 <Text style={styles.counterLabel}>{label}</Text>
                 <Text style={styles.counterCount}>{count}회</Text>
             </Pressable>
+
+            {/* +1 Button (Bottom) */}
             <Pressable
-                style={[
+                style={({ pressed }) => [
                     styles.plusButton,
-                    { backgroundColor: warning ? COLORS.error : COLORS.primary }
+                    { backgroundColor: warning ? COLORS.error : COLORS.primary },
+                    pressed && { opacity: 0.8 }
                 ]}
                 onPress={onPressAdd}
             >
-                <Text style={styles.counterPlusWhite}>+ 1</Text>
+                <Feather name="plus" size={16} color="#FFFFFF" style={{ marginRight: 4 }} />
+                <Text style={styles.counterPlusWhite}>1</Text>
             </Pressable>
         </View>
     );
@@ -559,6 +623,7 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: '600',
         color: COLORS.textPrimary,
+        marginBottom: 12,
     },
     totalBadge: {
         fontSize: 14,
@@ -583,12 +648,21 @@ const styles = StyleSheet.create({
         marginBottom: 10,
     },
     counterContent: {
-        padding: 16,
+        padding: 12, // 16 -> 12
+        paddingTop: 16, // 24 -> 16
         alignItems: 'center',
         width: '100%',
+        backgroundColor: '#FAFAFA',
+    },
+    editIconContainer: {
+        position: 'absolute',
+        top: 6, // 8 -> 6
+        right: 6, // 8 -> 6
     },
     plusButton: {
-        paddingVertical: 12,
+        flexDirection: 'row',
+        justifyContent: 'center',
+        paddingVertical: 10, // 14 -> 10
         alignItems: 'center',
         width: '100%',
     },
@@ -596,22 +670,22 @@ const styles = StyleSheet.create({
         backgroundColor: '#FFF8E1',
     },
     counterEmoji: {
-        fontSize: 32, // 이모지 조금 더 크게
-        marginBottom: 4,
+        fontSize: 24, // 32 -> 24
+        marginBottom: 2, // 4 -> 2
     },
     counterLabel: {
-        fontSize: 14,
+        fontSize: 12, // 14 -> 12
         color: COLORS.textSecondary,
-        marginBottom: 2,
+        marginBottom: 0, // 2 -> 0
     },
     counterCount: {
-        fontSize: 24, // 숫자 강조
+        fontSize: 20, // 24 -> 20
         fontWeight: '800',
         color: COLORS.textPrimary,
     },
     counterPlusWhite: {
-        fontSize: 16,
-        color: '#FFFFFF', // 흰색 텍스트
+        fontSize: 14, // 16 -> 14
+        color: '#FFFFFF',
         fontWeight: '800',
     },
     colorSelector: {
@@ -743,6 +817,26 @@ const styles = StyleSheet.create({
         color: COLORS.surface,
         fontSize: 15,
         fontWeight: '600',
+    },
+    fluidList: {
+        marginBottom: 12,
+    },
+    fluidItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: COLORS.background,
+        padding: 12,
+        borderRadius: 8,
+        marginBottom: 8,
+    },
+    fluidText: {
+        fontSize: 14,
+        color: COLORS.textPrimary,
+        fontWeight: '500',
+    },
+    deleteButton: {
+        padding: 4,
+        marginLeft: 8,
     },
     bottomPadding: {
         height: 80, // Toast 공간 확보를 위해 늘림

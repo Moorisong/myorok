@@ -67,3 +67,8 @@ export async function getTodayFluidRecords(): Promise<FluidRecord[]> {
 
     return records;
 }
+
+export async function deleteFluidRecord(id: string): Promise<void> {
+    const db = await getDatabase();
+    await db.runAsync('DELETE FROM fluid_records WHERE id = ?', [id]);
+}

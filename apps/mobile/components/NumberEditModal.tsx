@@ -29,10 +29,15 @@ export function NumberEditModal({
     onCancel,
 }: NumberEditModalProps) {
     const [value, setValue] = useState(initialValue.toString());
+    const inputRef = React.useRef<TextInput>(null);
 
     useEffect(() => {
         if (visible) {
             setValue(initialValue.toString());
+            // Force focus with a small delay for modal animation
+            setTimeout(() => {
+                inputRef.current?.focus();
+            }, 100);
         }
     }, [visible, initialValue]);
 
@@ -62,11 +67,11 @@ export function NumberEditModal({
 
                                 <View style={styles.inputContainer}>
                                     <TextInput
+                                        ref={inputRef}
                                         style={styles.input}
                                         value={value}
                                         onChangeText={setValue}
                                         keyboardType="number-pad"
-                                        autoFocus
                                         selectTextOnFocus
                                     />
                                     <Text style={styles.unitText}>회</Text>

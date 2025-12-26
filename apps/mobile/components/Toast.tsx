@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
     View,
     Text,
@@ -17,38 +17,45 @@ interface ToastProps {
 
 export function Toast({ visible, message, onUndo }: ToastProps) {
     const fadeAnim = useRef(new Animated.Value(0)).current;
-    const slideAnim = useRef(new Animated.Value(50)).current;
+    const slideAnim = useRef(new Animated.Value(10)).current; // Reduced slide distance
+    const [show, setShow] = useState(false);
 
     useEffect(() => {
         if (visible) {
+            setShow(true);
             Animated.parallel([
                 Animated.timing(fadeAnim, {
                     toValue: 1,
-                    duration: 300,
+                    duration: 200, // Faster fade
                     useNativeDriver: true,
                 }),
                 Animated.spring(slideAnim, {
                     toValue: 0,
                     useNativeDriver: true,
+                    speed: 20, // Faster spring
                 }),
             ]).start();
         } else {
             Animated.parallel([
                 Animated.timing(fadeAnim, {
                     toValue: 0,
-                    duration: 200,
+                    duration: 150,
                     useNativeDriver: true,
                 }),
                 Animated.timing(slideAnim, {
-                    toValue: 50,
-                    duration: 200,
+                    toValue: 10,
+                    duration: 150,
                     useNativeDriver: true,
                 }),
-            ]).start();
+            ]).start(({ finished }) => {
+                if (finished) {
+                    setShow(false);
+                }
+            });
         }
     }, [visible]);
 
-    if (!visible && (fadeAnim as any)._value === 0) return null;
+    if (!show) return null;
 
     return (
         <Animated.View
@@ -59,9 +66,16 @@ export function Toast({ visible, message, onUndo }: ToastProps) {
                     transform: [{ translateY: slideAnim }],
                 },
             ]}
+            pointerEvents={visible ? 'auto' : 'none'} // Control touch events visibility
         >
             <Text style={styles.message}>{message}</Text>
-            <TouchableOpacity onPress={onUndo} style={styles.undoButton}>
+            <TouchableOpacity
+                onPress={onUndo} // Keep onPress but add delayPressIn=0
+                delayPressIn={0}
+                style={styles.undoButton}
+                hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }} // Larger hitSlop
+                activeOpacity={0.6}
+            >
                 <Text style={styles.undoText}>실행 취소</Text>
             </TouchableOpacity>
         </Animated.View>
@@ -86,7 +100,7 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.25,
         shadowRadius: 3.84,
         elevation: 5,
-        zIndex: 1000,
+        zIndex: 9999,
     },
     message: {
         color: COLORS.surface,

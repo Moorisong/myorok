@@ -11,7 +11,7 @@ export type { Supplement, SupplementRecord } from './supplements';
 export { addHospitalRecord, getHospitalRecords } from './hospitalRecords';
 export type { HospitalRecord } from './hospitalRecords';
 
-export { addFluidRecord, getFluidRecords, getTodayFluidRecords } from './fluidRecords';
+export { addFluidRecord, getFluidRecords, getTodayFluidRecords, deleteFluidRecord } from './fluidRecords';
 export type { FluidRecord } from './fluidRecords';
 
 export { addCustomMetric, getCustomMetrics, addMetricRecord, getMetricRecords, getAllMetricRecords } from './customMetrics';
