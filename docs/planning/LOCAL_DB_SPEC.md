@@ -36,6 +36,7 @@ daily_records (
   diarrheaCount INTEGER DEFAULT 0,
   vomitCount INTEGER DEFAULT 0,
   vomitTypes TEXT, -- JSON array ["clear","white","food"]
+  waterIntake INTEGER DEFAULT 0, -- 자발적 음수량 (ml)
   memo TEXT,
   createdAt TEXT NOT NULL,
   updatedAt TEXT NOT NULL,
@@ -56,7 +57,8 @@ food_records (
   date TEXT NOT NULL,
   foodType TEXT NOT NULL, -- can | dry | etc
   preference TEXT NOT NULL, -- good | normal | reject
-  comment TEXT
+  comment TEXT,
+  createdAt TEXT NOT NULL
 )
 ```
 
@@ -71,7 +73,8 @@ supplements (
   id TEXT PRIMARY KEY,
   petId TEXT NOT NULL,
   name TEXT NOT NULL,
-  type TEXT NOT NULL -- supplement | medicine
+  type TEXT NOT NULL, -- supplement | medicine
+  createdAt TEXT NOT NULL
 )
 ```
 
@@ -86,13 +89,31 @@ supplement_records (
   id TEXT PRIMARY KEY,
   supplementId TEXT NOT NULL,
   date TEXT NOT NULL,
-  taken INTEGER NOT NULL -- 0 or 1
+  taken INTEGER NOT NULL DEFAULT 0
 )
 ```
 
 ---
 
-## 6. hospital_records
+## 6. fluid_records
+
+> 수액 및 강수 기록 (개별 기록)
+
+```sql
+fluid_records (
+  id TEXT PRIMARY KEY,
+  petId TEXT NOT NULL,
+  date TEXT NOT NULL,
+  fluidType TEXT NOT NULL, -- subcutaneous | iv | force
+  volume INTEGER, -- ml
+  memo TEXT,
+  createdAt TEXT NOT NULL
+)
+```
+
+---
+
+## 7. hospital_records
 
 > 병원 방문 기록
 
@@ -101,13 +122,14 @@ hospital_records (
   id TEXT PRIMARY KEY,
   petId TEXT NOT NULL,
   date TEXT NOT NULL,
-  memo TEXT
+  memo TEXT,
+  createdAt TEXT NOT NULL
 )
 ```
 
 ---
 
-## 7. custom_metrics
+## 8. custom_metrics
 
 > 사용자 정의 수치 항목
 
@@ -123,7 +145,7 @@ custom_metrics (
 
 ---
 
-## 8. custom_metric_records
+## 9. custom_metric_records
 
 > 사용자 정의 수치 기록
 
@@ -133,7 +155,8 @@ custom_metric_records (
   metricId TEXT NOT NULL,
   date TEXT NOT NULL,
   value REAL NOT NULL,
-  memo TEXT
+  memo TEXT,
+  createdAt TEXT NOT NULL
 )
 ```
 
