@@ -1,95 +1,185 @@
-import { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, Pressable } from 'react-native';
+import { useState, useCallback } from 'react';
+import {
+    View,
+    Text,
+    StyleSheet,
+    Pressable,
+    ScrollView,
+    TextInput,
+    Alert,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from 'expo-router';
 
 import { COLORS } from '../../../constants';
-import { Header, Card, Button } from '../../../components';
-
-interface CustomMetric {
-    id: string;
-    name: string;
-    unit: string;
-}
+import { Button, Header } from '../../../components';
+import {
+    addCustomMetric,
+    getCustomMetrics,
+    addMetricRecord,
+    getAllMetricRecords,
+    CustomMetric,
+    CustomMetricRecord,
+    getTodayDateString
+} from '../../../services';
 
 export default function CustomMetricsScreen() {
-    const [metrics, setMetrics] = useState<CustomMetric[]>([
-        { id: '1', name: 'BUN', unit: 'mg/dL' },
-        { id: '2', name: 'CREA', unit: 'mg/dL' },
-    ]);
+    const [metrics, setMetrics] = useState<CustomMetric[]>([]);
+    const [recentRecords, setRecentRecords] = useState<(CustomMetricRecord & { metricName: string; metricUnit: string | null })[]>([]);
+    const [showAddMetric, setShowAddMetric] = useState(false);
+    const [showAddRecord, setShowAddRecord] = useState(false);
     const [selectedMetric, setSelectedMetric] = useState<CustomMetric | null>(null);
-    const [value, setValue] = useState('');
-    const [showAddForm, setShowAddForm] = useState(false);
+
     const [newMetricName, setNewMetricName] = useState('');
     const [newMetricUnit, setNewMetricUnit] = useState('');
+    const [newValue, setNewValue] = useState('');
+    const [newDate, setNewDate] = useState(getTodayDateString());
+    const [newMemo, setNewMemo] = useState('');
+    const [loading, setLoading] = useState(true);
 
-    const handleSave = () => {
-        // TODO: DB 저장
-        setValue('');
-        setSelectedMetric(null);
+    useFocusEffect(
+        useCallback(() => {
+            loadData();
+        }, [])
+    );
+
+    const loadData = async () => {
+        try {
+            const [metricList, records] = await Promise.all([
+                getCustomMetrics(),
+                getAllMetricRecords(20),
+            ]);
+            setMetrics(metricList);
+            setRecentRecords(records);
+        } catch (error) {
+            console.error('Failed to load custom metrics:', error);
+        } finally {
+            setLoading(false);
+        }
     };
 
-    const addMetric = () => {
-        if (!newMetricName.trim()) return;
+    const handleAddMetric = async () => {
+        if (!newMetricName.trim()) {
+            Alert.alert('알림', '항목 이름을 입력해주세요.');
+            return;
+        }
 
-        const newMetric: CustomMetric = {
-            id: Date.now().toString(),
-            name: newMetricName.trim(),
-            unit: newMetricUnit.trim() || '',
-        };
-        setMetrics(prev => [...prev, newMetric]);
-        setNewMetricName('');
-        setNewMetricUnit('');
-        setShowAddForm(false);
+        try {
+            const metric = await addCustomMetric(newMetricName.trim(), newMetricUnit.trim() || undefined);
+            setMetrics(prev => [...prev, metric]);
+            setNewMetricName('');
+            setNewMetricUnit('');
+            setShowAddMetric(false);
+            Alert.alert('추가 완료', `${metric.name} 항목이 추가되었습니다.`);
+        } catch (error) {
+            Alert.alert('오류', '추가 중 문제가 발생했습니다.');
+        }
     };
+
+    const handleAddRecord = async () => {
+        if (!selectedMetric) {
+            Alert.alert('알림', '항목을 선택해주세요.');
+            return;
+        }
+        if (!newValue.trim()) {
+            Alert.alert('알림', '수치를 입력해주세요.');
+            return;
+        }
+
+        try {
+            await addMetricRecord(
+                selectedMetric.id,
+                parseFloat(newValue),
+                newDate,
+                newMemo.trim() || undefined
+            );
+            await loadData();
+            setSelectedMetric(null);
+            setNewValue('');
+            setNewMemo('');
+            setShowAddRecord(false);
+            Alert.alert('저장 완료', '수치가 기록되었습니다.');
+        } catch (error) {
+            Alert.alert('오류', '저장 중 문제가 발생했습니다.');
+        }
+    };
+
+    const formatDate = (dateStr: string) => {
+        const [, month, day] = dateStr.split('-');
+        return `${month}/${day}`;
+    };
+
+    if (loading) {
+        return (
+            <SafeAreaView style={styles.container} edges={['top']}>
+                <Header title="커스텀 수치" showBack />
+                <View style={styles.loadingContainer}>
+                    <Text style={styles.loadingText}>로딩 중...</Text>
+                </View>
+            </SafeAreaView>
+        );
+    }
 
     return (
-        <View style={styles.container}>
+        <SafeAreaView style={styles.container} edges={['top']}>
             <Header title="커스텀 수치" showBack />
-
-            <ScrollView style={styles.content}>
-                <Card style={styles.card}>
-                    <View style={styles.cardHeader}>
-                        <Text style={styles.sectionTitle}>수치 항목</Text>
-                        <Pressable onPress={() => setShowAddForm(true)}>
-                            <Text style={styles.addButton}>+ 추가</Text>
-                        </Pressable>
-                    </View>
-
+            <ScrollView style={styles.scrollView}>
+                {/* Metric List */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>수치 항목</Text>
                     {metrics.length === 0 ? (
-                        <Text style={styles.emptyText}>등록된 수치 항목이 없습니다.</Text>
+                        <Text style={styles.emptyText}>등록된 항목이 없습니다.</Text>
                     ) : (
                         <View style={styles.metricList}>
                             {metrics.map(metric => (
                                 <Pressable
                                     key={metric.id}
                                     style={[
-                                        styles.metricItem,
-                                        selectedMetric?.id === metric.id && styles.metricItemSelected,
+                                        styles.metricChip,
+                                        selectedMetric?.id === metric.id && styles.metricChipSelected,
                                     ]}
-                                    onPress={() => setSelectedMetric(metric)}
+                                    onPress={() => {
+                                        setSelectedMetric(metric);
+                                        setShowAddRecord(true);
+                                    }}
                                 >
-                                    <Text style={styles.metricName}>{metric.name}</Text>
-                                    {metric.unit && (
-                                        <Text style={styles.metricUnit}>{metric.unit}</Text>
-                                    )}
+                                    <Text
+                                        style={[
+                                            styles.metricChipText,
+                                            selectedMetric?.id === metric.id && styles.metricChipTextSelected,
+                                        ]}
+                                    >
+                                        {metric.name}
+                                        {metric.unit && ` (${metric.unit})`}
+                                    </Text>
                                 </Pressable>
                             ))}
                         </View>
                     )}
-                </Card>
 
-                {showAddForm && (
-                    <Card style={styles.card}>
-                        <Text style={styles.sectionTitle}>새 수치 추가</Text>
+                    {!showAddMetric && (
+                        <Pressable
+                            style={styles.addChipButton}
+                            onPress={() => setShowAddMetric(true)}
+                        >
+                            <Text style={styles.addChipText}>+ 항목 추가</Text>
+                        </Pressable>
+                    )}
+                </View>
+
+                {/* Add Metric Form */}
+                {showAddMetric && (
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>새 항목 추가</Text>
                         <TextInput
                             style={styles.input}
-                            placeholder="수치명 (예: BUN)"
+                            placeholder="이름 (예: BUN, CREA)"
                             placeholderTextColor={COLORS.textSecondary}
                             value={newMetricName}
                             onChangeText={setNewMetricName}
-                            autoFocus
                         />
                         <TextInput
-                            style={styles.input}
+                            style={[styles.input, { marginTop: 8 }]}
                             placeholder="단위 (예: mg/dL) - 선택"
                             placeholderTextColor={COLORS.textSecondary}
                             value={newMetricUnit}
@@ -99,57 +189,90 @@ export default function CustomMetricsScreen() {
                             <Button
                                 title="취소"
                                 variant="secondary"
-                                onPress={() => {
-                                    setShowAddForm(false);
-                                    setNewMetricName('');
-                                    setNewMetricUnit('');
-                                }}
+                                onPress={() => setShowAddMetric(false)}
                                 style={styles.formButton}
                             />
                             <Button
                                 title="추가"
-                                onPress={addMetric}
-                                disabled={!newMetricName.trim()}
+                                onPress={handleAddMetric}
                                 style={styles.formButton}
                             />
                         </View>
-                    </Card>
+                    </View>
                 )}
 
-                {selectedMetric && (
-                    <Card style={styles.card}>
+                {/* Add Record Form */}
+                {showAddRecord && selectedMetric && (
+                    <View style={styles.section}>
                         <Text style={styles.sectionTitle}>
-                            {selectedMetric.name} 값 입력
+                            {selectedMetric.name} 수치 입력
                         </Text>
-                        <View style={styles.valueInputContainer}>
-                            <TextInput
-                                style={styles.valueInput}
-                                placeholder="수치 입력"
-                                placeholderTextColor={COLORS.textSecondary}
-                                value={value}
-                                onChangeText={setValue}
-                                keyboardType="numeric"
-                            />
-                            {selectedMetric.unit && (
-                                <Text style={styles.unitLabel}>{selectedMetric.unit}</Text>
-                            )}
-                        </View>
-                        <Button
-                            title="저장하기"
-                            onPress={handleSave}
-                            disabled={!value.trim()}
-                            style={styles.saveButton}
+                        <TextInput
+                            style={styles.input}
+                            placeholder={`수치${selectedMetric.unit ? ` (${selectedMetric.unit})` : ''}`}
+                            placeholderTextColor={COLORS.textSecondary}
+                            value={newValue}
+                            onChangeText={setNewValue}
+                            keyboardType="numeric"
                         />
-                    </Card>
+                        <TextInput
+                            style={[styles.input, { marginTop: 8 }]}
+                            placeholder="날짜 (YYYY-MM-DD)"
+                            placeholderTextColor={COLORS.textSecondary}
+                            value={newDate}
+                            onChangeText={setNewDate}
+                        />
+                        <TextInput
+                            style={[styles.input, { marginTop: 8 }]}
+                            placeholder="메모 (선택)"
+                            placeholderTextColor={COLORS.textSecondary}
+                            value={newMemo}
+                            onChangeText={setNewMemo}
+                        />
+                        <View style={styles.formButtons}>
+                            <Button
+                                title="취소"
+                                variant="secondary"
+                                onPress={() => {
+                                    setShowAddRecord(false);
+                                    setSelectedMetric(null);
+                                }}
+                                style={styles.formButton}
+                            />
+                            <Button
+                                title="저장"
+                                onPress={handleAddRecord}
+                                style={styles.formButton}
+                            />
+                        </View>
+                    </View>
                 )}
 
-                <Text style={styles.hint}>
-                    💡 저장된 수치는 차트 탭에서 추이 그래프로 확인할 수 있습니다.
-                </Text>
+                {/* Recent Records */}
+                {recentRecords.length > 0 && (
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>최근 기록</Text>
+                        {recentRecords.map(record => (
+                            <View key={record.id} style={styles.recordItem}>
+                                <View style={styles.recordHeader}>
+                                    <Text style={styles.recordName}>{record.metricName}</Text>
+                                    <Text style={styles.recordDate}>{formatDate(record.date)}</Text>
+                                </View>
+                                <Text style={styles.recordValue}>
+                                    {record.value}
+                                    {record.metricUnit && ` ${record.metricUnit}`}
+                                </Text>
+                                {record.memo && (
+                                    <Text style={styles.recordMemo}>{record.memo}</Text>
+                                )}
+                            </View>
+                        ))}
+                    </View>
+                )}
 
                 <View style={styles.bottomPadding} />
             </ScrollView>
-        </View>
+        </SafeAreaView>
     );
 }
 
@@ -158,61 +281,68 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: COLORS.background,
     },
-    content: {
+    scrollView: {
         flex: 1,
     },
-    card: {
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    loadingText: {
+        fontSize: 16,
+        color: COLORS.textSecondary,
+    },
+    section: {
+        backgroundColor: COLORS.surface,
         marginHorizontal: 16,
         marginTop: 16,
-    },
-    cardHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 12,
+        borderRadius: 16,
+        padding: 16,
     },
     sectionTitle: {
         fontSize: 16,
         fontWeight: '600',
         color: COLORS.textPrimary,
-    },
-    addButton: {
-        fontSize: 15,
-        color: COLORS.primary,
-        fontWeight: '600',
+        marginBottom: 12,
     },
     emptyText: {
         fontSize: 14,
         color: COLORS.textSecondary,
         textAlign: 'center',
-        paddingVertical: 20,
+        paddingVertical: 16,
     },
     metricList: {
         flexDirection: 'row',
         flexWrap: 'wrap',
         gap: 8,
     },
-    metricItem: {
+    metricChip: {
         paddingHorizontal: 16,
-        paddingVertical: 10,
-        borderRadius: 8,
+        paddingVertical: 8,
+        backgroundColor: COLORS.background,
+        borderRadius: 20,
         borderWidth: 1,
         borderColor: COLORS.border,
-        backgroundColor: COLORS.surface,
     },
-    metricItemSelected: {
+    metricChipSelected: {
+        backgroundColor: COLORS.primary,
         borderColor: COLORS.primary,
-        backgroundColor: `${COLORS.primary}20`,
     },
-    metricName: {
-        fontSize: 15,
-        fontWeight: '600',
+    metricChipText: {
+        fontSize: 14,
         color: COLORS.textPrimary,
     },
-    metricUnit: {
-        fontSize: 12,
-        color: COLORS.textSecondary,
-        marginTop: 2,
+    metricChipTextSelected: {
+        color: COLORS.surface,
+    },
+    addChipButton: {
+        marginTop: 12,
+        alignSelf: 'flex-start',
+    },
+    addChipText: {
+        fontSize: 14,
+        color: COLORS.primary,
     },
     input: {
         backgroundColor: COLORS.background,
@@ -220,45 +350,43 @@ const styles = StyleSheet.create({
         padding: 16,
         fontSize: 16,
         color: COLORS.textPrimary,
-        marginBottom: 12,
     },
     formButtons: {
         flexDirection: 'row',
         gap: 12,
+        marginTop: 16,
     },
     formButton: {
         flex: 1,
     },
-    valueInputContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: COLORS.background,
-        borderRadius: 12,
-        paddingHorizontal: 16,
-        marginBottom: 16,
+    recordItem: {
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: COLORS.border,
     },
-    valueInput: {
-        flex: 1,
-        paddingVertical: 16,
-        fontSize: 24,
+    recordHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 4,
+    },
+    recordName: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: COLORS.primary,
+    },
+    recordDate: {
+        fontSize: 12,
+        color: COLORS.textSecondary,
+    },
+    recordValue: {
+        fontSize: 18,
         fontWeight: '600',
         color: COLORS.textPrimary,
-        textAlign: 'center',
     },
-    unitLabel: {
-        fontSize: 16,
+    recordMemo: {
+        fontSize: 12,
         color: COLORS.textSecondary,
-        marginLeft: 8,
-    },
-    saveButton: {
-        marginTop: 8,
-    },
-    hint: {
-        marginHorizontal: 16,
-        marginTop: 16,
-        fontSize: 14,
-        color: COLORS.textSecondary,
-        lineHeight: 20,
+        marginTop: 4,
     },
     bottomPadding: {
         height: 32,

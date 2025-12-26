@@ -1,77 +1,121 @@
-import { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput } from 'react-native';
+import { useState, useCallback } from 'react';
+import {
+    View,
+    Text,
+    StyleSheet,
+    Pressable,
+    ScrollView,
+    TextInput,
+    Alert,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect, useRouter } from 'expo-router';
 
 import { COLORS } from '../../../constants';
-import { Header, Card, Button } from '../../../components';
+import { Button, Header } from '../../../components';
+import { addFluidRecord, getTodayFluidRecords, FluidRecord } from '../../../services';
 
-const FLUID_TYPES = ['링거', '하트만', '생리식염수', '기타'];
+const FLUID_TYPES = [
+    { key: 'subcutaneous', label: '피하수액', emoji: '💉' },
+    { key: 'iv', label: '정맥수액', emoji: '🏥' },
+];
 
 export default function FluidScreen() {
+    const router = useRouter();
     const [selectedType, setSelectedType] = useState<string | null>(null);
     const [volume, setVolume] = useState('');
     const [memo, setMemo] = useState('');
+    const [todayRecords, setTodayRecords] = useState<FluidRecord[]>([]);
+    const [saving, setSaving] = useState(false);
 
-    const today = new Date();
-    const dateString = `${today.getFullYear()}.${today.getMonth() + 1}.${today.getDate()}`;
+    useFocusEffect(
+        useCallback(() => {
+            loadTodayRecords();
+        }, [])
+    );
 
-    const handleSave = () => {
-        // TODO: DB 저장
+    const loadTodayRecords = async () => {
+        try {
+            const records = await getTodayFluidRecords();
+            setTodayRecords(records);
+        } catch (error) {
+            console.error('Failed to load fluid records:', error);
+        }
     };
 
+    const handleSave = async () => {
+        if (!selectedType) {
+            Alert.alert('알림', '수액 종류를 선택해주세요.');
+            return;
+        }
+
+        setSaving(true);
+        try {
+            await addFluidRecord(
+                selectedType,
+                volume ? parseInt(volume, 10) : undefined,
+                memo || undefined
+            );
+            Alert.alert('저장 완료', '수액 기록이 저장되었습니다.', [
+                { text: '확인', onPress: () => router.back() },
+            ]);
+        } catch (error) {
+            Alert.alert('오류', '저장 중 문제가 발생했습니다.');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const getTypeLabel = (type: string) =>
+        FLUID_TYPES.find(t => t.key === type)?.label || type;
+
     return (
-        <View style={styles.container}>
+        <SafeAreaView style={styles.container} edges={['top']}>
             <Header title="수액 기록" showBack />
-
-            <ScrollView style={styles.content}>
-                <Card style={styles.card}>
-                    <Text style={styles.sectionTitle}>날짜</Text>
-                    <View style={styles.dateBox}>
-                        <Text style={styles.dateText}>{dateString}</Text>
-                    </View>
-                </Card>
-
-                <Card style={styles.card}>
+            <ScrollView style={styles.scrollView}>
+                <View style={styles.section}>
                     <Text style={styles.sectionTitle}>수액 종류</Text>
-                    <View style={styles.optionGroup}>
+                    <View style={styles.optionGrid}>
                         {FLUID_TYPES.map(type => (
-                            <View
-                                key={type}
+                            <Pressable
+                                key={type.key}
                                 style={[
-                                    styles.option,
-                                    selectedType === type && styles.optionSelected,
+                                    styles.optionCard,
+                                    selectedType === type.key && styles.optionCardSelected,
                                 ]}
+                                onPress={() => setSelectedType(type.key)}
                             >
+                                <Text style={styles.optionEmoji}>{type.emoji}</Text>
                                 <Text
                                     style={[
-                                        styles.optionText,
-                                        selectedType === type && styles.optionTextSelected,
+                                        styles.optionLabel,
+                                        selectedType === type.key && styles.optionLabelSelected,
                                     ]}
-                                    onPress={() => setSelectedType(type)}
                                 >
-                                    {type}
+                                    {type.label}
                                 </Text>
-                            </View>
+                            </Pressable>
                         ))}
                     </View>
-                </Card>
+                </View>
 
-                <Card style={styles.card}>
+                <View style={styles.section}>
                     <Text style={styles.sectionTitle}>용량 (ml)</Text>
                     <TextInput
-                        style={styles.volumeInput}
+                        style={styles.input}
                         placeholder="예: 100"
                         placeholderTextColor={COLORS.textSecondary}
                         value={volume}
                         onChangeText={setVolume}
                         keyboardType="numeric"
                     />
-                </Card>
+                </View>
 
-                <Card style={styles.card}>
-                    <Text style={styles.sectionTitle}>반응 / 메모</Text>
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>메모 (선택)</Text>
                     <TextInput
-                        style={styles.input}
-                        placeholder="수액 후 반응, 특이사항 등"
+                        style={styles.memoInput}
+                        placeholder="반응, 특이사항 등"
                         placeholderTextColor={COLORS.textSecondary}
                         value={memo}
                         onChangeText={setMemo}
@@ -79,18 +123,35 @@ export default function FluidScreen() {
                         numberOfLines={3}
                         textAlignVertical="top"
                     />
-                </Card>
+                </View>
+
+                {todayRecords.length > 0 && (
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>오늘 기록</Text>
+                        {todayRecords.map(record => (
+                            <View key={record.id} style={styles.recordItem}>
+                                <Text style={styles.recordText}>
+                                    {getTypeLabel(record.fluidType)}
+                                    {record.volume && ` - ${record.volume}ml`}
+                                </Text>
+                                {record.memo && (
+                                    <Text style={styles.recordMemo}>{record.memo}</Text>
+                                )}
+                            </View>
+                        ))}
+                    </View>
+                )}
 
                 <Button
-                    title="저장하기"
+                    title={saving ? '저장 중...' : '저장하기'}
                     onPress={handleSave}
-                    disabled={!selectedType}
+                    disabled={saving || !selectedType}
                     style={styles.saveButton}
                 />
 
                 <View style={styles.bottomPadding} />
             </ScrollView>
-        </View>
+        </SafeAreaView>
     );
 }
 
@@ -99,12 +160,15 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: COLORS.background,
     },
-    content: {
+    scrollView: {
         flex: 1,
     },
-    card: {
+    section: {
+        backgroundColor: COLORS.surface,
         marginHorizontal: 16,
         marginTop: 16,
+        borderRadius: 16,
+        padding: 16,
     },
     sectionTitle: {
         fontSize: 16,
@@ -112,49 +176,34 @@ const styles = StyleSheet.create({
         color: COLORS.textPrimary,
         marginBottom: 12,
     },
-    dateBox: {
-        backgroundColor: COLORS.background,
-        borderRadius: 12,
-        padding: 16,
-        alignItems: 'center',
-    },
-    dateText: {
-        fontSize: 18,
-        fontWeight: '600',
-        color: COLORS.textPrimary,
-    },
-    optionGroup: {
+    optionGrid: {
         flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 8,
+        gap: 12,
     },
-    option: {
-        paddingHorizontal: 20,
-        paddingVertical: 12,
-        borderRadius: 8,
-        borderWidth: 1,
-        borderColor: COLORS.border,
-        backgroundColor: COLORS.surface,
-    },
-    optionSelected: {
-        borderColor: COLORS.primary,
-        backgroundColor: COLORS.primary,
-    },
-    optionText: {
-        fontSize: 15,
-        color: COLORS.textPrimary,
-    },
-    optionTextSelected: {
-        color: COLORS.surface,
-        fontWeight: '600',
-    },
-    volumeInput: {
+    optionCard: {
+        flex: 1,
+        alignItems: 'center',
+        padding: 20,
         backgroundColor: COLORS.background,
         borderRadius: 12,
-        padding: 16,
-        fontSize: 18,
-        color: COLORS.textPrimary,
-        textAlign: 'center',
+        borderWidth: 2,
+        borderColor: 'transparent',
+    },
+    optionCardSelected: {
+        borderColor: COLORS.primary,
+        backgroundColor: COLORS.primaryLight,
+    },
+    optionEmoji: {
+        fontSize: 32,
+        marginBottom: 8,
+    },
+    optionLabel: {
+        fontSize: 14,
+        color: COLORS.textSecondary,
+    },
+    optionLabelSelected: {
+        color: COLORS.primary,
+        fontWeight: '600',
     },
     input: {
         backgroundColor: COLORS.background,
@@ -162,7 +211,28 @@ const styles = StyleSheet.create({
         padding: 16,
         fontSize: 16,
         color: COLORS.textPrimary,
+    },
+    memoInput: {
+        backgroundColor: COLORS.background,
+        borderRadius: 12,
+        padding: 16,
+        fontSize: 16,
+        color: COLORS.textPrimary,
         minHeight: 80,
+    },
+    recordItem: {
+        paddingVertical: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: COLORS.border,
+    },
+    recordText: {
+        fontSize: 14,
+        color: COLORS.textPrimary,
+    },
+    recordMemo: {
+        fontSize: 12,
+        color: COLORS.textSecondary,
+        marginTop: 4,
     },
     saveButton: {
         marginHorizontal: 16,
