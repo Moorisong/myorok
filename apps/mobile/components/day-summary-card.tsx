@@ -62,6 +62,11 @@ export default function DaySummaryCard({
                                     {dailyRecord.vomitTypes && ` (${JSON.parse(dailyRecord.vomitTypes).join(', ')})`}
                                 </Text>
                             )}
+                            {dailyRecord.waterIntake > 0 && (
+                                <Text style={styles.summaryItem}>
+                                    💧 강수량 {dailyRecord.waterIntake}ml
+                                </Text>
+                            )}
                             {dailyRecord.memo && (
                                 <View style={styles.memoBox}>
                                     <Text style={styles.memoLabel}>[메모]</Text>
@@ -83,7 +88,10 @@ export default function DaySummaryCard({
                         <View style={styles.summarySection}>
                             {fluidRecords.map((f, i) => (
                                 <Text key={i} style={styles.summaryItem}>
-                                    <Feather name="activity" size={14} color={COLORS.primary} /> {f.fluidType === 'subcutaneous' ? '피하수액' : '정맥수액'}
+                                    <Feather name="activity" size={14} color={COLORS.primary} />
+                                    {f.fluidType === 'force'
+                                        ? ' 강수(강제 급수)'
+                                        : f.fluidType === 'subcutaneous' ? ' 피하수액' : ' 정맥수액'}
                                     {f.volume && ` ${f.volume}ml`}
                                 </Text>
                             ))}
