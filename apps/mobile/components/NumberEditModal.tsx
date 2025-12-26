@@ -21,7 +21,7 @@ interface NumberEditModalProps {
     onCancel: () => void;
 }
 
-export function NumberEditModal({
+export default function NumberEditModal({
     visible,
     title,
     initialValue,

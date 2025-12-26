@@ -32,7 +32,7 @@ export default function HospitalScreen() {
             const records = await getHospitalRecords(10);
             setRecentRecords(records);
         } catch (error) {
-            console.error('Failed to load hospital records:', error);
+            // Error handled silently
         }
     };
 

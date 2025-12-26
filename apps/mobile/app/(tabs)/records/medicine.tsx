@@ -44,7 +44,7 @@ export default function MedicineScreen() {
             setSupplements(suppList);
             setTakenStatus(status);
         } catch (error) {
-            console.error('Failed to load supplements:', error);
+            // Error handled silently
         } finally {
             setLoading(false);
         }

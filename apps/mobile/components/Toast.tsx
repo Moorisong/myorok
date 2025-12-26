@@ -15,7 +15,7 @@ interface ToastProps {
     onUndo: () => void;
 }
 
-export function Toast({ visible, message, onUndo }: ToastProps) {
+export default function Toast({ visible, message, onUndo }: ToastProps) {
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const slideAnim = useRef(new Animated.Value(10)).current; // Reduced slide distance
     const [show, setShow] = useState(false);

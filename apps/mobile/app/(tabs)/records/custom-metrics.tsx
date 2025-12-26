@@ -52,7 +52,7 @@ export default function CustomMetricsScreen() {
             setMetrics(metricList);
             setRecentRecords(records);
         } catch (error) {
-            console.error('Failed to load custom metrics:', error);
+            // Error handled silently
         } finally {
             setLoading(false);
         }

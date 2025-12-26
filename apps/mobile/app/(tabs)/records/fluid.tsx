@@ -39,7 +39,7 @@ export default function FluidScreen() {
             const records = await getTodayFluidRecords();
             setTodayRecords(records);
         } catch (error) {
-            console.error('Failed to load fluid records:', error);
+            // Error handled silently
         }
     };
 

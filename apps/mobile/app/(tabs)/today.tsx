@@ -59,7 +59,7 @@ export default function TodayScreen() {
                 }
             }
         } catch (error) {
-            console.error('Failed to load record:', error);
+            // Error handled silently
         } finally {
             setLoading(false);
         }

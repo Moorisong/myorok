@@ -49,7 +49,7 @@ export default function FoodScreen() {
             const records = await getTodayFoodRecords();
             setTodayRecords(records);
         } catch (error) {
-            console.error('Failed to load food records:', error);
+            // Error handled silently
         }
     };
 

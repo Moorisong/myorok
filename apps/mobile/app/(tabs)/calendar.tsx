@@ -13,6 +13,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { Gesture, GestureDetector, Directions } from 'react-native-gesture-handler';
 import { Feather } from '@expo/vector-icons';
 import { COLORS } from '../../constants';
+import { CalendarGrid, DaySummaryCard } from '../../components';
 import { getMonthRecords, getDayDetail, CalendarDayData, getTodayDateString } from '../../services';
 
 
@@ -66,7 +67,7 @@ export default function CalendarScreen() {
             const data = await getMonthRecords(currentYear, currentMonth);
             setMonthData(data);
         } catch (error) {
-            console.error('Failed to load calendar data:', error);
+            // Error handled silently
         } finally {
             setLoading(false);
         }
@@ -155,7 +156,7 @@ export default function CalendarScreen() {
             const detail = await getDayDetail(dateStr);
             setSelectedDayData(detail);
         } catch (error) {
-            console.error('Failed to load day detail:', error);
+            // Error handled silently
         }
     };
 
@@ -165,22 +166,6 @@ export default function CalendarScreen() {
         const diffTime = today.getTime() - targetDate.getTime();
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
         return diffDays <= FREE_DAYS_LIMIT;
-    };
-
-    const isToday = (dateStr: string): boolean => {
-        return dateStr === getTodayDateString();
-    };
-
-    const getDaysInMonth = (year: number, month: number): number => {
-        return new Date(year, month, 0).getDate();
-    };
-
-    const getFirstDayOfMonth = (year: number, month: number): number => {
-        return new Date(year, month - 1, 1).getDay();
-    };
-
-    const formatDateStr = (day: number): string => {
-        return `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     };
 
     const getDayName = (dateStr: string): string => {
@@ -230,171 +215,6 @@ export default function CalendarScreen() {
         });
     }, []);
 
-    const renderCalendarGrid = () => {
-        const daysInMonth = getDaysInMonth(currentYear, currentMonth);
-        const firstDay = getFirstDayOfMonth(currentYear, currentMonth);
-        const rows: React.ReactNode[] = [];
-        let cells: React.ReactNode[] = [];
-
-        // Empty cells for days before start
-        for (let i = 0; i < firstDay; i++) {
-            cells.push(<View key={`empty-${i}`} style={[styles.dayCell, styles.emptyCell]} />);
-        }
-
-        // Day cells
-        for (let day = 1; day <= daysInMonth; day++) {
-            const dateStr = formatDateStr(day);
-            const dayData = monthData.get(dateStr);
-            const isSelected = selectedDate === dateStr;
-            const isTodayDate = isToday(dateStr);
-
-            cells.push(
-                <Pressable
-                    key={day}
-                    style={[styles.dayCell]}
-                    onPress={() => handleDateSelect(dateStr)}
-                >
-                    <View style={[
-                        styles.dateNumberContainer,
-                        isSelected && styles.selectedDateContainer,
-                        isTodayDate && !isSelected && styles.todayDateContainer
-                    ]}>
-                        <Text
-                            style={[
-                                styles.dayText,
-                                isSelected && styles.selectedDayText,
-                                isTodayDate && !isSelected && styles.todayDayText,
-                            ]}
-                        >
-                            {day}
-                        </Text>
-                    </View>
-
-                    {dayData && (
-                        <View style={styles.indicators}>
-                            {dayData.hasDiarrheaOrVomit && (
-                                <View style={[styles.dot, styles.dotWarning]} />
-                            )}
-                            {dayData.hasRecord && !dayData.hasDiarrheaOrVomit && (
-                                <View style={[styles.dot, styles.dotNormal]} />
-                            )}
-                            {/* Icons */}
-                            {dayData.hasMedicine && <Text style={styles.miniIconText}>💊</Text>}
-                            {dayData.hasFluid && <Feather name="activity" size={10} color={COLORS.primary} style={styles.miniIcon} />}
-                        </View>
-                    )}
-                </Pressable>
-            );
-
-            if ((firstDay + day) % 7 === 0 || day === daysInMonth) {
-                // If it's the end of the month, fill the remaining cells
-                if (day === daysInMonth) {
-                    while (cells.length < 7) {
-                        cells.push(<View key={`empty-end-${cells.length}`} style={[styles.dayCell, styles.emptyCell]} />);
-                    }
-                }
-
-                rows.push(
-                    <View key={`row-${rows.length}`} style={styles.weekRow}>
-                        {cells}
-                    </View>
-                );
-                cells = [];
-            }
-        }
-
-        return rows;
-    };
-
-    const renderDaySummary = () => {
-        if (!selectedDate) return null;
-
-        const canViewDetail = isPremium || isWithinFreeLimit(selectedDate);
-        const isTodayDate = isToday(selectedDate);
-
-        if (!selectedDayData) {
-            return (
-                <View style={styles.summaryCard}>
-                    <Text style={styles.summaryTitle}>
-                        {selectedDate.split('-')[1]}/{selectedDate.split('-')[2]} ({getDayName(selectedDate)})
-                    </Text>
-                    <Text style={styles.noRecordText}>기록 없음</Text>
-                </View>
-            );
-        }
-
-        const { dailyRecord, supplements, fluidRecords } = selectedDayData;
-
-        return (
-            <View style={[styles.summaryCard, !canViewDetail && styles.summaryCardBlurred]}>
-                <View style={styles.summaryHeader}>
-                    <Text style={styles.summaryTitle}>
-                        {selectedDate.split('-')[1]}/{selectedDate.split('-')[2]} ({getDayName(selectedDate)})
-                    </Text>
-                </View>
-
-                {canViewDetail ? (
-                    <>
-                        {dailyRecord && (
-                            <View style={styles.summarySection}>
-                                {(dailyRecord.peeCount > 0 || dailyRecord.poopCount > 0) && (
-                                    <Text style={styles.summaryItem}>
-                                        💩 배변 {dailyRecord.poopCount}회
-                                        {dailyRecord.diarrheaCount > 0 && ` / 🚨 묽은 변 ${dailyRecord.diarrheaCount}회`}
-                                        {dailyRecord.peeCount > 0 && ` / 💧 소변 ${dailyRecord.peeCount}회`}
-                                    </Text>
-                                )}
-                                {dailyRecord.vomitCount > 0 && (
-                                    <Text style={styles.summaryItem}>
-                                        🤮 구토 {dailyRecord.vomitCount}회
-                                        {dailyRecord.vomitTypes && ` (${JSON.parse(dailyRecord.vomitTypes).join(', ')})`}
-                                    </Text>
-                                )}
-                                {dailyRecord.memo && (
-                                    <View style={styles.memoBox}>
-                                        <Text style={styles.memoLabel}>[메모]</Text>
-                                        <Text style={styles.memoText}>{dailyRecord.memo}</Text>
-                                    </View>
-                                )}
-                            </View>
-                        )}
-
-                        {supplements && supplements.length > 0 && (
-                            <View style={styles.summarySection}>
-                                {supplements.filter(s => s.taken).map((s, i) => (
-                                    <Text key={i} style={styles.summaryItem}>💊 {s.name}</Text>
-                                ))}
-                            </View>
-                        )}
-
-                        {fluidRecords && fluidRecords.length > 0 && (
-                            <View style={styles.summarySection}>
-                                {fluidRecords.map((f, i) => (
-                                    <Text key={i} style={styles.summaryItem}>
-                                        <Feather name="activity" size={14} color={COLORS.primary} /> {f.fluidType === 'subcutaneous' ? '피하수액' : '정맥수액'}
-                                        {f.volume && ` ${f.volume}ml`}
-                                    </Text>
-                                ))}
-                            </View>
-                        )}
-                    </>
-                ) : (
-                    <View style={styles.premiumNotice}>
-                        <Text style={styles.premiumText}>
-                            프리미엄에서 상세 기록을 확인할 수 있어요
-                        </Text>
-                        <Pressable
-                            style={styles.premiumButton}
-                            onPress={() => router.push('/pro')}
-                        >
-                            <Text style={styles.premiumButtonText}>프리미엄 알아보기</Text>
-                        </Pressable>
-                    </View>
-                )}
-            </View>
-        );
-    };
-
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
             <View style={styles.header}>
@@ -434,7 +254,13 @@ export default function CalendarScreen() {
                 <GestureDetector gesture={gestures}>
                     <View>
                         <Animated.View style={[styles.calendarGrid, { opacity: fadeAnim }]}>
-                            {renderCalendarGrid()}
+                            <CalendarGrid
+                                year={currentYear}
+                                month={currentMonth}
+                                monthData={monthData}
+                                selectedDate={selectedDate}
+                                onDateSelect={handleDateSelect}
+                            />
                         </Animated.View>
 
                         {/* Legend included in Month Swipe Zone */}
@@ -464,8 +290,15 @@ export default function CalendarScreen() {
 
 
                 <GestureDetector gesture={dayGestures}>
-                    <Animated.View style={{ opacity: fadeAnim, minHeight: 400 }}>
-                        {renderDaySummary()}
+                    <Animated.View style={[styles.daySummaryContainer, { opacity: fadeAnim }]}>
+                        <DaySummaryCard
+                            selectedDate={selectedDate}
+                            selectedDayData={selectedDayData}
+                            isPremium={isPremium}
+                            canViewDetail={isPremium || (selectedDate ? isWithinFreeLimit(selectedDate) : false)}
+                            onUpgrade={() => router.push('/pro')}
+                            getDayName={getDayName}
+                        />
                         <View style={styles.bottomPadding} />
                     </Animated.View>
                 </GestureDetector>
@@ -728,6 +561,9 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: COLORS.surface,
         fontWeight: '600',
+    },
+    daySummaryContainer: {
+        minHeight: 400,
     },
 
 });
