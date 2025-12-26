@@ -9,6 +9,7 @@ export interface DailyRecord {
     diarrheaCount: number;
     vomitCount: number;
     vomitTypes: string | null;
+    waterIntake: number;
     memo: string | null;
     createdAt: string;
     updatedAt: string;
@@ -30,8 +31,8 @@ export async function getTodayRecord(): Promise<DailyRecord> {
 
         await db.runAsync(
             `INSERT INTO daily_records 
-       (id, petId, date, peeCount, poopCount, diarrheaCount, vomitCount, vomitTypes, memo, createdAt, updatedAt)
-       VALUES (?, ?, ?, 0, 0, 0, 0, NULL, NULL, ?, ?)`,
+       (id, petId, date, peeCount, poopCount, diarrheaCount, vomitCount, vomitTypes, waterIntake, memo, createdAt, updatedAt)
+       VALUES (?, ?, ?, 0, 0, 0, 0, NULL, 0, NULL, ?, ?)`,
             [id, petId, today, now, now]
         );
 
@@ -44,6 +45,7 @@ export async function getTodayRecord(): Promise<DailyRecord> {
             diarrheaCount: 0,
             vomitCount: 0,
             vomitTypes: null,
+            waterIntake: 0,
             memo: null,
             createdAt: now,
             updatedAt: now,
@@ -54,7 +56,7 @@ export async function getTodayRecord(): Promise<DailyRecord> {
 }
 
 export async function updateDailyRecord(
-    updates: Partial<Pick<DailyRecord, 'peeCount' | 'poopCount' | 'diarrheaCount' | 'vomitCount' | 'vomitTypes' | 'memo'>>
+    updates: Partial<Pick<DailyRecord, 'peeCount' | 'poopCount' | 'diarrheaCount' | 'vomitCount' | 'vomitTypes' | 'waterIntake' | 'memo'>>
 ): Promise<void> {
     const db = await getDatabase();
     const record = await getTodayRecord();
@@ -82,6 +84,10 @@ export async function updateDailyRecord(
     if (updates.vomitTypes !== undefined) {
         fields.push('vomitTypes = ?');
         values.push(updates.vomitTypes);
+    }
+    if (updates.waterIntake !== undefined) {
+        fields.push('waterIntake = ?');
+        values.push(updates.waterIntake);
     }
     if (updates.memo !== undefined) {
         fields.push('memo = ?');

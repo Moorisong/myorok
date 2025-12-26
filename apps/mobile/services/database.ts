@@ -5,19 +5,19 @@ const DB_NAME = 'myorok.db';
 let db: SQLite.SQLiteDatabase | null = null;
 
 export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
-    if (db) return db;
+  if (db) return db;
 
-    db = await SQLite.openDatabaseAsync(DB_NAME);
-    await initializeTables();
-    await ensureDefaultPet();
+  db = await SQLite.openDatabaseAsync(DB_NAME);
+  await initializeTables();
+  await ensureDefaultPet();
 
-    return db;
+  return db;
 }
 
 async function initializeTables() {
-    if (!db) return;
+  if (!db) return;
 
-    await db.execAsync(`
+  await db.execAsync(`
     CREATE TABLE IF NOT EXISTS pets (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -33,6 +33,7 @@ async function initializeTables() {
       diarrheaCount INTEGER DEFAULT 0,
       vomitCount INTEGER DEFAULT 0,
       vomitTypes TEXT,
+      waterIntake INTEGER DEFAULT 0,
       memo TEXT,
       createdAt TEXT NOT NULL,
       updatedAt TEXT NOT NULL,
@@ -102,37 +103,37 @@ async function initializeTables() {
 }
 
 async function ensureDefaultPet() {
-    if (!db) return;
+  if (!db) return;
 
-    const pet = await db.getFirstAsync<{ id: string }>(
-        'SELECT id FROM pets LIMIT 1'
+  const pet = await db.getFirstAsync<{ id: string }>(
+    'SELECT id FROM pets LIMIT 1'
+  );
+
+  if (!pet) {
+    const now = new Date().toISOString();
+    await db.runAsync(
+      'INSERT INTO pets (id, name, createdAt) VALUES (?, ?, ?)',
+      ['default-pet', '우리 고양이', now]
     );
-
-    if (!pet) {
-        const now = new Date().toISOString();
-        await db.runAsync(
-            'INSERT INTO pets (id, name, createdAt) VALUES (?, ?, ?)',
-            ['default-pet', '우리 고양이', now]
-        );
-    }
+  }
 }
 
 export async function getDefaultPetId(): Promise<string> {
-    const database = await getDatabase();
-    const pet = await database.getFirstAsync<{ id: string }>(
-        'SELECT id FROM pets LIMIT 1'
-    );
-    return pet?.id || 'default-pet';
+  const database = await getDatabase();
+  const pet = await database.getFirstAsync<{ id: string }>(
+    'SELECT id FROM pets LIMIT 1'
+  );
+  return pet?.id || 'default-pet';
 }
 
 export function generateId(): string {
-    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
 export function getTodayDateString(): string {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
