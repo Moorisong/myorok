@@ -26,16 +26,18 @@ import {
     addFluidRecord,
     deleteFluidRecord,
     getDatabase,
+    addSupplement,
     Supplement,
     FluidRecord,
 } from '../../services';
 
 type VomitColor = '투명' | '흰색' | '사료토' | '노란색' | '갈색' | '혈색';
-type ActionType = 'pee' | 'poop' | 'diarrhea' | 'vomit' | 'fluid';
+type ActionType = 'pee' | 'poop' | 'diarrhea' | 'vomit' | 'fluid' | 'water' | 'force';
 
 interface LastAction {
     type: ActionType;
     fluidRecordId?: string;
+    value?: number;
 }
 
 const VOMIT_COLORS: VomitColor[] = ['투명', '흰색', '사료토', '노란색', '갈색', '혈색'];
@@ -47,6 +49,7 @@ export default function TodayScreen() {
     const [diarrheaCount, setDiarrheaCount] = useState(0);
     const [vomitCount, setVomitCount] = useState(0);
     const [vomitColors, setVomitColors] = useState<VomitColor[]>([]);
+    const [waterIntake, setWaterIntake] = useState(0);
     const [memo, setMemo] = useState('');
     const [showVomitColors, setShowVomitColors] = useState(false);
 
@@ -67,6 +70,7 @@ export default function TodayScreen() {
     // Edit Modal States
     const [editModalVisible, setEditModalVisible] = useState(false);
     const [editTarget, setEditTarget] = useState<ActionType | null>(null);
+    const [isAddMode, setIsAddMode] = useState(false);
 
     useFocusEffect(
         useCallback(() => {
@@ -90,6 +94,7 @@ export default function TodayScreen() {
             if (todayRecord.vomitTypes) {
                 try { setVomitColors(JSON.parse(todayRecord.vomitTypes)); } catch { setVomitColors([]); }
             }
+            setWaterIntake(todayRecord.waterIntake || 0);
 
             // Load supplements
             const [suppList, status] = await Promise.all([
@@ -152,12 +157,28 @@ export default function TodayScreen() {
                         vomitTypes: JSON.stringify(newColors)
                     });
                     break;
+
+                case 'force':
+                    if (lastAction.fluidRecordId) {
+                        const db = await getDatabase();
+                        await db.runAsync('DELETE FROM fluid_records WHERE id = ?', [lastAction.fluidRecordId]);
+                        const fluids = await getTodayFluidRecords();
+                        setTodayFluids(fluids);
+                    }
+                    break;
                 case 'fluid':
                     if (lastAction.fluidRecordId) {
                         const db = await getDatabase();
                         await db.runAsync('DELETE FROM fluid_records WHERE id = ?', [lastAction.fluidRecordId]);
                         const fluids = await getTodayFluidRecords();
                         setTodayFluids(fluids);
+                    }
+                    break;
+                case 'water':
+                    if (lastAction.value) {
+                        const newWater = Math.max(0, waterIntake - lastAction.value);
+                        setWaterIntake(newWater);
+                        await updateDailyRecord({ waterIntake: newWater });
                     }
                     break;
             }
@@ -202,13 +223,21 @@ export default function TodayScreen() {
             vomitCount: newCount,
             vomitTypes: JSON.stringify(newColors),
         });
-        showToast('구토 기록 완료. 실행 취소?', { type: 'vomit' });
     };
 
     // Edit Handlers
-    const openEditModal = (target: ActionType) => {
+    const openEditModal = (target: ActionType, isAdd: boolean = false) => {
         setEditTarget(target);
+        setIsAddMode(isAdd);
         setEditModalVisible(true);
+    };
+
+    const handleWaterAdd = () => {
+        openEditModal('water', true);
+    };
+
+    const handleWaterEdit = () => {
+        openEditModal('water', false);
     };
 
     const handleEditSave = async (newValue: number) => {
@@ -241,6 +270,14 @@ export default function TodayScreen() {
                         await updateDailyRecord({ vomitCount: newValue });
                     }
                     break;
+                case 'water':
+                    let finalWater = newValue;
+                    if (isAddMode) {
+                        finalWater = waterIntake + newValue;
+                    }
+                    setWaterIntake(finalWater);
+                    await updateDailyRecord({ waterIntake: finalWater });
+                    break;
             }
         } catch (error) {
             Alert.alert('오류', '저장 중 문제가 발생했습니다.');
@@ -252,7 +289,6 @@ export default function TodayScreen() {
             await deleteFluidRecord(id);
             const fluids = await getTodayFluidRecords();
             setTodayFluids(fluids);
-            showToast('수액 기록이 삭제되었습니다.', { type: 'fluid', fluidRecordId: undefined });
             setToastVisible(false); // Hide existing toast if any
         } catch (error) {
             Alert.alert('오류', '삭제 중 문제가 발생했습니다.');
@@ -273,17 +309,34 @@ export default function TodayScreen() {
         }
     };
 
+    const handleSupplementAdd = async (name: string, type: 'medicine' | 'supplement') => {
+        try {
+            await addSupplement(name, type);
+            // Refresh list
+            const suppList = await getSupplements();
+            setSupplements(suppList);
+
+            // Status update for today (new item will be not taken)
+            const status = await getTodaySupplementStatus();
+            setTakenStatus(status);
+        } catch (error) {
+            Alert.alert('오류', '추가 중 문제가 발생했습니다.');
+        }
+    };
+
     // Fluid handler  
-    const handleFluidAdd = async (type: 'subcutaneous' | 'iv', volume: number) => {
+    const handleFluidAdd = async (type: string, volume: number) => {
         try {
             const record = await addFluidRecord(type, volume);
             const fluids = await getTodayFluidRecords();
             setTodayFluids(fluids);
-            showToast('수액 기록 완료. 실행 취소?', { type: 'fluid', fluidRecordId: record.id });
         } catch (error) {
-            Alert.alert('오류', '수액 기록 중 문제가 발생했습니다.');
+            Alert.alert('오류', '기록 중 문제가 발생했습니다.');
         }
     };
+
+
+
 
     // Memo save
     const handleMemoSave = async () => {
@@ -305,6 +358,7 @@ export default function TodayScreen() {
             case 'poop': return poopCount;
             case 'diarrhea': return diarrheaCount;
             case 'vomit': return vomitCount;
+            case 'water': return isAddMode ? 0 : waterIntake;
             default: return 0;
         }
     };
@@ -315,6 +369,7 @@ export default function TodayScreen() {
             case 'poop': return '배변 횟수 수정';
             case 'diarrhea': return '묽은 변 횟수 수정';
             case 'vomit': return '구토 횟수 수정';
+            case 'water': return isAddMode ? '강수량 추가 (ml)' : '강수량 수정 (ml)';
             default: return '';
         }
     };
@@ -406,19 +461,30 @@ export default function TodayScreen() {
                         )}
                     </View>
 
+                    {/* 강수량 섹션 */}
+
+                    {/* 강수량 섹션 (구현 변경: 수액과 동일 UI 사용) */}
+                    <FluidInputSection
+                        title="강수 (강제 급수)"
+                        todayFluids={todayFluids.filter(f => f.fluidType === 'force')}
+                        onAddFluid={handleFluidAdd}
+                        onDeleteFluid={handleFluidDelete}
+                        isForceMode={true}
+                    />
+
                     {/* 수액 섹션 */}
                     <FluidInputSection
-                        todayFluids={todayFluids}
+                        todayFluids={todayFluids.filter(f => f.fluidType !== 'force')}
                         onAddFluid={handleFluidAdd}
                         onDeleteFluid={handleFluidDelete}
                     />
-
 
                     {/* 약/영양제 섹션 */}
                     <SupplementChecklist
                         supplements={supplements}
                         takenStatus={takenStatus}
                         onToggle={handleSupplementToggle}
+                        onAdd={handleSupplementAdd}
                     />
 
 
@@ -648,6 +714,41 @@ const styles = StyleSheet.create({
     deleteButton: {
         padding: 4,
         marginLeft: 8,
+    },
+    waterControls: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: COLORS.background,
+        borderRadius: 12,
+        padding: 6,
+    },
+    waterValueBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        flex: 1,
+    },
+    waterValueText: {
+        fontSize: 18,
+        fontWeight: '600',
+        color: COLORS.textPrimary,
+    },
+    waterAddBtn: {
+        backgroundColor: COLORS.primary,
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 8,
+        margin: 4,
+    },
+    waterAddBtnText: {
+        color: COLORS.surface,
+        fontWeight: '600',
+        marginLeft: 4,
+        fontSize: 14,
     },
     bottomPadding: {
         height: 80, // Toast 공간 확보를 위해 늘림
