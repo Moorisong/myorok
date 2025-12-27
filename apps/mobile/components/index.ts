@@ -8,3 +8,4 @@ export { default as SupplementChecklist } from './supplement-checklist';
 export { default as CalendarGrid } from './calendar-grid';
 export { default as DaySummaryCard } from './day-summary-card';
 export { default as FluidInputSection } from './fluid-input-section';
+export { CustomMetricInputSection } from './custom-metric-section';
