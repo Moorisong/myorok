@@ -94,18 +94,44 @@ export async function updateDailyRecord(
         values.push(updates.memo);
     }
 
-    if (fields.length > 0) {
-        fields.push('updatedAt = ?');
-        values.push(now);
-        values.push(record.id);
+    if (fields.length === 0) return;
 
-        await db.runAsync(
-            `UPDATE daily_records SET ${fields.join(', ')} WHERE id = ?`,
-            values
-        );
-    }
+    fields.push('updatedAt = ?');
+    values.push(now);
+    values.push(record.id);
+
+    await db.runAsync(
+        `UPDATE daily_records SET ${fields.join(', ')} WHERE id = ?`,
+        values
+    );
 }
 
+export async function getLast7DaysRecords(): Promise<DailyRecord[]> {
+    return getRecentDailyRecords(7);
+}
+
+export async function getRecentDailyRecords(days: number): Promise<DailyRecord[]> {
+    const db = await getDatabase();
+    const petId = await getDefaultPetId();
+    const today = getTodayDateString();
+
+    // Calculate start date
+    const d = new Date();
+    d.setDate(d.getDate() - (days - 1));
+    const startYear = d.getFullYear();
+    const startMonth = String(d.getMonth() + 1).padStart(2, '0');
+    const startDay = String(d.getDate()).padStart(2, '0');
+    const startDate = `${startYear}-${startMonth}-${startDay}`;
+
+    const records = await db.getAllAsync<DailyRecord>(
+        `SELECT * FROM daily_records 
+         WHERE petId = ? AND date >= ? AND date <= ? 
+         ORDER BY date ASC`,
+        [petId, startDate, today]
+    );
+
+    return records;
+}
 export async function getRecentRecords(days: number): Promise<DailyRecord[]> {
     const db = await getDatabase();
     const petId = await getDefaultPetId();
