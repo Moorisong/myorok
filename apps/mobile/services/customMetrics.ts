@@ -48,6 +48,16 @@ export async function getCustomMetrics(): Promise<CustomMetric[]> {
     return metrics;
 }
 
+export async function deleteCustomMetric(id: string): Promise<void> {
+    const db = await getDatabase();
+    // Optional: Delete records too? 
+    // For now, let's just delete the metric definition so it doesn't show up in the list.
+    // Preserving records might be better for "Data is Asset", but orphaned records are useless without a metric def.
+    // Let's delete both to keep it clean as per explicit user action.
+    await db.runAsync('DELETE FROM custom_metrics WHERE id = ?', [id]);
+    await db.runAsync('DELETE FROM custom_metric_records WHERE metricId = ?', [id]);
+}
+
 // Metric value records
 export async function addMetricRecord(
     metricId: string,
