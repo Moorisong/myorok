@@ -1,74 +1,108 @@
-import { useState } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { useFocusEffect } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { COLORS } from '../../../constants';
 import { Header, Card } from '../../../components';
+import {
+    getCustomMetrics,
+    getMetricRecords,
+    CustomMetric,
+    CustomMetricRecord
+} from '../../../services/customMetrics';
 
-interface CustomMetric {
-    id: string;
-    name: string;
-    unit: string;
-}
-
-interface DataPoint {
+interface ChartPoint {
     date: string;
     value: number;
+    originalDate: string; // for sorting if needed
 }
 
-// 임시 데이터
-const MOCK_METRICS: CustomMetric[] = [
-    { id: '1', name: 'BUN', unit: 'mg/dL' },
-    { id: '2', name: 'CREA', unit: 'mg/dL' },
-];
-
-const MOCK_DATA: Record<string, DataPoint[]> = {
-    '1': [
-        { date: '11/15', value: 35 },
-        { date: '12/01', value: 32 },
-        { date: '12/15', value: 28 },
-    ],
-    '2': [
-        { date: '11/15', value: 2.1 },
-        { date: '12/01', value: 1.9 },
-        { date: '12/15', value: 1.7 },
-    ],
-};
-
 export default function CustomChartScreen() {
-    const [selectedMetric, setSelectedMetric] = useState<CustomMetric | null>(
-        MOCK_METRICS[0]
+    const [metrics, setMetrics] = useState<CustomMetric[]>([]);
+    const [selectedMetric, setSelectedMetric] = useState<CustomMetric | null>(null);
+    const [chartData, setChartData] = useState<ChartPoint[]>([]);
+
+    useFocusEffect(
+        useCallback(() => {
+            loadMetrics();
+        }, [])
     );
 
-    const data = selectedMetric ? MOCK_DATA[selectedMetric.id] || [] : [];
-    const maxValue = data.length > 0 ? Math.max(...data.map(d => d.value)) * 1.2 : 100;
+    useEffect(() => {
+        if (selectedMetric) {
+            loadMetricData(selectedMetric.id);
+        } else {
+            setChartData([]);
+        }
+    }, [selectedMetric]);
+
+    const loadMetrics = async () => {
+        try {
+            const fetchedMetrics = await getCustomMetrics();
+            setMetrics(fetchedMetrics);
+            if (fetchedMetrics.length > 0 && !selectedMetric) {
+                setSelectedMetric(fetchedMetrics[0]);
+            } else if (fetchedMetrics.length > 0 && selectedMetric) {
+                // Check if selected metric still exists
+                const exists = fetchedMetrics.find(m => m.id === selectedMetric.id);
+                if (!exists) setSelectedMetric(fetchedMetrics[0]);
+            }
+        } catch (error) {
+            console.error('Error loading metrics:', error);
+        }
+    };
+
+    const loadMetricData = async (metricId: string) => {
+        try {
+            const records = await getMetricRecords(metricId, 30); // Last 30 records
+            // Process for chart (Sort by date ASC for chart)
+            const sortedRecords = [...records].sort((a, b) => a.date.localeCompare(b.date));
+
+            const points: ChartPoint[] = sortedRecords.map(r => ({
+                date: r.date.substring(5).replace('-', '/'),
+                value: r.value,
+                originalDate: r.date
+            }));
+            setChartData(points);
+        } catch (error) {
+            console.error('Error loading metric data:', error);
+        }
+    };
+
+    const maxValue = chartData.length > 0 ? Math.max(...chartData.map(d => d.value)) * 1.2 : 100;
 
     return (
-        <View style={styles.container}>
+        <SafeAreaView style={styles.container} edges={['top']}>
             <Header title="커스텀 수치 차트" showBack />
 
             <ScrollView style={styles.content}>
                 <Card style={styles.card}>
                     <Text style={styles.sectionTitle}>수치 선택</Text>
                     <View style={styles.metricList}>
-                        {MOCK_METRICS.map(metric => (
-                            <Pressable
-                                key={metric.id}
-                                style={[
-                                    styles.metricItem,
-                                    selectedMetric?.id === metric.id && styles.metricItemSelected,
-                                ]}
-                                onPress={() => setSelectedMetric(metric)}
-                            >
-                                <Text
+                        {metrics.length === 0 ? (
+                            <Text style={styles.emptyListText}>등록된 커스텀 수치가 없습니다.</Text>
+                        ) : (
+                            metrics.map(metric => (
+                                <Pressable
+                                    key={metric.id}
                                     style={[
-                                        styles.metricName,
-                                        selectedMetric?.id === metric.id && styles.metricNameSelected,
+                                        styles.metricItem,
+                                        selectedMetric?.id === metric.id && styles.metricItemSelected,
                                     ]}
+                                    onPress={() => setSelectedMetric(metric)}
                                 >
-                                    {metric.name}
-                                </Text>
-                            </Pressable>
-                        ))}
+                                    <Text
+                                        style={[
+                                            styles.metricName,
+                                            selectedMetric?.id === metric.id && styles.metricNameSelected,
+                                        ]}
+                                    >
+                                        {metric.name}
+                                    </Text>
+                                </Pressable>
+                            ))
+                        )}
                     </View>
                 </Card>
 
@@ -79,13 +113,13 @@ export default function CustomChartScreen() {
                             {selectedMetric.unit && ` (${selectedMetric.unit})`}
                         </Text>
 
-                        {data.length === 0 ? (
+                        {chartData.length === 0 ? (
                             <Text style={styles.emptyText}>기록된 데이터가 없습니다.</Text>
                         ) : (
                             <>
                                 {/* 간단한 라인 차트 시뮬레이션 */}
                                 <View style={styles.chart}>
-                                    {data.map((point, index) => (
+                                    {chartData.map((point, index) => (
                                         <View key={index} style={styles.pointContainer}>
                                             <View style={styles.pointWrapper}>
                                                 <View
@@ -103,12 +137,12 @@ export default function CustomChartScreen() {
                                 </View>
 
                                 {/* 트렌드 표시 */}
-                                {data.length >= 2 && (
+                                {chartData.length >= 2 && (
                                     <View style={styles.trendBox}>
-                                        {data[data.length - 1].value < data[0].value ? (
-                                            <Text style={styles.trendGood}>📉 감소 추세 (좋음)</Text>
-                                        ) : data[data.length - 1].value > data[0].value ? (
-                                            <Text style={styles.trendBad}>📈 증가 추세 (주의)</Text>
+                                        {chartData[chartData.length - 1].value < chartData[0].value ? (
+                                            <Text style={styles.trendGood}>📉 감소 추세</Text>
+                                        ) : chartData[chartData.length - 1].value > chartData[0].value ? (
+                                            <Text style={styles.trendBad}>📈 증가 추세</Text>
                                         ) : (
                                             <Text style={styles.trendNeutral}>➡️ 유지 중</Text>
                                         )}
@@ -125,7 +159,7 @@ export default function CustomChartScreen() {
 
                 <View style={styles.bottomPadding} />
             </ScrollView>
-        </View>
+        </SafeAreaView>
     );
 }
 
@@ -250,4 +284,10 @@ const styles = StyleSheet.create({
     bottomPadding: {
         height: 32,
     },
+    emptyListText: {
+        fontSize: 14,
+        color: COLORS.textSecondary,
+        fontStyle: 'italic',
+        padding: 8,
+    }
 });
