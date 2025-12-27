@@ -15,7 +15,7 @@ import { Feather } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 
 import { COLORS } from '../../constants';
-import { Toast, NumberEditModal, CounterButton, SupplementChecklist, FluidInputSection } from '../../components';
+import { Toast, NumberEditModal, CounterButton, SupplementChecklist, FluidInputSection, CustomMetricInputSection } from '../../components';
 import {
     getTodayRecord,
     updateDailyRecord,
@@ -505,6 +505,11 @@ export default function TodayScreen() {
                         </Pressable>
                     </View>
 
+                    {/* 커스텀 수치 섹션 */}
+                    <View style={styles.sectionWrapper}>
+                        <CustomMetricInputSection />
+                    </View>
+
                     <View style={styles.bottomPadding} />
                 </ScrollView>
             </KeyboardAvoidingView>
@@ -571,7 +576,10 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         padding: 16,
     },
-
+    sectionWrapper: {
+        marginHorizontal: 16,
+        marginTop: 12,
+    },
     sectionHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
