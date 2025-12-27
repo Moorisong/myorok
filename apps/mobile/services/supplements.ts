@@ -90,3 +90,24 @@ export async function getTodaySupplementStatus(): Promise<Map<string, boolean>> 
 
     return statusMap;
 }
+export async function getRecentSupplementHistory(days: number = 30): Promise<(SupplementRecord & { name: string })[]> {
+    const db = await getDatabase();
+    const petId = await getDefaultPetId();
+    const d = new Date();
+    d.setDate(d.getDate() - days);
+    const startYear = d.getFullYear();
+    const startMonth = String(d.getMonth() + 1).padStart(2, '0');
+    const startDay = String(d.getDate()).padStart(2, '0');
+    const startDate = `${startYear}-${startMonth}-${startDay}`;
+
+    const records = await db.getAllAsync<SupplementRecord & { name: string }>(
+        `SELECT sr.*, s.name 
+         FROM supplement_records sr 
+         JOIN supplements s ON sr.supplementId = s.id 
+         WHERE s.petId = ? AND sr.date >= ? AND sr.taken = 1
+         ORDER BY sr.date DESC`,
+        [petId, startDate]
+    );
+
+    return records;
+}
