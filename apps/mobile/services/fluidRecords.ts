@@ -72,3 +72,25 @@ export async function deleteFluidRecord(id: string): Promise<void> {
     const db = await getDatabase();
     await db.runAsync('DELETE FROM fluid_records WHERE id = ?', [id]);
 }
+
+export async function getRecentFluidHistory(days: number): Promise<FluidRecord[]> {
+    const db = await getDatabase();
+    const petId = await getDefaultPetId();
+
+    // Calculate start date
+    const d = new Date();
+    d.setDate(d.getDate() - (days - 1));
+    const startYear = d.getFullYear();
+    const startMonth = String(d.getMonth() + 1).padStart(2, '0');
+    const startDay = String(d.getDate()).padStart(2, '0');
+    const startDate = `${startYear}-${startMonth}-${startDay}`;
+
+    const records = await db.getAllAsync<FluidRecord>(
+        `SELECT * FROM fluid_records 
+         WHERE petId = ? AND date >= ? 
+         ORDER BY date ASC, createdAt ASC`,
+        [petId, startDate]
+    );
+
+    return records;
+}
