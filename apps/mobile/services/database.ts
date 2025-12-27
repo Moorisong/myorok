@@ -9,6 +9,7 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
 
   db = await SQLite.openDatabaseAsync(DB_NAME);
   await initializeTables();
+  await runMigrations();
   await ensureDefaultPet();
 
   return db;
@@ -101,6 +102,30 @@ async function initializeTables() {
     );
   `);
 }
+
+async function runMigrations() {
+  if (!db) return;
+
+  try {
+    // Check if waterIntake column exists in daily_records
+    const tableInfo = await db.getAllAsync<{ name: string }>(
+      `PRAGMA table_info(daily_records)`
+    );
+
+    const hasWaterIntake = tableInfo.some(col => col.name === 'waterIntake');
+
+    if (!hasWaterIntake) {
+      console.log('Adding waterIntake column to daily_records table...');
+      await db.execAsync(`
+        ALTER TABLE daily_records ADD COLUMN waterIntake INTEGER DEFAULT 0;
+      `);
+      console.log('waterIntake column added successfully');
+    }
+  } catch (error) {
+    console.error('Migration error:', error);
+  }
+}
+
 
 async function ensureDefaultPet() {
   if (!db) return;
