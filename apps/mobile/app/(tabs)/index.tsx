@@ -55,10 +55,12 @@ export default function TodayScreen() {
         handleFluidDelete,
         handleSupplementToggle,
         handleSupplementAdd,
+        handleSupplementDelete,
         handleFluidAdd,
         handleMemoSave,
         handleUndo,
         handleEditSave,
+        openEditModal,
 
         // Helpers
         getEditInitialValue,
@@ -74,12 +76,7 @@ export default function TodayScreen() {
     const dateString = `${today.getMonth() + 1}월 ${today.getDate()}일`;
     const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
 
-    // openEditModal helper (UI only)
-    const openEditModal = (target: 'pee' | 'poop' | 'diarrhea' | 'vomit') => {
-        // This is handled by internal state in the hook, but we need this wrapper for UI
-        // Since we can't call the internal openEditModal directly, we'll handle this differently
-        // For now, we'll just show the modal - the hook will need to expose this function
-    };
+
 
     if (loading) {
         return (
@@ -119,21 +116,21 @@ export default function TodayScreen() {
                                 label="소변"
                                 count={peeCount}
                                 onPressAdd={handlePeeAdd}
-                                onPressCount={() => { }}
+                                onPressCount={() => openEditModal('pee')}
                             />
                             <CounterButton
                                 emoji="💩"
                                 label="배변"
                                 count={poopCount}
                                 onPressAdd={handlePoopAdd}
-                                onPressCount={() => { }}
+                                onPressCount={() => openEditModal('poop')}
                             />
                             <CounterButton
                                 emoji="🚨"
                                 label="묽은 변"
                                 count={diarrheaCount}
                                 onPressAdd={handleDiarrheaAdd}
-                                onPressCount={() => { }}
+                                onPressCount={() => openEditModal('diarrhea')}
                                 warning
                             />
                             <CounterButton
@@ -141,7 +138,7 @@ export default function TodayScreen() {
                                 label="구토"
                                 count={vomitCount}
                                 onPressAdd={handleVomitAdd}
-                                onPressCount={() => { }}
+                                onPressCount={() => openEditModal('vomit')}
                                 warning
                             />
                         </View>
@@ -168,6 +165,15 @@ export default function TodayScreen() {
                         )}
                     </View>
 
+                    {/* 약/영양제 섹션 */}
+                    <SupplementChecklist
+                        supplements={supplements}
+                        takenStatus={takenStatus}
+                        onToggle={handleSupplementToggle}
+                        onAdd={handleSupplementAdd}
+                        onDelete={handleSupplementDelete}
+                    />
+
                     {/* 강수량 섹션 */}
                     <FluidInputSection
                         title="강수 (강제 급수)"
@@ -182,14 +188,6 @@ export default function TodayScreen() {
                         todayFluids={todayFluids.filter(f => f.fluidType !== 'force')}
                         onAddFluid={handleFluidAdd}
                         onDeleteFluid={handleFluidDelete}
-                    />
-
-                    {/* 약/영양제 섹션 */}
-                    <SupplementChecklist
-                        supplements={supplements}
-                        takenStatus={takenStatus}
-                        onToggle={handleSupplementToggle}
-                        onAdd={handleSupplementAdd}
                     />
 
                     {/* 메모 섹션 */}

@@ -20,6 +20,7 @@ import {
     deleteFluidRecord,
     getDatabase,
     addSupplement,
+    deleteSupplement,
     type Supplement,
     type FluidRecord,
 } from '../services';
@@ -314,6 +315,24 @@ export function useTodayScreen() {
         }
     };
 
+    const handleSupplementDelete = async (supplementId: string) => {
+        try {
+            await deleteSupplement(supplementId);
+            // Refresh list
+            const suppList = await getSupplements();
+            setSupplements(suppList);
+
+            // Remove from takenStatus
+            setTakenStatus(prev => {
+                const newMap = new Map(prev);
+                newMap.delete(supplementId);
+                return newMap;
+            });
+        } catch (error) {
+            Alert.alert(ALERT_TITLES.ERROR, ERROR_MESSAGES.DELETE_FAILED);
+        }
+    };
+
     // Fluid handler  
     const handleFluidAdd = async (type: string, volume: number) => {
         try {
@@ -389,9 +408,11 @@ export function useTodayScreen() {
         handleFluidDelete,
         handleSupplementToggle,
         handleSupplementAdd,
+        handleSupplementDelete,
         handleFluidAdd,
         handleMemoSave,
         handleUndo,
+        openEditModal,
 
         // Helpers
         getEditInitialValue,

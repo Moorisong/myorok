@@ -5,7 +5,7 @@ export type { DailyRecord } from './dailyRecords';
 export { addFoodRecord, getFoodRecords, getTodayFoodRecords } from './foodRecords';
 export type { FoodRecord } from './foodRecords';
 
-export { addSupplement, getSupplements, toggleSupplementTaken, getTodaySupplementStatus } from './supplements';
+export { addSupplement, getSupplements, deleteSupplement, toggleSupplementTaken, getTodaySupplementStatus } from './supplements';
 export type { Supplement, SupplementRecord } from './supplements';
 
 export { addHospitalRecord, getHospitalRecords } from './hospitalRecords';

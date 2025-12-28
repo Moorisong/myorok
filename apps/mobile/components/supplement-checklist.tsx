@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, Alert } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { Link } from 'expo-router';
 
 import { COLORS } from '../constants';
@@ -10,6 +11,7 @@ interface SupplementChecklistProps {
     takenStatus: Map<string, boolean>;
     onToggle: (supplementId: string) => void;
     onAdd: (name: string, type: 'medicine' | 'supplement') => void;
+    onDelete?: (supplementId: string) => void;
 }
 
 export default function SupplementChecklist({
@@ -17,6 +19,7 @@ export default function SupplementChecklist({
     takenStatus,
     onToggle,
     onAdd,
+    onDelete,
 }: SupplementChecklistProps) {
     const [showInput, setShowInput] = React.useState(false);
     const [newName, setNewName] = React.useState('');
@@ -33,16 +36,38 @@ export default function SupplementChecklist({
         <View style={styles.section}>
             <Text style={styles.sectionTitle}>약 / 영양제</Text>
             {supplements.map(supp => (
-                <Pressable
-                    key={supp.id}
-                    style={styles.checkItem}
-                    onPress={() => onToggle(supp.id)}
-                >
-                    <View style={[styles.checkbox, takenStatus.get(supp.id) && styles.checkboxChecked]}>
-                        {takenStatus.get(supp.id) && <Text style={styles.checkmark}>✓</Text>}
-                    </View>
-                    <Text style={styles.checkLabel}>{supp.name}</Text>
-                </Pressable>
+                <View key={supp.id} style={styles.checkItemContainer}>
+                    <Pressable
+                        style={styles.checkItem}
+                        onPress={() => onToggle(supp.id)}
+                    >
+                        <View style={[styles.checkbox, takenStatus.get(supp.id) && styles.checkboxChecked]}>
+                            {takenStatus.get(supp.id) && <Text style={styles.checkmark}>✓</Text>}
+                        </View>
+                        <Text style={styles.checkLabel}>{supp.name}</Text>
+                    </Pressable>
+                    {onDelete && (
+                        <Pressable
+                            style={styles.deleteButton}
+                            onPress={() => {
+                                Alert.alert(
+                                    '삭제 확인',
+                                    `"${supp.name}"을(를) 목록에서 삭제하시겠습니까?\n\n관련된 모든 복용 기록도 함께 삭제됩니다.`,
+                                    [
+                                        { text: '취소', style: 'cancel' },
+                                        {
+                                            text: '삭제',
+                                            style: 'destructive',
+                                            onPress: () => onDelete(supp.id)
+                                        }
+                                    ]
+                                );
+                            }}
+                        >
+                            <Feather name="trash-2" size={18} color={COLORS.error} />
+                        </Pressable>
+                    )}
+                </View>
             ))}
             {supplements.length === 0 && !showInput && (
                 <Pressable style={styles.emptyButton} onPress={() => setShowInput(true)}>
@@ -112,12 +137,17 @@ const styles = StyleSheet.create({
         color: COLORS.textPrimary,
         marginBottom: 12,
     },
+    checkItemContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderBottomWidth: 1,
+        borderBottomColor: COLORS.border,
+    },
     checkItem: {
+        flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
         paddingVertical: 10,
-        borderBottomWidth: 1,
-        borderBottomColor: COLORS.border,
     },
     checkbox: {
         width: 24,
@@ -235,5 +265,9 @@ const styles = StyleSheet.create({
     addButtonLiteText: {
         fontSize: 14,
         color: COLORS.textSecondary,
+    },
+    deleteButton: {
+        padding: 8,
+        marginRight: 4,
     },
 });

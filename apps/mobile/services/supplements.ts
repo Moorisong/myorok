@@ -46,6 +46,17 @@ export async function getSupplements(): Promise<Supplement[]> {
     return supplements;
 }
 
+export async function deleteSupplement(supplementId: string): Promise<void> {
+    const db = await getDatabase();
+
+    // Delete the supplement
+    await db.runAsync('DELETE FROM supplements WHERE id = ?', [supplementId]);
+
+    // Delete all related records
+    await db.runAsync('DELETE FROM supplement_records WHERE supplementId = ?', [supplementId]);
+}
+
+
 // Daily supplement records
 export async function toggleSupplementTaken(supplementId: string): Promise<boolean> {
     const db = await getDatabase();

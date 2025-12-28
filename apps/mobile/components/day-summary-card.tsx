@@ -67,12 +67,6 @@ export default function DaySummaryCard({
                                     💧 강수량 {dailyRecord.waterIntake}ml
                                 </Text>
                             )}
-                            {dailyRecord.memo && (
-                                <View style={styles.memoBox}>
-                                    <Text style={styles.memoLabel}>[메모]</Text>
-                                    <Text style={styles.memoText}>{dailyRecord.memo}</Text>
-                                </View>
-                            )}
                         </View>
                     )}
 
@@ -95,6 +89,15 @@ export default function DaySummaryCard({
                                     {f.volume && ` ${f.volume}ml`}
                                 </Text>
                             ))}
+                        </View>
+                    )}
+
+                    {dailyRecord && dailyRecord.memo && (
+                        <View style={styles.summarySection}>
+                            <View style={styles.memoBox}>
+                                <Text style={styles.memoLabel}>[메모]</Text>
+                                <Text style={styles.memoText}>{dailyRecord.memo}</Text>
+                            </View>
                         </View>
                     )}
                 </>
