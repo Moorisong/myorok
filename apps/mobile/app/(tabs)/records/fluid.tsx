@@ -11,7 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 
-import { COLORS } from '../../../constants';
+import { COLORS, ALERT_TITLES, ERROR_MESSAGES, SUCCESS_MESSAGES, VALIDATION_MESSAGES } from '../../../constants';
 import { Button, Header } from '../../../components';
 import { addFluidRecord, getTodayFluidRecords, FluidRecord } from '../../../services';
 
@@ -45,7 +45,7 @@ export default function FluidScreen() {
 
     const handleSave = async () => {
         if (!selectedType) {
-            Alert.alert('알림', '수액 종류를 선택해주세요.');
+            Alert.alert(ALERT_TITLES.ALERT, VALIDATION_MESSAGES.SELECT_TYPE);
             return;
         }
 
@@ -56,11 +56,11 @@ export default function FluidScreen() {
                 volume ? parseInt(volume, 10) : undefined,
                 memo || undefined
             );
-            Alert.alert('저장 완료', '수액 기록이 저장되었습니다.', [
+            Alert.alert(ALERT_TITLES.SAVE_COMPLETE, SUCCESS_MESSAGES.FLUID_SAVED, [
                 { text: '확인', onPress: () => router.back() },
             ]);
         } catch (error) {
-            Alert.alert('오류', '저장 중 문제가 발생했습니다.');
+            Alert.alert(ALERT_TITLES.ERROR, ERROR_MESSAGES.SAVE_FAILED);
         } finally {
             setSaving(false);
         }

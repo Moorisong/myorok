@@ -11,7 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 
-import { COLORS } from '../../../constants';
+import { COLORS, ALERT_TITLES, ERROR_MESSAGES, VALIDATION_MESSAGES, UI_LABELS } from '../../../constants';
 import { Button, Header } from '../../../components';
 import {
     addSupplement,
@@ -59,13 +59,13 @@ export default function MedicineScreen() {
                 return newMap;
             });
         } catch (error) {
-            Alert.alert('오류', '상태 변경 중 문제가 발생했습니다.');
+            Alert.alert(ALERT_TITLES.ERROR, ERROR_MESSAGES.STATUS_CHANGE_FAILED);
         }
     };
 
     const handleAdd = async () => {
         if (!newName.trim()) {
-            Alert.alert('알림', '이름을 입력해주세요.');
+            Alert.alert(ALERT_TITLES.ALERT, VALIDATION_MESSAGES.ENTER_NAME);
             return;
         }
 
@@ -76,7 +76,7 @@ export default function MedicineScreen() {
             setShowAddForm(false);
             Alert.alert('추가 완료', `${newName}이(가) 추가되었습니다.`);
         } catch (error) {
-            Alert.alert('오류', '추가 중 문제가 발생했습니다.');
+            Alert.alert(ALERT_TITLES.ERROR, ERROR_MESSAGES.ADD_FAILED);
         }
     };
 
@@ -85,7 +85,7 @@ export default function MedicineScreen() {
             <SafeAreaView style={styles.container} edges={['top']}>
                 <Header title="약/영양제" showBack />
                 <View style={styles.loadingContainer}>
-                    <Text style={styles.loadingText}>로딩 중...</Text>
+                    <Text style={styles.loadingText}>{UI_LABELS.LOADING}</Text>
                 </View>
             </SafeAreaView>
         );

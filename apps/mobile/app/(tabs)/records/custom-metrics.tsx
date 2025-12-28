@@ -11,7 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 
-import { COLORS } from '../../../constants';
+import { COLORS, ALERT_TITLES, ERROR_MESSAGES, SUCCESS_MESSAGES, VALIDATION_MESSAGES, UI_LABELS } from '../../../constants';
 import { Button, Header } from '../../../components';
 import {
     addCustomMetric,
@@ -60,7 +60,7 @@ export default function CustomMetricsScreen() {
 
     const handleAddMetric = async () => {
         if (!newMetricName.trim()) {
-            Alert.alert('알림', '항목 이름을 입력해주세요.');
+            Alert.alert(ALERT_TITLES.ALERT, VALIDATION_MESSAGES.ENTER_ITEM_NAME);
             return;
         }
 
@@ -72,17 +72,17 @@ export default function CustomMetricsScreen() {
             setShowAddMetric(false);
             Alert.alert('추가 완료', `${metric.name} 항목이 추가되었습니다.`);
         } catch (error) {
-            Alert.alert('오류', '추가 중 문제가 발생했습니다.');
+            Alert.alert(ALERT_TITLES.ERROR, ERROR_MESSAGES.ADD_FAILED);
         }
     };
 
     const handleAddRecord = async () => {
         if (!selectedMetric) {
-            Alert.alert('알림', '항목을 선택해주세요.');
+            Alert.alert(ALERT_TITLES.ALERT, VALIDATION_MESSAGES.SELECT_ITEM);
             return;
         }
         if (!newValue.trim()) {
-            Alert.alert('알림', '수치를 입력해주세요.');
+            Alert.alert(ALERT_TITLES.ALERT, VALIDATION_MESSAGES.ENTER_NUMBER);
             return;
         }
 
@@ -98,9 +98,9 @@ export default function CustomMetricsScreen() {
             setNewValue('');
             setNewMemo('');
             setShowAddRecord(false);
-            Alert.alert('저장 완료', '수치가 기록되었습니다.');
+            Alert.alert(ALERT_TITLES.SAVE_COMPLETE, SUCCESS_MESSAGES.METRIC_SAVED);
         } catch (error) {
-            Alert.alert('오류', '저장 중 문제가 발생했습니다.');
+            Alert.alert(ALERT_TITLES.ERROR, ERROR_MESSAGES.SAVE_FAILED);
         }
     };
 
@@ -114,7 +114,7 @@ export default function CustomMetricsScreen() {
             <SafeAreaView style={styles.container} edges={['top']}>
                 <Header title="커스텀 수치" showBack />
                 <View style={styles.loadingContainer}>
-                    <Text style={styles.loadingText}>로딩 중...</Text>
+                    <Text style={styles.loadingText}>{UI_LABELS.LOADING}</Text>
                 </View>
             </SafeAreaView>
         );

@@ -11,7 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 
-import { COLORS } from '../../../constants';
+import { COLORS, ALERT_TITLES, ERROR_MESSAGES, SUCCESS_MESSAGES, VALIDATION_MESSAGES } from '../../../constants';
 import { Button, Header } from '../../../components';
 import { addFoodRecord, getTodayFoodRecords, FoodRecord } from '../../../services';
 
@@ -55,18 +55,18 @@ export default function FoodScreen() {
 
     const handleSave = async () => {
         if (!selectedType || !selectedPreference) {
-            Alert.alert('알림', '사료 종류와 기호성을 선택해주세요.');
+            Alert.alert(ALERT_TITLES.ALERT, VALIDATION_MESSAGES.SELECT_FOOD);
             return;
         }
 
         setSaving(true);
         try {
             await addFoodRecord(selectedType, selectedPreference, comment || undefined);
-            Alert.alert('저장 완료', '사료 기호성이 기록되었습니다.', [
+            Alert.alert(ALERT_TITLES.SAVE_COMPLETE, SUCCESS_MESSAGES.FOOD_SAVED, [
                 { text: '확인', onPress: () => router.back() },
             ]);
         } catch (error) {
-            Alert.alert('오류', '저장 중 문제가 발생했습니다.');
+            Alert.alert(ALERT_TITLES.ERROR, ERROR_MESSAGES.SAVE_FAILED);
         } finally {
             setSaving(false);
         }

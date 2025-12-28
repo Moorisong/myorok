@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, Alert, ScrollView } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import Card from './card';
-import { COLORS } from '../constants';
+import { COLORS, ALERT_TITLES, ERROR_MESSAGES, SUCCESS_MESSAGES, VALIDATION_MESSAGES } from '../constants';
 import {
     CustomMetric,
     addCustomMetric,
@@ -36,25 +36,25 @@ export function CustomMetricInputSection() {
 
     const handleAddRecord = async () => {
         if (!selectedMetricId && !isCreatingNew) {
-            Alert.alert('알림', '기록할 수치 항목을 선택해주세요.');
+            Alert.alert(ALERT_TITLES.ALERT, VALIDATION_MESSAGES.SELECT_METRIC);
             return;
         }
 
         if (isCreatingNew) {
             if (!newMetricName.trim()) {
-                Alert.alert('알림', '새로운 수치 이름을 입력해주세요.');
+                Alert.alert(ALERT_TITLES.ALERT, VALIDATION_MESSAGES.ENTER_METRIC_NAME);
                 return;
             }
         }
 
         if (!value.trim()) {
-            Alert.alert('알림', '값을 입력해주세요.');
+            Alert.alert(ALERT_TITLES.ALERT, VALIDATION_MESSAGES.ENTER_VALUE);
             return;
         }
 
         const numValue = parseFloat(value);
         if (isNaN(numValue)) {
-            Alert.alert('오류', '올바른 숫자를 입력해주세요.');
+            Alert.alert(ALERT_TITLES.ERROR, ERROR_MESSAGES.INVALID_NUMBER);
             return;
         }
 
@@ -70,7 +70,7 @@ export function CustomMetricInputSection() {
 
             if (targetMetricId) {
                 await addMetricRecord(targetMetricId, numValue);
-                Alert.alert('완료', '수치가 기록되었습니다.');
+                Alert.alert(ALERT_TITLES.COMPLETE, SUCCESS_MESSAGES.METRIC_SAVED);
 
                 // Reset form
                 setValue('');
@@ -80,7 +80,7 @@ export function CustomMetricInputSection() {
                 setSelectedMetricId(null);
             }
         } catch (e) {
-            Alert.alert('오류', '저장 중 문제가 발생했습니다.');
+            Alert.alert(ALERT_TITLES.ERROR, ERROR_MESSAGES.SAVE_FAILED);
             console.error(e);
         }
     };
@@ -124,7 +124,7 @@ export function CustomMetricInputSection() {
                                                 }
                                                 loadMetrics();
                                             } catch (e) {
-                                                Alert.alert('오류', '삭제 중 문제가 발생했습니다.');
+                                                Alert.alert(ALERT_TITLES.ERROR, ERROR_MESSAGES.DELETE_FAILED);
                                             }
                                         }
                                     }

@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from 'react-nati
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { COLORS } from '../../constants';
+import { COLORS, ALERT_TITLES, FUTURE_FEATURES } from '../../constants';
 import { Card } from '../../components';
 
 interface SettingItemProps {
@@ -34,15 +34,15 @@ export default function SettingsScreen() {
     const router = useRouter();
 
     const handlePinSetup = () => {
-        Alert.alert('잠금 설정', '잠금 기능은 추후 업데이트에서 제공될 예정입니다.');
+        Alert.alert(ALERT_TITLES.LOCK_SETTING, FUTURE_FEATURES.LOCK);
     };
 
     const handleBackup = () => {
-        Alert.alert('백업', '백업 기능은 추후 업데이트에서 제공될 예정입니다.');
+        Alert.alert(ALERT_TITLES.BACKUP, FUTURE_FEATURES.BACKUP);
     };
 
     const handleRestore = () => {
-        Alert.alert('복원', '복원 기능은 추후 업데이트에서 제공될 예정입니다.');
+        Alert.alert(ALERT_TITLES.RESTORE, FUTURE_FEATURES.RESTORE);
     };
 
     const handleReset = () => {

@@ -11,20 +11,21 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 
-import { COLORS } from '../../constants';
+import {
+    COLORS,
+    VOMIT_COLORS,
+    DANGER_VOMIT_COLOR,
+    ALERT_TITLES,
+    ERROR_MESSAGES,
+    SUCCESS_MESSAGES,
+    PLACEHOLDERS,
+    UI_LABELS,
+} from '../../constants';
+import type { VomitColor } from '../../constants';
 import { Button } from '../../components';
 import { getTodayRecord, updateDailyRecord, DailyRecord } from '../../services';
 
-type VomitColor = '투명' | '흰색' | '사료토' | '노란색' | '갈색' | '혈색';
 
-const VOMIT_COLORS: VomitColor[] = [
-    '투명',
-    '흰색',
-    '사료토',
-    '노란색',
-    '갈색',
-    '혈색',
-];
 
 export default function TodayScreen() {
     const [peeCount, setPeeCount] = useState(0);
@@ -103,9 +104,9 @@ export default function TodayScreen() {
     const handleSave = async () => {
         try {
             await updateDailyRecord({ memo: memo || null });
-            Alert.alert('저장 완료', '오늘의 기록이 저장되었습니다.');
+            Alert.alert(ALERT_TITLES.SAVE_COMPLETE, SUCCESS_MESSAGES.TODAY_SAVED);
         } catch (error) {
-            Alert.alert('오류', '저장 중 문제가 발생했습니다.');
+            Alert.alert(ALERT_TITLES.ERROR, ERROR_MESSAGES.SAVE_FAILED);
         }
     };
 
@@ -113,7 +114,7 @@ export default function TodayScreen() {
         return (
             <SafeAreaView style={styles.container} edges={['top']}>
                 <View style={styles.loadingContainer}>
-                    <Text style={styles.loadingText}>로딩 중...</Text>
+                    <Text style={styles.loadingText}>{UI_LABELS.LOADING}</Text>
                 </View>
             </SafeAreaView>
         );
@@ -196,14 +197,14 @@ export default function TodayScreen() {
                                         key={color}
                                         style={[
                                             styles.colorOption,
-                                            color === '혈색' && styles.dangerOption,
+                                            color === DANGER_VOMIT_COLOR && styles.dangerOption,
                                         ]}
                                         onPress={() => handleVomitColorSelect(color)}
                                     >
                                         <Text
                                             style={[
                                                 styles.colorOptionText,
-                                                color === '혈색' && styles.dangerText,
+                                                color === DANGER_VOMIT_COLOR && styles.dangerText,
                                             ]}
                                         >
                                             {color}
@@ -228,7 +229,7 @@ export default function TodayScreen() {
                     <Text style={styles.sectionTitle}>특이사항</Text>
                     <TextInput
                         style={styles.memoInput}
-                        placeholder="특이사항을 입력하세요"
+                        placeholder={PLACEHOLDERS.MEMO_TODAY}
                         placeholderTextColor={COLORS.textSecondary}
                         value={memo}
                         onChangeText={setMemo}
@@ -239,7 +240,7 @@ export default function TodayScreen() {
                 </View>
 
                 <Button
-                    title="저장하기"
+                    title={UI_LABELS.SAVE_BUTTON}
                     onPress={handleSave}
                     style={styles.saveButton}
                 />
