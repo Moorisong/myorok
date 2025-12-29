@@ -24,3 +24,26 @@ export { getAllPets, getPetById, addPet, updatePet, deletePet, restorePet, perma
 export type { Pet } from './pets';
 
 export { getSelectedPetId, setSelectedPetId } from './database';
+
+// PIN 서비스
+export { getPinStatus, setPin, verifyPin, removePin, getDeviceId } from './pin';
+
+// Comfort 서비스
+export {
+    getPosts,
+    createPost,
+    updatePost,
+    deletePost,
+    toggleLike,
+    getComments,
+    createComment,
+    updateComment,
+    deleteComment,
+    reportPost,
+    blockUser,
+    unblockUser,
+    getBlockedUsers,
+} from './comfort';
+export type { ComfortPost, ComfortComment } from './comfort';
+
+

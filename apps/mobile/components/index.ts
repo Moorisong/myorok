@@ -9,3 +9,6 @@ export { default as CalendarGrid } from './calendar-grid';
 export { default as DaySummaryCard } from './day-summary-card';
 export { default as FluidInputSection } from './fluid-input-section';
 export { CustomMetricInputSection } from './custom-metric-section';
+export { PinInputModal } from './pin-input-modal';
+export { ComfortPostCard } from './comfort-post-card';
+export { ComfortComposeModal } from './comfort-compose-modal';

@@ -77,3 +77,85 @@ export const PET_MESSAGES = {
   DELETE_LAST_PET_WARNING: '마지막 고양이는 삭제할 수 없습니다.',
   RESTORE_CONFIRM: '이 고양이를 복원하시겠습니까?',
 } as const;
+
+export const PIN_MESSAGES = {
+  // 상태 메시지
+  LOCKED_BANNER: '🔒 설정이 잠겨 있습니다',
+  UNLOCK_BUTTON: '잠금 해제',
+
+  // 설정 화면
+  PIN_SET_TITLE: 'PIN 설정',
+  PIN_SET_DESCRIPTION: '4자리 숫자를 입력하세요',
+  PIN_CONFIRM_DESCRIPTION: 'PIN을 다시 입력하세요',
+  PIN_MISMATCH: 'PIN이 일치하지 않습니다.',
+  PIN_SET_SUCCESS: 'PIN이 설정되었습니다.',
+  PIN_REMOVE_SUCCESS: 'PIN이 해제되었습니다.',
+
+  // 잠금 해제
+  PIN_VERIFY_TITLE: 'PIN 입력',
+  PIN_VERIFY_DESCRIPTION: '설정을 변경하려면 PIN을 입력하세요',
+
+  // 에러
+  SERVER_UNAVAILABLE: '서버에 연결할 수 없습니다. 나중에 다시 시도해주세요.',
+  INVALID_PIN_FORMAT: 'PIN은 4자리 숫자여야 합니다.',
+
+  // 관리
+  PIN_CHANGE: 'PIN 변경',
+  PIN_REMOVE: 'PIN 해제',
+  PIN_REMOVE_CONFIRM: 'PIN을 해제하시겠습니까? 설정이 잠기지 않게 됩니다.',
+} as const;
+
+export const COMFORT_MESSAGES = {
+  // 탭 헤더
+  TAB_TITLE: '오늘의 위로',
+  TAB_SUBTITLE: '집사들과 함께 하루를 나눠요',
+
+  // 자정 삭제 안내
+  MIDNIGHT_NOTICE: '💫 모든 글은 자정에 사라져요',
+  MIDNIGHT_NOTICE_DETAIL: '오늘 하루의 이야기만 나누는 공간입니다',
+
+  // 서버 상태
+  SERVER_PREPARING: '서버 준비 중이에요',
+  SERVER_PREPARING_DETAIL: '곧 만나요! 조금만 기다려 주세요 🐱',
+
+  // 빈 상태
+  EMPTY_STATE: '아직 글이 없어요',
+  EMPTY_STATE_DETAIL: '첫 번째 이야기를 나눠보세요!',
+
+  // 글 작성
+  COMPOSE_TITLE: '위로의 글 쓰기',
+  COMPOSE_PLACEHOLDER: '오늘 하루 어떠셨나요? 환묘 집사끼리 위로와 응원을 나눠보세요.',
+  COMPOSE_LIMIT: '/500',
+  POST_SUCCESS: '글이 등록되었어요',
+
+  // 글 작성 제한
+  POST_LIMIT_TITLE: '잠시 쉬어가요',
+  POST_LIMIT_MESSAGE: (minutes: number) => `${minutes}분 후에 다시 글을 쓸 수 있어요`,
+
+  // 댓글
+  COMMENT_PLACEHOLDER: '따뜻한 댓글을 남겨주세요',
+  SHOW_COMMENTS: (count: number) => `댓글 ${count}개 보기`,
+  HIDE_COMMENTS: '댓글 접기',
+  COMMENT_SUCCESS: '댓글이 등록되었어요',
+
+  // 수정/삭제
+  EDIT: '수정',
+  DELETE: '삭제',
+  DELETE_CONFIRM: '정말 삭제하시겠어요?',
+  DELETE_POST_DETAIL: '글과 댓글이 모두 삭제됩니다',
+  DELETE_COMMENT_DETAIL: '댓글이 삭제됩니다',
+
+  // 신고/차단
+  REPORT: '신고',
+  REPORT_REASONS: ['부적절한 내용', '스팸/광고', '욕설 우회', '기타'],
+  REPORT_SUCCESS: '신고가 접수되었어요',
+  BLOCK: '차단',
+  BLOCK_CONFIRM: '이 사용자를 차단하시겠어요?',
+  BLOCK_DETAIL: '차단하면 이 사용자의 글과 댓글이 보이지 않아요',
+  BLOCK_SUCCESS: '사용자를 차단했어요',
+  UNBLOCK: '차단 해제',
+  UNBLOCK_SUCCESS: '차단을 해제했어요',
+
+  // 좋아요
+  LIKE: '응원해요',
+} as const;

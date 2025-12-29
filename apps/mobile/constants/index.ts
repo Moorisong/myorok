@@ -13,4 +13,6 @@ export {
     TOAST_MESSAGES,
     FUTURE_FEATURES,
     PET_MESSAGES,
+    PIN_MESSAGES,
+    COMFORT_MESSAGES,
 } from './messages';
