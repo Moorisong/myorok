@@ -84,8 +84,8 @@ export default function ComfortScreen() {
         setShowComposeModal(true);
     };
 
-    const handlePostSubmit = async (content: string): Promise<{ success: boolean; error?: string }> => {
-        const response = await createPost(content, skipCooldown);
+    const handlePostSubmit = async (content: string, emoji: string): Promise<{ success: boolean; error?: string }> => {
+        const response = await createPost(content, emoji, skipCooldown);
 
         if (response.success && response.data) {
             setPosts(prev => [response.data!.post, ...prev]);
@@ -218,6 +218,9 @@ export default function ComfortScreen() {
                 <Text style={styles.noticeText}>{COMFORT_MESSAGES.MIDNIGHT_NOTICE}</Text>
             </View>
 
+            {/* 신고 자동숨김 안내 */}
+            <Text style={styles.reportNotice}>신고 3회 이상 시 자동 숨김</Text>
+
             {isLoading ? (
                 <View style={styles.loadingContainer}>
                     <ActivityIndicator size="large" color={COLORS.primary} />
@@ -267,7 +270,14 @@ export default function ComfortScreen() {
 
             <ComfortComposeModal
                 visible={showComposeModal}
-                onClose={() => setShowComposeModal(false)}
+                onClose={() => {
+                    setShowComposeModal(false);
+                    // 테스트 모드로 글쓰기 진입 후 취소 시 원래 상태로 복원
+                    if (skipCooldown) {
+                        setSkipCooldown(false);
+                        loadPosts(false); // 서버에서 실제 canPost 상태 다시 가져오기
+                    }
+                }}
                 onSubmit={handlePostSubmit}
             />
         </SafeAreaView>
@@ -322,6 +332,12 @@ const styles = StyleSheet.create({
         fontSize: 13,
         color: '#2E7D32',
         textAlign: 'center',
+    },
+    reportNotice: {
+        fontSize: 11,
+        color: '#BDBDBD',
+        textAlign: 'center',
+        marginBottom: 4,
     },
     scrollView: {
         flex: 1,

@@ -6,6 +6,7 @@ export interface ComfortPost {
     id: string;
     deviceId: string;
     content: string;
+    emoji: string;
     createdAt: string;
     updatedAt: string;
     isOwner: boolean;
@@ -74,11 +75,11 @@ export async function getPosts(): Promise<ApiResponse<PostsResponse>> {
 }
 
 // 게시글 작성
-export async function createPost(content: string, skipCooldown = false): Promise<ApiResponse<{ post: ComfortPost }>> {
+export async function createPost(content: string, emoji = '🐱', skipCooldown = false): Promise<ApiResponse<{ post: ComfortPost }>> {
     const deviceId = await getDeviceId();
     return apiCall('/api/comfort/posts', {
         method: 'POST',
-        body: JSON.stringify({ deviceId, content, skipCooldown }),
+        body: JSON.stringify({ deviceId, content, emoji, skipCooldown }),
     });
 }
 

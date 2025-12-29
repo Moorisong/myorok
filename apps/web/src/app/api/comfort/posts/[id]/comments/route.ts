@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getPostById, savePost, generateId, filterBadWords, getModelsAsync, canComment } from '@/lib/comfort';
+import { getPostById, savePost, generateId, filterBadWords, getModelsAsync, canComment, generateNickname } from '@/lib/comfort';
 
 interface RouteParams {
     params: Promise<{ id: string }>;
@@ -43,7 +43,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
                 createdAt: c.createdAt,
                 updatedAt: c.updatedAt,
                 isOwner: c.deviceId === deviceId,
-                displayId: `Device-${c.deviceId.slice(-4).toUpperCase()}`,
+                displayId: generateNickname(c.deviceId),
             }));
 
         return NextResponse.json({
@@ -133,7 +133,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
                 comment: {
                     ...newComment,
                     isOwner: true,
-                    displayId: `Device-${deviceId.slice(-4).toUpperCase()}`,
+                    displayId: generateNickname(deviceId),
                 },
             },
         });

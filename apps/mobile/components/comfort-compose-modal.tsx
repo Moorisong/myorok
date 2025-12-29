@@ -9,16 +9,23 @@ import {
     KeyboardAvoidingView,
     Platform,
     Alert,
+    ScrollView,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 
 import { COLORS, COMFORT_MESSAGES } from '../constants';
 
+// 프로필 이모지 리스트 (10개)
+const PROFILE_EMOJIS = [
+    '🐱', '🐾', '🌸', '✨', '💫', '🌙', '🍀', '🦋', '🌈', '❤️'
+];
+
 interface ComfortComposeModalProps {
     visible: boolean;
     onClose: () => void;
-    onSubmit: (content: string) => Promise<{ success: boolean; error?: string }>;
+    onSubmit: (content: string, emoji: string) => Promise<{ success: boolean; error?: string }>;
     initialContent?: string;
+    initialEmoji?: string;
     isEdit?: boolean;
 }
 
@@ -29,29 +36,33 @@ export function ComfortComposeModal({
     onClose,
     onSubmit,
     initialContent = '',
+    initialEmoji = '🐱',
     isEdit = false,
 }: ComfortComposeModalProps) {
     const [content, setContent] = useState(initialContent);
+    const [selectedEmoji, setSelectedEmoji] = useState(initialEmoji);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const inputRef = useRef<TextInput>(null);
 
     useEffect(() => {
         if (visible) {
             setContent(initialContent);
+            setSelectedEmoji(initialEmoji);
             setTimeout(() => {
                 inputRef.current?.focus();
             }, 300);
         }
-    }, [visible, initialContent]);
+    }, [visible, initialContent, initialEmoji]);
 
     const handleSubmit = async () => {
         if (!content.trim() || isSubmitting) return;
 
         setIsSubmitting(true);
         try {
-            const result = await onSubmit(content.trim());
+            const result = await onSubmit(content.trim(), selectedEmoji);
             if (result.success) {
                 setContent('');
+                setSelectedEmoji('🐱');
                 onClose();
                 Alert.alert('완료', COMFORT_MESSAGES.POST_SUCCESS);
             } else {
@@ -115,6 +126,32 @@ export function ComfortComposeModal({
                             {isSubmitting ? '게시 중...' : '게시'}
                         </Text>
                     </Pressable>
+                </View>
+
+                {/* 이모지 선택 */}
+                <View style={styles.emojiSection}>
+                    <Text style={styles.emojiLabel}>프로필 이모지</Text>
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.emojiList}
+                    >
+                        {PROFILE_EMOJIS.map((emoji) => (
+                            <Pressable
+                                key={emoji}
+                                style={[
+                                    styles.emojiItem,
+                                    selectedEmoji === emoji && styles.emojiItemSelected,
+                                ]}
+                                onPress={() => {
+                                    setSelectedEmoji(emoji);
+                                    inputRef.current?.focus();
+                                }}
+                            >
+                                <Text style={styles.emojiText}>{emoji}</Text>
+                            </Pressable>
+                        ))}
+                    </ScrollView>
                 </View>
 
                 {/* 본문 입력 */}
@@ -213,5 +250,40 @@ const styles = StyleSheet.create({
     },
     charCountOver: {
         color: COLORS.error,
+    },
+    emojiSection: {
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: COLORS.border,
+    },
+    emojiHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    emojiLabel: {
+        fontSize: 13,
+        color: COLORS.textSecondary,
+    },
+    emojiList: {
+        gap: 8,
+    },
+    emojiItem: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: COLORS.background,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    emojiItemSelected: {
+        backgroundColor: COLORS.primary + '20',
+        borderWidth: 2,
+        borderColor: COLORS.primary,
+    },
+    emojiText: {
+        fontSize: 24,
     },
 });

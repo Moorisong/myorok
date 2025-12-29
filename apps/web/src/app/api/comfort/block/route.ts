@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getModelsAsync } from '@/lib/comfort';
+import { getModelsAsync, generateNickname } from '@/lib/comfort';
 
 // GET /api/comfort/block - 차단 목록 조회
 export async function GET(request: NextRequest) {
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
 
         const blockedDevices = blockedEntries.map((b: any) => ({
             blockedDeviceId: b.blockedDeviceId,
-            displayId: `Device-${b.blockedDeviceId.slice(-4).toUpperCase()}`,
+            displayId: generateNickname(b.blockedDeviceId),
             createdAt: b.createdAt,
         }));
 

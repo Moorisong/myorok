@@ -59,7 +59,7 @@ export default function TabLayout() {
             <Tabs.Screen
                 name="comfort"
                 options={{
-                    title: '위로',
+                    title: '쉼터',
                     tabBarIcon: ({ focused }) => <TabIcon name="heart" focused={focused} />,
                 }}
             />

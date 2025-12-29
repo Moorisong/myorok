@@ -71,6 +71,8 @@ export function ComfortPostCard({
             if (response.success && response.data) {
                 setComments(prev => [...prev, response.data!.comment]);
                 setCommentText('');
+            } else if (response.error) {
+                Alert.alert('알림', response.error.message || '댓글 작성에 실패했습니다.');
             }
         } catch {
             Alert.alert('오류', '댓글 작성에 실패했습니다.');
@@ -128,7 +130,7 @@ export function ComfortPostCard({
             <View style={styles.header}>
                 <View style={styles.authorInfo}>
                     <View style={styles.avatar}>
-                        <Text style={styles.avatarText}>🐱</Text>
+                        <Text style={styles.avatarText}>{post.emoji || '🐱'}</Text>
                     </View>
                     <View>
                         <Text style={styles.displayId}>{post.displayId}</Text>

@@ -107,8 +107,8 @@ export const PIN_MESSAGES = {
 
 export const COMFORT_MESSAGES = {
   // 탭 헤더
-  TAB_TITLE: '오늘의 위로',
-  TAB_SUBTITLE: '집사들과 함께 하루를 나눠요',
+  TAB_TITLE: '쉼터',
+  TAB_SUBTITLE: '사랑과 희망으로 버틴 오늘, 환묘와 나 그리고 우리.',
 
   // 자정 삭제 안내
   MIDNIGHT_NOTICE: '💫 모든 글은 자정에 사라져요',
@@ -123,8 +123,8 @@ export const COMFORT_MESSAGES = {
   EMPTY_STATE_DETAIL: '첫 번째 이야기를 나눠보세요!',
 
   // 글 작성
-  COMPOSE_TITLE: '위로의 글 쓰기',
-  COMPOSE_PLACEHOLDER: '오늘 하루 어떠셨나요? 환묘 집사끼리 위로와 응원을 나눠보세요.',
+  COMPOSE_TITLE: '글 쓰기',
+  COMPOSE_PLACEHOLDER: '오늘 하루 어떻게 보내고 있나요?\n행복한 이야기, 크고 작은 일들 그리고 위로와 응원을 나누는 공간입니다.',
   COMPOSE_LIMIT: '/500',
   POST_SUCCESS: '글이 등록되었어요',
 

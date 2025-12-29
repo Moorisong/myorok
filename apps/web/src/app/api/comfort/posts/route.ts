@@ -6,6 +6,7 @@ import {
     canPost,
     generateId,
     filterBadWords,
+    generateNickname,
     type Post,
 } from '@/lib/comfort';
 
@@ -35,7 +36,7 @@ export async function GET(request: NextRequest) {
             isLiked: post.likes.includes(deviceId),
             likeCount: post.likes.length,
             commentCount: post.comments.length,
-            displayId: `Device-${post.deviceId.slice(-4).toUpperCase()}`,
+            displayId: generateNickname(post.deviceId),
         }));
         // .sort()는 getFilteredPosts 내부에서 이미 createdAt -1 정렬됨
 
@@ -63,7 +64,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { deviceId, content } = body;
+        const { deviceId, content, emoji } = body;
 
         if (!deviceId || typeof deviceId !== 'string') {
             return NextResponse.json(
@@ -114,6 +115,7 @@ export async function POST(request: NextRequest) {
             id: generateId(),
             deviceId,
             content: filteredContent,
+            emoji: emoji || '🐱',
             createdAt: now,
             updatedAt: now,
             likes: [],
@@ -135,7 +137,7 @@ export async function POST(request: NextRequest) {
                     isLiked: false,
                     likeCount: 0,
                     commentCount: 0,
-                    displayId: `Device-${deviceId.slice(-4).toUpperCase()}`,
+                    displayId: generateNickname(deviceId),
                 },
             },
         });
