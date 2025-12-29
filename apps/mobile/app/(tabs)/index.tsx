@@ -24,8 +24,9 @@ import {
     CounterButton,
     SupplementChecklist,
     FluidInputSection,
-    CustomMetricInputSection
+    CustomMetricInputSection,
 } from '../../components';
+import PetSelector from '../../components/pet-selector';
 import { useTodayScreen } from '../../hooks/use-today-screen';
 
 export default function TodayScreen() {
@@ -69,6 +70,7 @@ export default function TodayScreen() {
         // Setters
         setMemo,
         setEditModalVisible,
+        editTarget,
     } = useTodayScreen();
 
     // Date formatting (UI helper)
@@ -95,6 +97,11 @@ export default function TodayScreen() {
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 keyboardVerticalOffset={0}
             >
+                {/* Pet Selector - Fixed at top */}
+                <View style={styles.petSelectorFixed}>
+                    <PetSelector />
+                </View>
+
                 <ScrollView
                     style={styles.scrollView}
                     showsVerticalScrollIndicator={false}
@@ -230,6 +237,8 @@ export default function TodayScreen() {
                 initialValue={getEditInitialValue()}
                 onSave={handleEditSave}
                 onCancel={() => setEditModalVisible(false)}
+                vomitColors={vomitColors}
+                isVomitMode={editTarget === 'vomit'}
             />
         </SafeAreaView>
     );
@@ -268,6 +277,14 @@ const styles = StyleSheet.create({
     dayText: {
         fontSize: 16,
         color: COLORS.textSecondary,
+    },
+    petSelectorFixed: {
+        paddingHorizontal: 16,
+        paddingTop: 16,
+        paddingBottom: 12,
+        backgroundColor: COLORS.background,
+        borderBottomWidth: 1,
+        borderBottomColor: COLORS.border,
     },
     section: {
         backgroundColor: COLORS.surface,
