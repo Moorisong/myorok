@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getComfortData, saveComfortData } from '@/lib/comfort';
+import { getModelsAsync } from '@/lib/comfort';
 
 // GET /api/comfort/block - 차단 목록 조회
 export async function GET(request: NextRequest) {
@@ -14,14 +14,14 @@ export async function GET(request: NextRequest) {
             );
         }
 
-        const data = getComfortData();
-        const blockedDevices = data.blockedDevices
-            .filter(b => b.deviceId === deviceId)
-            .map(b => ({
-                blockedDeviceId: b.blockedDeviceId,
-                displayId: `Device-${b.blockedDeviceId.slice(-4).toUpperCase()}`,
-                createdAt: b.createdAt,
-            }));
+        const { BlockedDeviceModel } = await getModelsAsync();
+        const blockedEntries = await BlockedDeviceModel.find({ deviceId }).lean();
+
+        const blockedDevices = blockedEntries.map((b: any) => ({
+            blockedDeviceId: b.blockedDeviceId,
+            displayId: `Device-${b.blockedDeviceId.slice(-4).toUpperCase()}`,
+            createdAt: b.createdAt,
+        }));
 
         return NextResponse.json({
             success: true,
@@ -64,12 +64,10 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const data = getComfortData();
+        const { BlockedDeviceModel } = await getModelsAsync();
 
         // 이미 차단했는지 확인
-        const alreadyBlocked = data.blockedDevices.some(
-            b => b.deviceId === deviceId && b.blockedDeviceId === blockedDeviceId
-        );
+        const alreadyBlocked = await BlockedDeviceModel.findOne({ deviceId, blockedDeviceId });
 
         if (alreadyBlocked) {
             return NextResponse.json(
@@ -78,13 +76,11 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        data.blockedDevices.push({
+        await BlockedDeviceModel.create({
             deviceId,
             blockedDeviceId,
             createdAt: new Date().toISOString(),
         });
-
-        saveComfortData(data);
 
         return NextResponse.json({ success: true });
     } catch (error) {
@@ -117,20 +113,15 @@ export async function DELETE(request: NextRequest) {
             );
         }
 
-        const data = getComfortData();
-        const blockIndex = data.blockedDevices.findIndex(
-            b => b.deviceId === deviceId && b.blockedDeviceId === blockedDeviceId
-        );
+        const { BlockedDeviceModel } = await getModelsAsync();
+        const result = await BlockedDeviceModel.deleteOne({ deviceId, blockedDeviceId });
 
-        if (blockIndex === -1) {
+        if (result.deletedCount === 0) {
             return NextResponse.json(
                 { success: false, error: { code: 'NOT_BLOCKED', message: '차단된 사용자가 아닙니다.' } },
                 { status: 404 }
             );
         }
-
-        data.blockedDevices.splice(blockIndex, 1);
-        saveComfortData(data);
 
         return NextResponse.json({ success: true });
     } catch (error) {

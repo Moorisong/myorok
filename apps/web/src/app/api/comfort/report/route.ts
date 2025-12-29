@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getComfortData, saveComfortData } from '@/lib/comfort';
+import { getPostById, savePost } from '@/lib/comfort';
 
 const REPORT_THRESHOLD = 3; // 3회 이상 신고 시 자동 숨김
 
@@ -23,10 +23,8 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const data = getComfortData();
-
         if (targetType === 'post') {
-            const post = data.posts.find(p => p.id === targetId);
+            const post = await getPostById(targetId);
             if (!post) {
                 return NextResponse.json(
                     { success: false, error: { code: 'POST_NOT_FOUND', message: '게시글을 찾을 수 없습니다.' } },
@@ -58,7 +56,7 @@ export async function POST(request: NextRequest) {
                 post.hidden = true;
             }
 
-            saveComfortData(data);
+            await savePost(post);
 
             return NextResponse.json({
                 success: true,

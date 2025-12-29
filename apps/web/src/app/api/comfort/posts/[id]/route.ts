@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getComfortData, saveComfortData, filterBadWords } from '@/lib/comfort';
+import { getPostById, savePost, filterBadWords, getModelsAsync } from '@/lib/comfort';
 
 interface RouteParams {
     params: Promise<{ id: string }>;
@@ -33,17 +33,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
             );
         }
 
-        const data = getComfortData();
-        const postIndex = data.posts.findIndex(p => p.id === id);
+        const post = await getPostById(id);
 
-        if (postIndex === -1) {
+        if (!post) {
             return NextResponse.json(
                 { success: false, error: { code: 'POST_NOT_FOUND', message: '게시글을 찾을 수 없습니다.' } },
                 { status: 404 }
             );
         }
-
-        const post = data.posts[postIndex];
 
         if (post.deviceId !== deviceId) {
             return NextResponse.json(
@@ -56,7 +53,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         post.content = filterBadWords(content.trim());
         post.updatedAt = new Date().toISOString();
 
-        saveComfortData(data);
+        await savePost(post);
 
         return NextResponse.json({
             success: true,
@@ -85,17 +82,14 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
             );
         }
 
-        const data = getComfortData();
-        const postIndex = data.posts.findIndex(p => p.id === id);
+        const post = await getPostById(id);
 
-        if (postIndex === -1) {
+        if (!post) {
             return NextResponse.json(
                 { success: false, error: { code: 'POST_NOT_FOUND', message: '게시글을 찾을 수 없습니다.' } },
                 { status: 404 }
             );
         }
-
-        const post = data.posts[postIndex];
 
         if (post.deviceId !== deviceId) {
             return NextResponse.json(
@@ -104,9 +98,9 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
             );
         }
 
-        // 삭제 (댓글도 함께 삭제됨)
-        data.posts.splice(postIndex, 1);
-        saveComfortData(data);
+        // 삭제 (Mongoose deleteOne)
+        const { PostModel } = await getModelsAsync();
+        await PostModel.deleteOne({ id });
 
         return NextResponse.json({ success: true });
     } catch (error) {

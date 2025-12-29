@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getComfortData, saveComfortData, generateId, filterBadWords } from '@/lib/comfort';
+import { getPostById, savePost, generateId, filterBadWords, getModelsAsync } from '@/lib/comfort';
 
 interface RouteParams {
     params: Promise<{ id: string }>;
@@ -19,8 +19,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             );
         }
 
-        const data = getComfortData();
-        const post = data.posts.find(p => p.id === id);
+        const post = await getPostById(id);
 
         if (!post) {
             return NextResponse.json(
@@ -29,14 +28,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             );
         }
 
-        // 차단한 사용자 목록
-        const blockedDeviceIds = data.blockedDevices
-            .filter(b => b.deviceId === deviceId)
-            .map(b => b.blockedDeviceId);
+        // 차단한 사용자 목록 조회
+        const { BlockedDeviceModel } = await getModelsAsync();
+        const blockedEntries = await BlockedDeviceModel.find({ deviceId }).lean();
+        // blockedEntry may have _id, so we cast or map carefully
+        const blockedDeviceIds = blockedEntries.map((b: any) => b.blockedDeviceId);
 
         const comments = post.comments
-            .filter(c => !blockedDeviceIds.includes(c.deviceId))
-            .map(c => ({
+            .filter((c: any) => !blockedDeviceIds.includes(c.deviceId))
+            .map((c: any) => ({
                 ...c,
                 isOwner: c.deviceId === deviceId,
                 displayId: `Device-${c.deviceId.slice(-4).toUpperCase()}`,
@@ -83,8 +83,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             );
         }
 
-        const data = getComfortData();
-        const post = data.posts.find(p => p.id === id);
+        const post = await getPostById(id);
 
         if (!post) {
             return NextResponse.json(
@@ -104,8 +103,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             updatedAt: now,
         };
 
+        // Mongoose document array push
         post.comments.push(newComment);
-        saveComfortData(data);
+        await savePost(post);
 
         return NextResponse.json({
             success: true,

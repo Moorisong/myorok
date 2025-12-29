@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getComfortData, saveComfortData } from '@/lib/comfort';
+import { getPostById, savePost } from '@/lib/comfort';
 
 interface RouteParams {
     params: Promise<{ id: string }>;
@@ -19,8 +19,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             );
         }
 
-        const data = getComfortData();
-        const post = data.posts.find(p => p.id === id);
+        const post = await getPostById(id);
 
         if (!post) {
             return NextResponse.json(
@@ -42,7 +41,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             isLiked = false;
         }
 
-        saveComfortData(data);
+        await savePost(post);
 
         return NextResponse.json({
             success: true,

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
-    getComfortData,
-    saveComfortData,
+    getFilteredPosts,
+    createPost,
     cleanupOldPosts,
     canPost,
     generateId,
@@ -22,39 +22,30 @@ export async function GET(request: NextRequest) {
             );
         }
 
-        // 자정 지난 글 삭제
-        cleanupOldPosts();
+        // 자정 지난 글 삭제 (Async)
+        await cleanupOldPosts();
 
-        const data = getComfortData();
+        // MongoDB에서 차단/숨김 처리된 필터링된 목록 조회 (Async)
+        const posts = await getFilteredPosts(deviceId);
 
-        // 차단한 사용자 목록
-        const blockedDeviceIds = data.blockedDevices
-            .filter(b => b.deviceId === deviceId)
-            .map(b => b.blockedDeviceId);
+        // View용 데이터 가공 (isOwner, isLiked 등)
+        const formattedPosts = posts.map(post => ({
+            ...post,
+            isOwner: post.deviceId === deviceId,
+            isLiked: post.likes.includes(deviceId),
+            likeCount: post.likes.length,
+            commentCount: post.comments.length,
+            displayId: `Device-${post.deviceId.slice(-4).toUpperCase()}`,
+        }));
+        // .sort()는 getFilteredPosts 내부에서 이미 createdAt -1 정렬됨
 
-        // 필터링: 차단된 사용자 글, 숨김 처리된 글 제외
-        const posts = data.posts
-            .filter(post => !post.hidden)
-            .filter(post => !blockedDeviceIds.includes(post.deviceId))
-            .map(post => ({
-                ...post,
-                // 댓글에서도 차단된 사용자 제외
-                comments: post.comments.filter(c => !blockedDeviceIds.includes(c.deviceId)),
-                isOwner: post.deviceId === deviceId,
-                isLiked: post.likes.includes(deviceId),
-                likeCount: post.likes.length,
-                commentCount: post.comments.length,
-                displayId: `Device-${post.deviceId.slice(-4).toUpperCase()}`,
-            }))
-            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-        // 글 작성 가능 여부
-        const postStatus = canPost(deviceId);
+        // 글 작성 가능 여부 (Async)
+        const postStatus = await canPost(deviceId);
 
         return NextResponse.json({
             success: true,
             data: {
-                posts,
+                posts: formattedPosts,
                 canPost: postStatus.canPost,
                 waitMinutes: postStatus.waitMinutes,
             },
@@ -95,8 +86,8 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // 1시간 제한 체크
-        const postStatus = canPost(deviceId);
+        // 1시간 제한 체크 (Async)
+        const postStatus = await canPost(deviceId);
         if (!postStatus.canPost) {
             return NextResponse.json(
                 {
@@ -111,7 +102,6 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const data = getComfortData();
         const now = new Date().toISOString();
 
         // 욕설 필터 적용
@@ -130,10 +120,8 @@ export async function POST(request: NextRequest) {
             hidden: false,
         };
 
-        data.posts.push(newPost);
-        data.lastPostTime[deviceId] = now;
-
-        saveComfortData(data);
+        // 데이터베이스 저장 (Async)
+        await createPost(newPost);
 
         return NextResponse.json({
             success: true,

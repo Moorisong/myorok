@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getComfortData, saveComfortData, filterBadWords } from '@/lib/comfort';
+import { savePost, filterBadWords, getModelsAsync } from '@/lib/comfort';
 
 interface RouteParams {
     params: Promise<{ id: string }>;
@@ -33,36 +33,44 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
             );
         }
 
-        const data = getComfortData();
+        const { PostModel } = await getModelsAsync();
 
-        // 모든 게시글에서 댓글 찾기
-        for (const post of data.posts) {
-            const commentIndex = post.comments.findIndex(c => c.id === id);
-            if (commentIndex !== -1) {
-                const comment = post.comments[commentIndex];
+        // 댓글 ID로 해당 댓글을 포함한 게시글 찾기
+        const post = await PostModel.findOne({ "comments.id": id });
 
-                if (comment.deviceId !== deviceId) {
-                    return NextResponse.json(
-                        { success: false, error: { code: 'FORBIDDEN', message: '수정 권한이 없습니다.' } },
-                        { status: 403 }
-                    );
-                }
-
-                comment.content = filterBadWords(content.trim());
-                comment.updatedAt = new Date().toISOString();
-                saveComfortData(data);
-
-                return NextResponse.json({
-                    success: true,
-                    data: { comment },
-                });
-            }
+        if (!post) {
+            return NextResponse.json(
+                { success: false, error: { code: 'COMMENT_NOT_FOUND', message: '댓글을 찾을 수 없습니다.' } },
+                { status: 404 }
+            );
         }
 
-        return NextResponse.json(
-            { success: false, error: { code: 'COMMENT_NOT_FOUND', message: '댓글을 찾을 수 없습니다.' } },
-            { status: 404 }
-        );
+        // Mongoose subdocument array search
+        const comment = post.comments.find((c: any) => c.id === id);
+
+        if (!comment) {
+            return NextResponse.json(
+                { success: false, error: { code: 'COMMENT_NOT_FOUND', message: '댓글을 찾을 수 없습니다.' } },
+                { status: 404 }
+            );
+        }
+
+        if (comment.deviceId !== deviceId) {
+            return NextResponse.json(
+                { success: false, error: { code: 'FORBIDDEN', message: '수정 권한이 없습니다.' } },
+                { status: 403 }
+            );
+        }
+
+        comment.content = filterBadWords(content.trim());
+        comment.updatedAt = new Date().toISOString();
+
+        await savePost(post);
+
+        return NextResponse.json({
+            success: true,
+            data: { comment },
+        });
     } catch (error) {
         console.error('댓글 수정 오류:', error);
         return NextResponse.json(
@@ -86,31 +94,38 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
             );
         }
 
-        const data = getComfortData();
+        const { PostModel } = await getModelsAsync();
+        const post = await PostModel.findOne({ "comments.id": id });
 
-        for (const post of data.posts) {
-            const commentIndex = post.comments.findIndex(c => c.id === id);
-            if (commentIndex !== -1) {
-                const comment = post.comments[commentIndex];
-
-                if (comment.deviceId !== deviceId) {
-                    return NextResponse.json(
-                        { success: false, error: { code: 'FORBIDDEN', message: '삭제 권한이 없습니다.' } },
-                        { status: 403 }
-                    );
-                }
-
-                post.comments.splice(commentIndex, 1);
-                saveComfortData(data);
-
-                return NextResponse.json({ success: true });
-            }
+        if (!post) {
+            return NextResponse.json(
+                { success: false, error: { code: 'COMMENT_NOT_FOUND', message: '댓글을 찾을 수 없습니다.' } },
+                { status: 404 }
+            );
         }
 
-        return NextResponse.json(
-            { success: false, error: { code: 'COMMENT_NOT_FOUND', message: '댓글을 찾을 수 없습니다.' } },
-            { status: 404 }
-        );
+        const commentIndex = post.comments.findIndex((c: any) => c.id === id);
+
+        if (commentIndex === -1) {
+            return NextResponse.json(
+                { success: false, error: { code: 'COMMENT_NOT_FOUND', message: '댓글을 찾을 수 없습니다.' } },
+                { status: 404 }
+            );
+        }
+
+        const comment = post.comments[commentIndex];
+
+        if (comment.deviceId !== deviceId) {
+            return NextResponse.json(
+                { success: false, error: { code: 'FORBIDDEN', message: '삭제 권한이 없습니다.' } },
+                { status: 403 }
+            );
+        }
+
+        post.comments.splice(commentIndex, 1);
+        await savePost(post);
+
+        return NextResponse.json({ success: true });
     } catch (error) {
         console.error('댓글 삭제 오류:', error);
         return NextResponse.json(
