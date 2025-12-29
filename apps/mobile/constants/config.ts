@@ -8,7 +8,7 @@ export const CONFIG = {
     PIN_LENGTH: 4,                  // PIN 길이
 
     // API 설정 (서버 배포 후 변경 필요)
-    API_BASE_URL: __DEV__
-        ? 'http://localhost:3000'   // 개발 환경
-        : 'https://api.myorok.app', // 프로덕션 환경
+    API_BASE_URL: process.env.EXPO_PUBLIC_API_URL ?? (__DEV__
+        ? 'http://localhost:3001'   // 개발 환경 (fallback)
+        : 'https://api.myorok.app'), // 프로덕션 환경
 } as const;
