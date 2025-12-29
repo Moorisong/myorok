@@ -82,10 +82,10 @@ export function ComfortDebugModal({
                     />
 
                     <DebugButton
-                        icon="file-text"
-                        title="샘플 게시글 생성"
-                        description="랜덤 닉네임, 욕설 포함, 이모지 🧪"
-                        onPress={() => handleAction('create-sample')}
+                        icon="layers"
+                        title="샘플 생성 x3 (동일 유저)"
+                        description="같은 사용자가 작성한 글 3개 생성"
+                        onPress={() => handleAction('create-sample', { count: 3, sameUser: true })}
                         isLoading={isLoading}
                     />
 
@@ -98,10 +98,10 @@ export function ComfortDebugModal({
                     />
 
                     <DebugButton
-                        icon="clock"
-                        title="시간 이동 +2시간"
-                        description="최근 글 작성 시간을 2시간 전으로"
-                        onPress={() => handleAction('time-travel', { hours: 2 })}
+                        icon="rotate-ccw"
+                        title="시간 리셋"
+                        description="작성 시간을 현재(지금)로 변경"
+                        onPress={() => handleAction('reset-time')}
                         isLoading={isLoading}
                     />
                 </View>
