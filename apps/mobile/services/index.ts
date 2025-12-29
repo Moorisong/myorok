@@ -20,3 +20,7 @@ export type { CustomMetric, CustomMetricRecord } from './customMetrics';
 export { getMonthRecords, getDayDetail } from './calendar';
 export type { CalendarDayData } from './calendar';
 
+export { getAllPets, getPetById, addPet, updatePet, deletePet, restorePet, permanentDeletePet } from './pets';
+export type { Pet } from './pets';
+
+export { getSelectedPetId, setSelectedPetId } from './database';

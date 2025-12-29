@@ -24,6 +24,7 @@ import {
     type Supplement,
     type FluidRecord,
 } from '../services';
+import { useSelectedPet } from './use-selected-pet';
 
 type ActionType = 'pee' | 'poop' | 'diarrhea' | 'vomit' | 'fluid' | 'water' | 'force';
 
@@ -34,6 +35,8 @@ interface LastAction {
 }
 
 export function useTodayScreen() {
+    const { selectedPetId } = useSelectedPet();
+
     // Daily counts
     const [peeCount, setPeeCount] = useState(0);
     const [poopCount, setPoopCount] = useState(0);
@@ -70,7 +73,7 @@ export function useTodayScreen() {
                 if (timerRef.current) clearTimeout(timerRef.current);
                 setToastVisible(false);
             };
-        }, [])
+        }, [selectedPetId])
     );
 
     const loadAllData = async () => {
@@ -231,7 +234,7 @@ export function useTodayScreen() {
         openEditModal('water', false);
     };
 
-    const handleEditSave = async (newValue: number) => {
+    const handleEditSave = async (newValue: number, selectedColors?: string[]) => {
         setEditModalVisible(false);
         if (!editTarget) return;
 
@@ -258,7 +261,13 @@ export function useTodayScreen() {
                             vomitTypes: JSON.stringify([])
                         });
                     } else {
-                        await updateDailyRecord({ vomitCount: newValue });
+                        // 선택된 색상이 있으면 사용, 없으면 기존 색상 유지 (또는 비우기)
+                        const finalColors = (selectedColors as VomitColor[] | undefined) || vomitColors.slice(0, newValue);
+                        setVomitColors(finalColors as VomitColor[]);
+                        await updateDailyRecord({
+                            vomitCount: newValue,
+                            vomitTypes: JSON.stringify(finalColors)
+                        });
                     }
                     break;
                 case 'water':
@@ -315,19 +324,21 @@ export function useTodayScreen() {
         }
     };
 
-    const handleSupplementDelete = async (supplementId: string) => {
+    const handleSupplementDelete = async (supplementId: string, deleteRecords: boolean) => {
         try {
-            await deleteSupplement(supplementId);
+            await deleteSupplement(supplementId, deleteRecords);
             // Refresh list
             const suppList = await getSupplements();
             setSupplements(suppList);
 
-            // Remove from takenStatus
-            setTakenStatus(prev => {
-                const newMap = new Map(prev);
-                newMap.delete(supplementId);
-                return newMap;
-            });
+            // Remove from takenStatus only if we deleted the records
+            if (deleteRecords) {
+                setTakenStatus(prev => {
+                    const newMap = new Map(prev);
+                    newMap.delete(supplementId);
+                    return newMap;
+                });
+            }
         } catch (error) {
             Alert.alert(ALERT_TITLES.ERROR, ERROR_MESSAGES.DELETE_FAILED);
         }

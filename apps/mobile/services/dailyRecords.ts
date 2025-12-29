@@ -1,4 +1,4 @@
-import { getDatabase, getDefaultPetId, generateId, getTodayDateString } from './database';
+import { getDatabase, getSelectedPetId, generateId, getTodayDateString } from './database';
 
 export interface DailyRecord {
     id: string;
@@ -17,7 +17,7 @@ export interface DailyRecord {
 
 export async function getTodayRecord(): Promise<DailyRecord> {
     const db = await getDatabase();
-    const petId = await getDefaultPetId();
+    const petId = await getSelectedPetId();
     const today = getTodayDateString();
 
     let record = await db.getFirstAsync<DailyRecord>(
@@ -112,7 +112,7 @@ export async function getLast7DaysRecords(): Promise<DailyRecord[]> {
 
 export async function getRecentDailyRecords(days: number): Promise<DailyRecord[]> {
     const db = await getDatabase();
-    const petId = await getDefaultPetId();
+    const petId = await getSelectedPetId();
     const today = getTodayDateString();
 
     // Calculate start date
@@ -134,7 +134,7 @@ export async function getRecentDailyRecords(days: number): Promise<DailyRecord[]
 }
 export async function getRecentRecords(days: number): Promise<DailyRecord[]> {
     const db = await getDatabase();
-    const petId = await getDefaultPetId();
+    const petId = await getSelectedPetId();
 
     const records = await db.getAllAsync<DailyRecord>(
         `SELECT * FROM daily_records 

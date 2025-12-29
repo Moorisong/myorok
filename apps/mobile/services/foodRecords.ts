@@ -1,4 +1,4 @@
-import { getDatabase, getDefaultPetId, generateId, getTodayDateString } from './database';
+import { getDatabase, getSelectedPetId, generateId, getTodayDateString } from './database';
 
 export interface FoodRecord {
     id: string;
@@ -16,7 +16,7 @@ export async function addFoodRecord(
     comment?: string
 ): Promise<FoodRecord> {
     const db = await getDatabase();
-    const petId = await getDefaultPetId();
+    const petId = await getSelectedPetId();
     const today = getTodayDateString();
     const now = new Date().toISOString();
     const id = generateId();
@@ -40,7 +40,7 @@ export async function addFoodRecord(
 
 export async function getFoodRecords(limit = 30): Promise<FoodRecord[]> {
     const db = await getDatabase();
-    const petId = await getDefaultPetId();
+    const petId = await getSelectedPetId();
 
     const records = await db.getAllAsync<FoodRecord>(
         `SELECT * FROM food_records 
@@ -55,7 +55,7 @@ export async function getFoodRecords(limit = 30): Promise<FoodRecord[]> {
 
 export async function getTodayFoodRecords(): Promise<FoodRecord[]> {
     const db = await getDatabase();
-    const petId = await getDefaultPetId();
+    const petId = await getSelectedPetId();
     const today = getTodayDateString();
 
     const records = await db.getAllAsync<FoodRecord>(

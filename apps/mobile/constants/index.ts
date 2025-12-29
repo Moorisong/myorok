@@ -12,4 +12,5 @@ export {
     PLACEHOLDERS,
     TOAST_MESSAGES,
     FUTURE_FEATURES,
+    PET_MESSAGES,
 } from './messages';

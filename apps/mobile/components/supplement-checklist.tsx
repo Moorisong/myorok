@@ -11,7 +11,7 @@ interface SupplementChecklistProps {
     takenStatus: Map<string, boolean>;
     onToggle: (supplementId: string) => void;
     onAdd: (name: string, type: 'medicine' | 'supplement') => void;
-    onDelete?: (supplementId: string) => void;
+    onDelete?: (supplementId: string, deleteRecords: boolean) => void;
 }
 
 export default function SupplementChecklist({
@@ -51,20 +51,24 @@ export default function SupplementChecklist({
                             style={styles.deleteButton}
                             onPress={() => {
                                 Alert.alert(
-                                    '삭제 확인',
-                                    `"${supp.name}"을(를) 목록에서 삭제하시겠습니까?\n\n관련된 모든 복용 기록도 함께 삭제됩니다.`,
+                                    '목록에서 제거',
+                                    `"${supp.name}"을(를) 어떻게 처리하시겠습니까?`,
                                     [
                                         { text: '취소', style: 'cancel' },
                                         {
-                                            text: '삭제',
+                                            text: '기록 유지하고 제거',
+                                            onPress: () => onDelete(supp.id, false)
+                                        },
+                                        {
+                                            text: '기록도 함께 삭제',
                                             style: 'destructive',
-                                            onPress: () => onDelete(supp.id)
+                                            onPress: () => onDelete(supp.id, true)
                                         }
                                     ]
                                 );
                             }}
                         >
-                            <Feather name="trash-2" size={18} color={COLORS.error} />
+                            <Feather name="minus-circle" size={18} color={COLORS.textSecondary} style={{ opacity: 0.5 }} />
                         </Pressable>
                     )}
                 </View>
@@ -259,6 +263,10 @@ const styles = StyleSheet.create({
     },
     addButtonLite: {
         paddingVertical: 12,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        borderStyle: 'dashed',
         alignItems: 'center',
         marginTop: 8,
     },

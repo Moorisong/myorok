@@ -11,6 +11,7 @@ import {
     CustomMetric,
     CustomMetricRecord
 } from '../../../services/customMetrics';
+import { useSelectedPet } from '../../../hooks/use-selected-pet';
 
 interface ChartPoint {
     date: string;
@@ -19,6 +20,7 @@ interface ChartPoint {
 }
 
 export default function CustomChartScreen() {
+    const { selectedPetId } = useSelectedPet();
     const [metrics, setMetrics] = useState<CustomMetric[]>([]);
     const [selectedMetric, setSelectedMetric] = useState<CustomMetric | null>(null);
     const [chartData, setChartData] = useState<ChartPoint[]>([]);
@@ -26,7 +28,7 @@ export default function CustomChartScreen() {
     useFocusEffect(
         useCallback(() => {
             loadMetrics();
-        }, [])
+        }, [selectedPetId])
     );
 
     useEffect(() => {

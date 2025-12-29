@@ -10,15 +10,22 @@
 
 ## 1. pets
 
-> 고양이 기본 정보 (v1에서는 1묘만 사용, 구조는 다묘 대비)
+> 고양이 기본 정보 (다묘 지원)
 
 ```sql
 pets (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
-  createdAt TEXT NOT NULL
+  createdAt TEXT NOT NULL,
+  deletedAt TEXT -- 소프트 삭제 타임스탬프 (NULL = 활성 상태)
 )
 ```
+
+**다묘 지원:**
+- 여러 마리 등록 가능 (각각 고유 ID)
+- 삭제 시 하드 삭제하지 않고 `deletedAt`에 타임스탬프 저장
+- 삭제된 고양이의 기록은 유지, UI에서 숨김 처리
+- 복원 기능 제공 가능
 
 ---
 
@@ -74,9 +81,15 @@ supplements (
   petId TEXT NOT NULL,
   name TEXT NOT NULL,
   type TEXT NOT NULL, -- supplement | medicine
-  createdAt TEXT NOT NULL
+  createdAt TEXT NOT NULL,
+  deletedAt TEXT -- 소프트 삭제 타임스탬프 (NULL = 활성 상태)
 )
 ```
+
+**삭제 정책:**
+- 하드 삭제하지 않고 `deletedAt`에 타임스탬프 저장
+- 과거 복용 기록(`supplement_records`)은 완전히 유지
+- 삭제된 항목은 "오늘 복용 체크"에서 제외, 차트/캘린더에서는 "삭제됨" 배지 표시
 
 ---
 
@@ -166,25 +179,29 @@ custom_metric_records (
 
 | 규칙 | 설명 |
 |------|------|
-| petId | 모든 테이블에 포함 |
+| petId | 모든 테이블에 포함 (다묘 지원) |
 | 날짜 | 문자열 `YYYY-MM-DD` 통일 |
-| 삭제 | 하지 않음 |
+| 삭제 | 하지 않음 (소프트 삭제만) |
 | 무료/유료 제한 | 조회 레벨에서만 적용 |
+| 다묘 필터 | 모든 조회는 petId 기준 |
 
 ---
 
 ## 10. 백업 대상 테이블
 
-- `pets`
+- `pets` (deletedAt 포함)
 - `daily_records`
 - `food_records`
 - `supplements`
 - `supplement_records`
+- `fluid_records`
 - `hospital_records`
 - `custom_metrics`
 - `custom_metric_records`
 
 > 위 테이블 전체를 JSON으로 export / import
+>
+> **다묘 지원**: petId별로 데이터 분리되어 백업됨
 
 ---
 

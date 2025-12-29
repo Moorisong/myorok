@@ -1,4 +1,4 @@
-import { getDatabase, getDefaultPetId, generateId, getTodayDateString } from './database';
+import { getDatabase, getSelectedPetId, generateId, getTodayDateString } from './database';
 
 export interface FluidRecord {
     id: string;
@@ -16,7 +16,7 @@ export async function addFluidRecord(
     memo?: string
 ): Promise<FluidRecord> {
     const db = await getDatabase();
-    const petId = await getDefaultPetId();
+    const petId = await getSelectedPetId();
     const today = getTodayDateString();
     const now = new Date().toISOString();
     const id = generateId();
@@ -40,7 +40,7 @@ export async function addFluidRecord(
 
 export async function getFluidRecords(limit = 30): Promise<FluidRecord[]> {
     const db = await getDatabase();
-    const petId = await getDefaultPetId();
+    const petId = await getSelectedPetId();
 
     const records = await db.getAllAsync<FluidRecord>(
         `SELECT * FROM fluid_records 
@@ -55,7 +55,7 @@ export async function getFluidRecords(limit = 30): Promise<FluidRecord[]> {
 
 export async function getTodayFluidRecords(): Promise<FluidRecord[]> {
     const db = await getDatabase();
-    const petId = await getDefaultPetId();
+    const petId = await getSelectedPetId();
     const today = getTodayDateString();
 
     const records = await db.getAllAsync<FluidRecord>(
@@ -75,7 +75,7 @@ export async function deleteFluidRecord(id: string): Promise<void> {
 
 export async function getRecentFluidHistory(days: number): Promise<FluidRecord[]> {
     const db = await getDatabase();
-    const petId = await getDefaultPetId();
+    const petId = await getSelectedPetId();
 
     // Calculate start date
     const d = new Date();

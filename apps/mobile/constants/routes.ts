@@ -4,6 +4,7 @@ export const ROUTES = {
     CALENDAR: '/calendar',
     CHARTS: '/charts',
     SETTINGS: '/settings',
+    SETTINGS_PETS: '/settings/pets',
     PRO: '/pro',
     ABOUT: '/about',
     RECORDS: {

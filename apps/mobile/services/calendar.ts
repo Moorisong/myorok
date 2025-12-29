@@ -1,4 +1,4 @@
-import { getDatabase, getDefaultPetId } from './database';
+import { getDatabase, getSelectedPetId } from './database';
 import { DailyRecord } from './dailyRecords';
 import { SupplementRecord, Supplement } from './supplements';
 import { FluidRecord } from './fluidRecords';
@@ -10,13 +10,13 @@ export interface CalendarDayData {
     hasMedicine: boolean;
     hasFluid: boolean;
     dailyRecord?: DailyRecord;
-    supplements?: { name: string; taken: boolean }[];
+    supplements?: { name: string; taken: boolean; isDeleted?: boolean }[];
     fluidRecords?: FluidRecord[];
 }
 
 export async function getMonthRecords(year: number, month: number): Promise<Map<string, CalendarDayData>> {
     const db = await getDatabase();
-    const petId = await getDefaultPetId();
+    const petId = await getSelectedPetId();
 
     // Format: YYYY-MM
     const monthStr = `${year}-${String(month).padStart(2, '0')}`;
@@ -32,10 +32,11 @@ export async function getMonthRecords(year: number, month: number): Promise<Map<
     );
 
     // Get supplement records for the month
-    const supplementRecords = await db.getAllAsync<SupplementRecord & { name: string }>(
-        `SELECT sr.*, s.name 
+    const supplementRecords = await db.getAllAsync<SupplementRecord & { name: string; isDeleted: number }>(
+        `SELECT sr.*, COALESCE(sr.supplementName, s.name, '(삭제된 항목)') as name,
+                CASE WHEN s.deletedAt IS NOT NULL THEN 1 ELSE 0 END as isDeleted
      FROM supplement_records sr
-     JOIN supplements s ON sr.supplementId = s.id
+     LEFT JOIN supplements s ON sr.supplementId = s.id
      WHERE s.petId = ? AND sr.date LIKE ?`,
         [petId, `${monthStr}%`]
     );
@@ -78,7 +79,11 @@ export async function getMonthRecords(year: number, month: number): Promise<Map<
         if (sr.taken === 1) {
             dayData.hasMedicine = true;
         }
-        dayData.supplements?.push({ name: sr.name, taken: sr.taken === 1 });
+        dayData.supplements?.push({
+            name: sr.name,
+            taken: sr.taken === 1,
+            isDeleted: sr.isDeleted === 1
+        });
     }
 
     // Process fluid records
@@ -105,17 +110,18 @@ export async function getMonthRecords(year: number, month: number): Promise<Map<
 
 export async function getDayDetail(date: string): Promise<CalendarDayData | null> {
     const db = await getDatabase();
-    const petId = await getDefaultPetId();
+    const petId = await getSelectedPetId();
 
     const dailyRecord = await db.getFirstAsync<DailyRecord>(
         `SELECT * FROM daily_records WHERE petId = ? AND date = ?`,
         [petId, date]
     );
 
-    const supplementRecords = await db.getAllAsync<SupplementRecord & { name: string }>(
-        `SELECT sr.*, s.name 
+    const supplementRecords = await db.getAllAsync<SupplementRecord & { name: string; isDeleted: number }>(
+        `SELECT sr.*, COALESCE(sr.supplementName, s.name, '(삭제된 항목)') as name,
+                CASE WHEN s.deletedAt IS NOT NULL THEN 1 ELSE 0 END as isDeleted
      FROM supplement_records sr
-     JOIN supplements s ON sr.supplementId = s.id
+     LEFT JOIN supplements s ON sr.supplementId = s.id
      WHERE s.petId = ? AND sr.date = ?`,
         [petId, date]
     );
@@ -136,7 +142,11 @@ export async function getDayDetail(date: string): Promise<CalendarDayData | null
         hasMedicine: supplementRecords.some(sr => sr.taken === 1),
         hasFluid: fluidRecords.length > 0,
         dailyRecord: dailyRecord || undefined,
-        supplements: supplementRecords.map(sr => ({ name: sr.name, taken: sr.taken === 1 })),
+        supplements: supplementRecords.map(sr => ({
+            name: sr.name,
+            taken: sr.taken === 1,
+            isDeleted: sr.isDeleted === 1
+        })),
         fluidRecords,
     };
 }

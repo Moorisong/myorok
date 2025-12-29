@@ -8,6 +8,7 @@ export const ALERT_TITLES = {
   LOCK_SETTING: '잠금 설정',
   BACKUP: '백업',
   RESTORE: '복원',
+  PET_MANAGEMENT: '고양이 관리',
 } as const;
 
 export const ERROR_MESSAGES = {
@@ -27,6 +28,10 @@ export const SUCCESS_MESSAGES = {
   FOOD_SAVED: '사료 기호성이 기록되었습니다.',
   HOSPITAL_SAVED: '병원 방문 기록이 저장되었습니다.',
   METRIC_SAVED: '수치가 기록되었습니다.',
+  PET_ADDED: '고양이를 추가했습니다.',
+  PET_UPDATED: '고양이 이름을 변경했습니다.',
+  PET_DELETED: '고양이를 삭제했습니다.',
+  PET_RESTORED: '삭제된 고양이를 복원했습니다.',
 } as const;
 
 export const VALIDATION_MESSAGES = {
@@ -40,6 +45,7 @@ export const VALIDATION_MESSAGES = {
   ENTER_METRIC_NAME: '새로운 수치 이름을 입력해주세요.',
   ENTER_ITEM_NAME: '항목 이름을 입력해주세요.',
   ENTER_NUMBER: '수치를 입력해주세요.',
+  ENTER_PET_NAME: '고양이 이름을 입력해주세요.',
 } as const;
 
 export const UI_LABELS = {
@@ -64,4 +70,10 @@ export const FUTURE_FEATURES = {
   LOCK: '잠금 기능은 추후 업데이트에서 제공될 예정입니다.',
   BACKUP: '백업 기능은 추후 업데이트에서 제공될 예정입니다.',
   RESTORE: '복원 기능은 추후 업데이트에서 제공될 예정입니다.',
+} as const;
+
+export const PET_MESSAGES = {
+  DELETE_WARNING: '이 고양이의 모든 기록은 유지되지만, 고양이는 목록에서 숨겨집니다. 정말 삭제하시겠습니까?',
+  DELETE_LAST_PET_WARNING: '마지막 고양이는 삭제할 수 없습니다.',
+  RESTORE_CONFIRM: '이 고양이를 복원하시겠습니까?',
 } as const;

@@ -48,7 +48,7 @@ export default function DaySummaryCard({
             {canViewDetail ? (
                 <>
                     {dailyRecord && (
-                        <View style={styles.summarySection}>
+                        <View style={[styles.summarySection, styles.firstSection]}>
                             {(dailyRecord.peeCount > 0 || dailyRecord.poopCount > 0) && (
                                 <Text style={styles.summaryItem}>
                                     💩 배변 {dailyRecord.poopCount}회
@@ -73,7 +73,16 @@ export default function DaySummaryCard({
                     {supplements && supplements.length > 0 && (
                         <View style={styles.summarySection}>
                             {supplements.filter(s => s.taken).map((s, i) => (
-                                <Text key={i} style={styles.summaryItem}>💊 {s.name}</Text>
+                                <View key={i} style={styles.supplementRow}>
+                                    <Text style={[styles.summaryItem, s.isDeleted && styles.summaryItemDeleted]}>
+                                        💊 {s.name}
+                                    </Text>
+                                    {s.isDeleted && (
+                                        <View style={styles.deletedBadge}>
+                                            <Text style={styles.deletedBadgeText}>삭제됨</Text>
+                                        </View>
+                                    )}
+                                </View>
                             ))}
                         </View>
                     )}
@@ -151,10 +160,32 @@ const styles = StyleSheet.create({
         borderTopWidth: 1,
         borderTopColor: COLORS.border,
     },
+    firstSection: {
+        borderTopWidth: 0,
+    },
     summaryItem: {
         fontSize: 15,
         color: COLORS.textPrimary,
         paddingVertical: 4,
+    },
+    summaryItemDeleted: {
+        color: COLORS.textSecondary,
+    },
+    supplementRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        paddingVertical: 4,
+    },
+    deletedBadge: {
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        backgroundColor: COLORS.border,
+        borderRadius: 4,
+    },
+    deletedBadgeText: {
+        fontSize: 11,
+        color: COLORS.textSecondary,
     },
     memoBox: {
         marginTop: 8,

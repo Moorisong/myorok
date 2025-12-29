@@ -1,4 +1,4 @@
-import { getDatabase, getDefaultPetId, generateId, getTodayDateString } from './database';
+import { getDatabase, getSelectedPetId, generateId, getTodayDateString } from './database';
 
 export interface Supplement {
     id: string;
@@ -6,6 +6,7 @@ export interface Supplement {
     name: string;
     type: 'supplement' | 'medicine';
     createdAt: string;
+    deletedAt?: string;
 }
 
 export interface SupplementRecord {
@@ -13,6 +14,7 @@ export interface SupplementRecord {
     supplementId: string;
     date: string;
     taken: number; // 0 or 1
+    supplementName?: string; // 저장된 약/영양제 이름
 }
 
 // Supplement management
@@ -21,7 +23,7 @@ export async function addSupplement(
     type: 'supplement' | 'medicine'
 ): Promise<Supplement> {
     const db = await getDatabase();
-    const petId = await getDefaultPetId();
+    const petId = await getSelectedPetId();
     const now = new Date().toISOString();
     const id = generateId();
 
@@ -36,10 +38,10 @@ export async function addSupplement(
 
 export async function getSupplements(): Promise<Supplement[]> {
     const db = await getDatabase();
-    const petId = await getDefaultPetId();
+    const petId = await getSelectedPetId();
 
     const supplements = await db.getAllAsync<Supplement>(
-        `SELECT * FROM supplements WHERE petId = ? ORDER BY createdAt ASC`,
+        `SELECT * FROM supplements WHERE petId = ? AND deletedAt IS NULL ORDER BY createdAt ASC`,
         [petId]
     );
 
@@ -48,12 +50,15 @@ export async function getSupplements(): Promise<Supplement[]> {
 
 export async function deleteSupplement(supplementId: string): Promise<void> {
     const db = await getDatabase();
+    const now = new Date().toISOString();
 
-    // Delete the supplement
-    await db.runAsync('DELETE FROM supplements WHERE id = ?', [supplementId]);
+    // Soft delete: set deletedAt timestamp instead of hard delete
+    await db.runAsync(
+        'UPDATE supplements SET deletedAt = ? WHERE id = ?',
+        [now, supplementId]
+    );
 
-    // Delete all related records
-    await db.runAsync('DELETE FROM supplement_records WHERE supplementId = ?', [supplementId]);
+    // Keep all supplement_records intact (historical records preserved)
 }
 
 
@@ -75,11 +80,17 @@ export async function toggleSupplementTaken(supplementId: string): Promise<boole
         );
         return newTaken === 1;
     } else {
+        // Get supplement name
+        const supplement = await db.getFirstAsync<Supplement>(
+            `SELECT name FROM supplements WHERE id = ?`,
+            [supplementId]
+        );
+
         const id = generateId();
         await db.runAsync(
-            `INSERT INTO supplement_records (id, supplementId, date, taken)
-       VALUES (?, ?, ?, 1)`,
-            [id, supplementId, today]
+            `INSERT INTO supplement_records (id, supplementId, date, taken, supplementName)
+       VALUES (?, ?, ?, 1, ?)`,
+            [id, supplementId, today, supplement?.name || '알 수 없음']
         );
         return true;
     }
@@ -103,7 +114,7 @@ export async function getTodaySupplementStatus(): Promise<Map<string, boolean>> 
 }
 export async function getRecentSupplementHistory(days: number = 30): Promise<(SupplementRecord & { name: string })[]> {
     const db = await getDatabase();
-    const petId = await getDefaultPetId();
+    const petId = await getSelectedPetId();
     const d = new Date();
     d.setDate(d.getDate() - days);
     const startYear = d.getFullYear();
@@ -112,11 +123,11 @@ export async function getRecentSupplementHistory(days: number = 30): Promise<(Su
     const startDate = `${startYear}-${startMonth}-${startDay}`;
 
     const records = await db.getAllAsync<SupplementRecord & { name: string }>(
-        `SELECT sr.*, s.name 
-         FROM supplement_records sr 
-         JOIN supplements s ON sr.supplementId = s.id 
-         WHERE s.petId = ? AND sr.date >= ? AND sr.taken = 1
-         ORDER BY sr.date DESC`,
+        `SELECT sr.*, COALESCE(sr.supplementName, s.name, '(삭제된 항목)') as name
+         FROM supplement_records sr
+         LEFT JOIN supplements s ON sr.supplementId = s.id
+         WHERE s.petId = ? AND sr.date >= ?
+         ORDER BY sr.date ASC`,
         [petId, startDate]
     );
 

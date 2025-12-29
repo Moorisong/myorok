@@ -46,8 +46,14 @@ export default function FluidInputSection({
 
             {todayFluids.length > 0 && (
                 <View style={styles.fluidList}>
-                    {todayFluids.map((record) => (
-                        <View key={record.id} style={styles.fluidItem}>
+                    {todayFluids.map((record, index) => (
+                        <View
+                            key={record.id}
+                            style={[
+                                styles.fluidItem,
+                                index === todayFluids.length - 1 && styles.fluidItemLast
+                            ]}
+                        >
                             <View style={styles.fluidItemContent}>
                                 <Feather name="activity" size={14} color={COLORS.primary} style={styles.fluidIcon} />
                                 <Text style={styles.fluidText}>
@@ -139,6 +145,9 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
         borderBottomWidth: 1,
         borderBottomColor: COLORS.border,
+    },
+    fluidItemLast: {
+        borderBottomWidth: 0,
     },
     fluidItemContent: {
         flexDirection: 'row',

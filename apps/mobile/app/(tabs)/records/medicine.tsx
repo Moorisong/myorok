@@ -16,6 +16,7 @@ import { Button, Header } from '../../../components';
 import {
     addSupplement,
     getSupplements,
+    deleteSupplement,
     toggleSupplementTaken,
     getTodaySupplementStatus,
     Supplement
@@ -63,6 +64,29 @@ export default function MedicineScreen() {
         }
     };
 
+    const handleDelete = (supplement: Supplement) => {
+        Alert.alert(
+            '약/영양제 삭제',
+            `${supplement.name}을(를) 삭제하시겠습니까?\n\n과거 복용 기록은 유지되며, 차트와 캘린더에서 '삭제됨'으로 표시됩니다.`,
+            [
+                { text: '취소', style: 'cancel' },
+                {
+                    text: '삭제',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            await deleteSupplement(supplement.id);
+                            await loadData(); // Refresh list
+                            Alert.alert('삭제 완료', `${supplement.name}이(가) 삭제되었습니다.`);
+                        } catch (error) {
+                            Alert.alert(ALERT_TITLES.ERROR, '삭제에 실패했습니다.');
+                        }
+                    },
+                },
+            ]
+        );
+    };
+
     const handleAdd = async () => {
         if (!newName.trim()) {
             Alert.alert(ALERT_TITLES.ALERT, VALIDATION_MESSAGES.ENTER_NAME);
@@ -106,6 +130,7 @@ export default function MedicineScreen() {
                                 key={supplement.id}
                                 style={styles.checkItem}
                                 onPress={() => handleToggle(supplement.id)}
+                                onLongPress={() => handleDelete(supplement)}
                             >
                                 <View style={styles.checkInfo}>
                                     <Text style={styles.checkEmoji}>

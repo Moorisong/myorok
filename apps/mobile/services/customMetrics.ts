@@ -1,4 +1,4 @@
-import { getDatabase, getDefaultPetId, generateId, getTodayDateString } from './database';
+import { getDatabase, getSelectedPetId, generateId, getTodayDateString } from './database';
 
 export interface CustomMetric {
     id: string;
@@ -23,7 +23,7 @@ export async function addCustomMetric(
     unit?: string
 ): Promise<CustomMetric> {
     const db = await getDatabase();
-    const petId = await getDefaultPetId();
+    const petId = await getSelectedPetId();
     const now = new Date().toISOString();
     const id = generateId();
 
@@ -38,7 +38,7 @@ export async function addCustomMetric(
 
 export async function getCustomMetrics(): Promise<CustomMetric[]> {
     const db = await getDatabase();
-    const petId = await getDefaultPetId();
+    const petId = await getSelectedPetId();
 
     const metrics = await db.getAllAsync<CustomMetric>(
         `SELECT * FROM custom_metrics WHERE petId = ? ORDER BY createdAt ASC`,
@@ -102,7 +102,7 @@ export async function getMetricRecords(metricId: string, limit = 30): Promise<Cu
 
 export async function getAllMetricRecords(limit = 100): Promise<(CustomMetricRecord & { metricName: string; metricUnit: string | null })[]> {
     const db = await getDatabase();
-    const petId = await getDefaultPetId();
+    const petId = await getSelectedPetId();
 
     const records = await db.getAllAsync<CustomMetricRecord & { metricName: string; metricUnit: string | null }>(
         `SELECT cmr.*, cm.name as metricName, cm.unit as metricUnit

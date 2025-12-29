@@ -1,4 +1,4 @@
-import { getDatabase, getDefaultPetId, generateId, getTodayDateString } from './database';
+import { getDatabase, getSelectedPetId, generateId, getTodayDateString } from './database';
 
 export interface HospitalRecord {
     id: string;
@@ -13,7 +13,7 @@ export async function addHospitalRecord(
     memo?: string
 ): Promise<HospitalRecord> {
     const db = await getDatabase();
-    const petId = await getDefaultPetId();
+    const petId = await getSelectedPetId();
     const now = new Date().toISOString();
     const id = generateId();
 
@@ -34,7 +34,7 @@ export async function addHospitalRecord(
 
 export async function getHospitalRecords(limit = 50): Promise<HospitalRecord[]> {
     const db = await getDatabase();
-    const petId = await getDefaultPetId();
+    const petId = await getSelectedPetId();
 
     const records = await db.getAllAsync<HospitalRecord>(
         `SELECT * FROM hospital_records 

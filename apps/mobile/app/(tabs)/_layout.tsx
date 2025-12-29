@@ -57,7 +57,7 @@ export default function TabLayout() {
                 }}
             />
             <Tabs.Screen
-                name="settings"
+                name="settingsIndex"
                 options={{
                     title: '설정',
                     tabBarIcon: ({ focused }) => <TabIcon name="settings" focused={focused} />,
@@ -71,6 +71,18 @@ export default function TabLayout() {
             />
             <Tabs.Screen
                 name="records"
+                options={{
+                    href: null,
+                }}
+            />
+            <Tabs.Screen
+                name="settings"
+                options={{
+                    href: null,
+                }}
+            />
+            <Tabs.Screen
+                name="settings/pets"
                 options={{
                     href: null,
                 }}
