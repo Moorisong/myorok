@@ -71,6 +71,7 @@
 |------|------|
 | 대상 | 게시글 |
 | 사유 | 부적절한 내용, 스팸/광고, 욕설 우회, 기타 |
+| UI | 커스텀 모달 (배경 탭 시 닫기 지원) |
 | 자동 숨김 | 3회 이상 신고 시 |
 | 관리자 검토 | 없음 (자동 처리) |
 
@@ -112,6 +113,16 @@ POST   /api/comfort/report             - 신고
 GET    /api/comfort/block              - 차단 목록
 POST   /api/comfort/block              - 차단
 DELETE /api/comfort/block              - 차단 해제
+```
+
+### 3.4 디버그 (개발용)
+
+```
+POST   /api/comfort/debug              - 테스트 액션 수행
+       body: {
+         action: 'reset-cooldown' | 'create-sample' | 'time-travel' | 'reset-time',
+         ...params
+       }
 ```
 
 ---
@@ -166,7 +177,14 @@ interface BlockedDevice {
 ### 5.3 자동 갱신
 
 - 30초 폴링 (WebSocket 미사용)
+- 30초 폴링 (WebSocket 미사용)
 - Pull-to-refresh 지원
+
+### 5.4 테스트 모드 (개발 환경)
+
+- 진입: 탭 헤더 우측 '🧪 테스트' 버튼
+- 기능: 쿨타임 리셋, 샘플 게시글 생성(다중), 시간 이동/리셋
+- 목적: 개발 및 QA 효율성 증대
 
 ---
 
