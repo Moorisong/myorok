@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getPostById, savePost, filterBadWords, getModelsAsync } from '@/lib/comfort';
+import { getPostById, savePost, filterBadWords, getModelsAsync, generateNickname } from '@/lib/comfort';
 
 interface RouteParams {
     params: Promise<{ id: string }>;
@@ -57,7 +57,16 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
         return NextResponse.json({
             success: true,
-            data: { post },
+            data: {
+                post: {
+                    ...post,
+                    isOwner: true,
+                    isLiked: post.likes.includes(deviceId),
+                    likeCount: post.likes.length,
+                    commentCount: post.comments.length,
+                    displayId: generateNickname(deviceId),
+                },
+            },
         });
     } catch (error) {
         console.error('게시글 수정 오류:', error);

@@ -27,7 +27,7 @@ export interface ComfortComment {
     displayId: string;
 }
 
-interface ApiResponse<T = unknown> {
+export interface ApiResponse<T = unknown> {
     success: boolean;
     data?: T;
     error?: {
@@ -174,4 +174,13 @@ export async function unblockUser(blockedDeviceId: string): Promise<ApiResponse>
 export async function getBlockedUsers(): Promise<ApiResponse<{ blockedDevices: { blockedDeviceId: string; displayId: string; createdAt: string }[] }>> {
     const deviceId = await getDeviceId();
     return apiCall(`/api/comfort/block?deviceId=${encodeURIComponent(deviceId)}`);
+}
+
+// 디버그 액션
+export async function debugAction(action: string, params: any = {}): Promise<ApiResponse> {
+    const deviceId = await getDeviceId();
+    return apiCall('/api/comfort/debug', {
+        method: 'POST',
+        body: JSON.stringify({ deviceId, action, ...params }),
+    });
 }

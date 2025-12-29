@@ -6,8 +6,6 @@ import {
     StyleSheet,
     Pressable,
     TextInput,
-    KeyboardAvoidingView,
-    Platform,
     Alert,
     ScrollView,
 } from 'react-native';
@@ -64,7 +62,6 @@ export function ComfortComposeModal({
                 setContent('');
                 setSelectedEmoji('🐱');
                 onClose();
-                Alert.alert('완료', COMFORT_MESSAGES.POST_SUCCESS);
             } else {
                 Alert.alert('오류', result.error || '게시에 실패했습니다.');
             }
@@ -97,13 +94,10 @@ export function ComfortComposeModal({
         <Modal
             visible={visible}
             animationType="slide"
-            presentationStyle="pageSheet"
+            presentationStyle="formSheet"
             onRequestClose={handleClose}
         >
-            <KeyboardAvoidingView
-                style={styles.container}
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            >
+            <View style={styles.container}>
                 {/* 헤더 */}
                 <View style={styles.header}>
                     <Pressable onPress={handleClose} hitSlop={8}>
@@ -128,31 +122,34 @@ export function ComfortComposeModal({
                     </Pressable>
                 </View>
 
-                {/* 이모지 선택 */}
-                <View style={styles.emojiSection}>
-                    <Text style={styles.emojiLabel}>프로필 이모지</Text>
-                    <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={styles.emojiList}
-                    >
-                        {PROFILE_EMOJIS.map((emoji) => (
-                            <Pressable
-                                key={emoji}
-                                style={[
-                                    styles.emojiItem,
-                                    selectedEmoji === emoji && styles.emojiItemSelected,
-                                ]}
-                                onPress={() => {
-                                    setSelectedEmoji(emoji);
-                                    inputRef.current?.focus();
-                                }}
-                            >
-                                <Text style={styles.emojiText}>{emoji}</Text>
-                            </Pressable>
-                        ))}
-                    </ScrollView>
-                </View>
+                {/* 이모지 선택 (새 글 작성 시에만) */}
+                {!isEdit && (
+                    <View style={styles.emojiSection}>
+                        <Text style={styles.emojiLabel}>프로필 이모지</Text>
+                        <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={styles.emojiList}
+                            keyboardShouldPersistTaps="always"
+                        >
+                            {PROFILE_EMOJIS.map((emoji) => (
+                                <Pressable
+                                    key={emoji}
+                                    style={[
+                                        styles.emojiItem,
+                                        selectedEmoji === emoji && styles.emojiItemSelected,
+                                    ]}
+                                    onPress={() => {
+                                        setSelectedEmoji(emoji);
+                                        inputRef.current?.focus();
+                                    }}
+                                >
+                                    <Text style={styles.emojiText}>{emoji}</Text>
+                                </Pressable>
+                            ))}
+                        </ScrollView>
+                    </View>
+                )}
 
                 {/* 본문 입력 */}
                 <View style={styles.inputContainer}>
@@ -164,7 +161,7 @@ export function ComfortComposeModal({
                         multiline
                         value={content}
                         onChangeText={setContent}
-                        maxLength={MAX_LENGTH + 50} // 약간의 여유
+                        maxLength={MAX_LENGTH + 50}
                         textAlignVertical="top"
                     />
                 </View>
@@ -179,7 +176,7 @@ export function ComfortComposeModal({
                         {content.length}{COMFORT_MESSAGES.COMPOSE_LIMIT}
                     </Text>
                 </View>
-            </KeyboardAvoidingView>
+            </View>
         </Modal>
     );
 }
@@ -188,6 +185,7 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: COLORS.surface,
+        maxHeight: 400,
     },
     header: {
         flexDirection: 'row',

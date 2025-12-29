@@ -14,8 +14,8 @@ import { useFocusEffect } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 
 import { COLORS, COMFORT_MESSAGES } from '../../constants';
-import { ComfortPost, getPosts, createPost, toggleLike, deletePost, blockUser, reportPost } from '../../services';
-import { ComfortPostCard, ComfortComposeModal } from '../../components';
+import { ComfortPost, getPosts, createPost, updatePost, toggleLike, deletePost, blockUser, reportPost } from '../../services';
+import { ComfortPostCard, ComfortComposeModal, ComfortDebugModal } from '../../components';
 
 export default function ComfortScreen() {
     const [posts, setPosts] = useState<ComfortPost[]>([]);
@@ -26,6 +26,8 @@ export default function ComfortScreen() {
     const [waitMinutes, setWaitMinutes] = useState<number | undefined>();
     const [showComposeModal, setShowComposeModal] = useState(false);
     const [skipCooldown, setSkipCooldown] = useState(false);
+    const [editingPost, setEditingPost] = useState<ComfortPost | null>(null);
+    const [showDebugModal, setShowDebugModal] = useState(false);
 
     const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -85,6 +87,18 @@ export default function ComfortScreen() {
     };
 
     const handlePostSubmit = async (content: string, emoji: string): Promise<{ success: boolean; error?: string }> => {
+        // 수정 모드
+        if (editingPost) {
+            const response = await updatePost(editingPost.id, content);
+            if (response.success && response.data) {
+                setPosts(prev => prev.map(p => p.id === editingPost.id ? response.data!.post : p));
+                setEditingPost(null);
+                return { success: true };
+            }
+            return { success: false, error: response.error?.message };
+        }
+
+        // 새 글 작성
         const response = await createPost(content, emoji, skipCooldown);
 
         if (response.success && response.data) {
@@ -96,6 +110,11 @@ export default function ComfortScreen() {
         }
 
         return { success: false, error: response.error?.message };
+    };
+
+    const handleEdit = (post: ComfortPost) => {
+        setEditingPost(post);
+        setShowComposeModal(true);
     };
 
     const handleLike = async (postId: string) => {
@@ -200,14 +219,9 @@ export default function ComfortScreen() {
                     <Text style={styles.headerTitle}>{COMFORT_MESSAGES.TAB_TITLE}</Text>
                     <Pressable
                         style={styles.devButton}
-                        onPress={() => {
-                            setCanPost(true);
-                            setWaitMinutes(undefined);
-                            setSkipCooldown(true);
-                            Alert.alert('🧪 테스트', '글쓰기 쿨타임이 초기화되었습니다!');
-                        }}
+                        onPress={() => setShowDebugModal(true)}
                     >
-                        <Text style={styles.devButtonText}>🧪 쿨타임 리셋</Text>
+                        <Text style={styles.devButtonText}>🧪 테스트</Text>
                     </Pressable>
                 </View>
                 <Text style={styles.headerSubtitle}>{COMFORT_MESSAGES.TAB_SUBTITLE}</Text>
@@ -247,6 +261,7 @@ export default function ComfortScreen() {
                                 onDelete={() => handleDelete(post.id)}
                                 onBlock={() => handleBlock(post.id, post.deviceId)}
                                 onReport={() => handleReport(post.id)}
+                                onUpdate={() => handleEdit(post)}
                             />
                         ))
                     )}
@@ -272,6 +287,7 @@ export default function ComfortScreen() {
                 visible={showComposeModal}
                 onClose={() => {
                     setShowComposeModal(false);
+                    setEditingPost(null);
                     // 테스트 모드로 글쓰기 진입 후 취소 시 원래 상태로 복원
                     if (skipCooldown) {
                         setSkipCooldown(false);
@@ -279,6 +295,15 @@ export default function ComfortScreen() {
                     }
                 }}
                 onSubmit={handlePostSubmit}
+                initialContent={editingPost?.content || ''}
+                initialEmoji={editingPost?.emoji || '🐱'}
+                isEdit={!!editingPost}
+            />
+            <ComfortDebugModal
+                visible={showDebugModal}
+                onClose={() => setShowDebugModal(false)}
+                onResetCooldown={() => loadPosts(false)}
+                onReload={() => loadPosts(false)}
             />
         </SafeAreaView>
     );

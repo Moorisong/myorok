@@ -1,6 +1,8 @@
 import mongoose from 'mongoose';
 import dbConnect from './mongodb';
 
+export { dbConnect };
+
 // --- Interfaces (Keep existing for type compatibility where possible) ---
 
 export interface Comment {
@@ -67,7 +69,7 @@ const BlockedDeviceSchema = new mongoose.Schema({
 });
 
 // Helper to get models (prevents OverwriteModelError in dev)
-const getModels = () => {
+export const getModels = () => {
     const PostModel = mongoose.models.Post || mongoose.model('Post', PostSchema);
     const BlockedDeviceModel = mongoose.models.BlockedDevice || mongoose.model('BlockedDevice', BlockedDeviceSchema);
     return { PostModel, BlockedDeviceModel };

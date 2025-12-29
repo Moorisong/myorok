@@ -43,6 +43,8 @@ export {
     blockUser,
     unblockUser,
     getBlockedUsers,
+    debugAction,
+    ApiResponse,
 } from './comfort';
 export type { ComfortPost, ComfortComment } from './comfort';
 
