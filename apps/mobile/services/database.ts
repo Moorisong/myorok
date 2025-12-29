@@ -1,28 +1,35 @@
 import * as SQLite from 'expo-sqlite';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const DB_NAME = 'myorok.db';
+const SELECTED_PET_KEY = 'selected_pet_id';
 
-let db: SQLite.SQLiteDatabase | null = null;
+let dbInstance: SQLite.SQLiteDatabase | null = null;
+let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
-export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
-  if (db) return db;
+export function getDatabase(): Promise<SQLite.SQLiteDatabase> {
+  if (dbInstance) return Promise.resolve(dbInstance);
+  if (dbPromise) return dbPromise;
 
-  db = await SQLite.openDatabaseAsync(DB_NAME);
-  await initializeTables();
-  await runMigrations();
-  await ensureDefaultPet();
+  dbPromise = (async () => {
+    const db = await SQLite.openDatabaseAsync(DB_NAME);
+    await initializeTables(db);
+    await runMigrations(db);
+    await ensureDefaultPet(db);
+    dbInstance = db;
+    return db;
+  })();
 
-  return db;
+  return dbPromise;
 }
 
-async function initializeTables() {
-  if (!db) return;
-
+async function initializeTables(db: SQLite.SQLiteDatabase) {
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS pets (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
-      createdAt TEXT NOT NULL
+      createdAt TEXT NOT NULL,
+      deletedAt TEXT
     );
 
     CREATE TABLE IF NOT EXISTS daily_records (
@@ -103,8 +110,7 @@ async function initializeTables() {
   `);
 }
 
-async function runMigrations() {
-  if (!db) return;
+async function runMigrations(db: SQLite.SQLiteDatabase) {
 
   try {
     // Check if waterIntake column exists in daily_records
@@ -121,14 +127,68 @@ async function runMigrations() {
       `);
       console.log('waterIntake column added successfully');
     }
+
+    // Check if supplementName column exists in supplement_records
+    const supplementRecordsInfo = await db.getAllAsync<{ name: string }>(
+      `PRAGMA table_info(supplement_records)`
+    );
+
+    const hasSupplementName = supplementRecordsInfo.some(col => col.name === 'supplementName');
+
+    if (!hasSupplementName) {
+      console.log('Adding supplementName column to supplement_records table...');
+      await db.execAsync(`
+        ALTER TABLE supplement_records ADD COLUMN supplementName TEXT;
+      `);
+
+      // Populate existing records with current supplement names
+      await db.execAsync(`
+        UPDATE supplement_records
+        SET supplementName = (
+          SELECT name FROM supplements WHERE supplements.id = supplement_records.supplementId
+        )
+        WHERE supplementName IS NULL;
+      `);
+
+      console.log('supplementName column added and populated successfully');
+    }
+
+    // Check if deletedAt column exists in supplements
+    const supplementsInfo = await db.getAllAsync<{ name: string }>(
+      `PRAGMA table_info(supplements)`
+    );
+
+    const hasSupplementsDeletedAt = supplementsInfo.some(col => col.name === 'deletedAt');
+
+    if (!hasSupplementsDeletedAt) {
+      console.log('Adding deletedAt column to supplements table...');
+      await db.execAsync(`
+        ALTER TABLE supplements ADD COLUMN deletedAt TEXT;
+      `);
+      console.log('deletedAt column added successfully');
+    }
+
+    // Check if deletedAt column exists in pets
+    const petsInfo = await db.getAllAsync<{ name: string }>(
+      `PRAGMA table_info(pets)`
+    );
+
+    const hasPetsDeletedAt = petsInfo.some(col => col.name === 'deletedAt');
+
+    if (!hasPetsDeletedAt) {
+      console.log('Adding deletedAt column to pets table...');
+      await db.execAsync(`
+        ALTER TABLE pets ADD COLUMN deletedAt TEXT;
+      `);
+      console.log('deletedAt column added to pets successfully');
+    }
   } catch (error) {
     console.error('Migration error:', error);
   }
 }
 
 
-async function ensureDefaultPet() {
-  if (!db) return;
+async function ensureDefaultPet(db: SQLite.SQLiteDatabase) {
 
   const pet = await db.getFirstAsync<{ id: string }>(
     'SELECT id FROM pets LIMIT 1'
@@ -143,12 +203,34 @@ async function ensureDefaultPet() {
   }
 }
 
-export async function getDefaultPetId(): Promise<string> {
+export async function getSelectedPetId(): Promise<string> {
+  // Try to get from AsyncStorage first
+  const storedPetId = await AsyncStorage.getItem(SELECTED_PET_KEY);
+  if (storedPetId) {
+    return storedPetId;
+  }
+
+  // If not stored, get first available pet
   const database = await getDatabase();
   const pet = await database.getFirstAsync<{ id: string }>(
-    'SELECT id FROM pets LIMIT 1'
+    'SELECT id FROM pets WHERE deletedAt IS NULL LIMIT 1'
   );
-  return pet?.id || 'default-pet';
+
+  const petId = pet?.id || 'default-pet';
+
+  // Store for future use
+  await AsyncStorage.setItem(SELECTED_PET_KEY, petId);
+
+  return petId;
+}
+
+export async function setSelectedPetId(petId: string): Promise<void> {
+  await AsyncStorage.setItem(SELECTED_PET_KEY, petId);
+}
+
+// Deprecated: Use getSelectedPetId instead
+export async function getDefaultPetId(): Promise<string> {
+  return getSelectedPetId();
 }
 
 export function generateId(): string {
