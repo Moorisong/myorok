@@ -57,7 +57,8 @@ async function apiCall<T>(
             },
         });
         return await response.json();
-    } catch {
+    } catch (error) {
+        console.error(`[API Error] ${CONFIG.API_BASE_URL}${endpoint}`, error);
         return {
             success: false,
             error: {
