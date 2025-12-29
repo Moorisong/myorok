@@ -74,11 +74,11 @@ export async function getPosts(): Promise<ApiResponse<PostsResponse>> {
 }
 
 // 게시글 작성
-export async function createPost(content: string): Promise<ApiResponse<{ post: ComfortPost }>> {
+export async function createPost(content: string, skipCooldown = false): Promise<ApiResponse<{ post: ComfortPost }>> {
     const deviceId = await getDeviceId();
     return apiCall('/api/comfort/posts', {
         method: 'POST',
-        body: JSON.stringify({ deviceId, content }),
+        body: JSON.stringify({ deviceId, content, skipCooldown }),
     });
 }
 

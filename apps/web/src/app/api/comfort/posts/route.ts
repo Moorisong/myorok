@@ -86,20 +86,23 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // 1시간 제한 체크 (Async)
-        const postStatus = await canPost(deviceId);
-        if (!postStatus.canPost) {
-            return NextResponse.json(
-                {
-                    success: false,
-                    error: {
-                        code: 'POST_LIMIT',
-                        message: `${postStatus.waitMinutes}분 후에 글을 작성할 수 있습니다.`
+        // 1시간 제한 체크 (Async) - skipCooldown이 true면 스킵
+        const skipCooldown = body.skipCooldown === true;
+        if (!skipCooldown) {
+            const postStatus = await canPost(deviceId);
+            if (!postStatus.canPost) {
+                return NextResponse.json(
+                    {
+                        success: false,
+                        error: {
+                            code: 'POST_LIMIT',
+                            message: `${postStatus.waitMinutes}분 후에 글을 작성할 수 있습니다.`
+                        },
+                        waitMinutes: postStatus.waitMinutes,
                     },
-                    waitMinutes: postStatus.waitMinutes,
-                },
-                { status: 429 }
-            );
+                    { status: 429 }
+                );
+            }
         }
 
         const now = new Date().toISOString();

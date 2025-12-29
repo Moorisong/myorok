@@ -25,6 +25,7 @@ export default function ComfortScreen() {
     const [canPost, setCanPost] = useState(true);
     const [waitMinutes, setWaitMinutes] = useState<number | undefined>();
     const [showComposeModal, setShowComposeModal] = useState(false);
+    const [skipCooldown, setSkipCooldown] = useState(false);
 
     const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -84,12 +85,13 @@ export default function ComfortScreen() {
     };
 
     const handlePostSubmit = async (content: string): Promise<{ success: boolean; error?: string }> => {
-        const response = await createPost(content);
+        const response = await createPost(content, skipCooldown);
 
         if (response.success && response.data) {
             setPosts(prev => [response.data!.post, ...prev]);
             setCanPost(false);
             setWaitMinutes(60);
+            setSkipCooldown(false); // 한 번 사용 후 리셋
             return { success: true };
         }
 
@@ -194,7 +196,20 @@ export default function ComfortScreen() {
             <View style={styles.topSpacer} />
 
             <View style={styles.header}>
-                <Text style={styles.headerTitle}>{COMFORT_MESSAGES.TAB_TITLE}</Text>
+                <View style={styles.headerRow}>
+                    <Text style={styles.headerTitle}>{COMFORT_MESSAGES.TAB_TITLE}</Text>
+                    <Pressable
+                        style={styles.devButton}
+                        onPress={() => {
+                            setCanPost(true);
+                            setWaitMinutes(undefined);
+                            setSkipCooldown(true);
+                            Alert.alert('🧪 테스트', '글쓰기 쿨타임이 초기화되었습니다!');
+                        }}
+                    >
+                        <Text style={styles.devButtonText}>🧪 쿨타임 리셋</Text>
+                    </Pressable>
+                </View>
                 <Text style={styles.headerSubtitle}>{COMFORT_MESSAGES.TAB_SUBTITLE}</Text>
             </View>
 
@@ -268,6 +283,22 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         paddingTop: 8,
         paddingBottom: 12,
+    },
+    headerRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    devButton: {
+        backgroundColor: '#FFE0B2',
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 12,
+    },
+    devButtonText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#E65100',
     },
     headerTitle: {
         fontSize: 28,
