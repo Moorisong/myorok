@@ -190,3 +190,53 @@ export async function getModelsAsync() {
     await dbConnect();
     return getModels();
 }
+
+// 댓글 도배 방지 체크 (1분 10개, 5분 50개)
+export async function canComment(deviceId: string): Promise<{ canComment: boolean; waitSeconds?: number; reason?: string }> {
+    await dbConnect();
+    const { PostModel } = getModels();
+
+    const now = new Date();
+    const oneMinuteAgo = new Date(now.getTime() - 60 * 1000).toISOString();
+    const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000).toISOString();
+
+    // 모든 게시글에서 해당 사용자의 댓글 수 카운트
+    const posts = await PostModel.find({}).lean();
+
+    let commentsInLastMinute = 0;
+    let commentsInLastFiveMinutes = 0;
+
+    for (const post of posts) {
+        for (const comment of (post as any).comments || []) {
+            if (comment.deviceId !== deviceId) continue;
+
+            const commentTime = comment.createdAt;
+            if (commentTime >= oneMinuteAgo) {
+                commentsInLastMinute++;
+            }
+            if (commentTime >= fiveMinutesAgo) {
+                commentsInLastFiveMinutes++;
+            }
+        }
+    }
+
+    // 1분에 10개 이상
+    if (commentsInLastMinute >= 10) {
+        return {
+            canComment: false,
+            waitSeconds: 60,
+            reason: '댓글을 너무 빠르게 작성하고 있습니다. 1분 후에 다시 시도해주세요.',
+        };
+    }
+
+    // 5분에 50개 이상
+    if (commentsInLastFiveMinutes >= 50) {
+        return {
+            canComment: false,
+            waitSeconds: 300,
+            reason: '댓글을 너무 많이 작성했습니다. 5분 후에 다시 시도해주세요.',
+        };
+    }
+
+    return { canComment: true };
+}

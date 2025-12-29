@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getPostById, savePost, generateId, filterBadWords, getModelsAsync } from '@/lib/comfort';
+import { getPostById, savePost, generateId, filterBadWords, getModelsAsync, canComment } from '@/lib/comfort';
 
 interface RouteParams {
     params: Promise<{ id: string }>;
@@ -37,7 +37,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         const comments = post.comments
             .filter((c: any) => !blockedDeviceIds.includes(c.deviceId))
             .map((c: any) => ({
-                ...c,
+                id: c.id || c._id?.toString(),
+                deviceId: c.deviceId,
+                content: c.content,
+                createdAt: c.createdAt,
+                updatedAt: c.updatedAt,
                 isOwner: c.deviceId === deviceId,
                 displayId: `Device-${c.deviceId.slice(-4).toUpperCase()}`,
             }));
@@ -80,6 +84,22 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             return NextResponse.json(
                 { success: false, error: { code: 'CONTENT_TOO_LONG', message: '댓글은 300자를 초과할 수 없습니다.' } },
                 { status: 400 }
+            );
+        }
+
+        // 도배 방지 체크
+        const commentStatus = await canComment(deviceId);
+        if (!commentStatus.canComment) {
+            return NextResponse.json(
+                {
+                    success: false,
+                    error: {
+                        code: 'COMMENT_RATE_LIMITED',
+                        message: commentStatus.reason || '잠시 후 다시 시도해주세요.',
+                    },
+                    waitSeconds: commentStatus.waitSeconds,
+                },
+                { status: 429 }
             );
         }
 

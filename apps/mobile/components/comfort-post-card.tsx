@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, Alert } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { View, Text, StyleSheet, Pressable, Alert, TextInput, Keyboard } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 
 import { COLORS, COMFORT_MESSAGES } from '../constants';
@@ -64,6 +64,7 @@ export function ComfortPostCard({
     const handleSubmitComment = async () => {
         if (!commentText.trim() || isSubmitting) return;
 
+        Keyboard.dismiss();
         setIsSubmitting(true);
         try {
             const response = await createComment(post.id, commentText.trim());
@@ -173,10 +174,10 @@ export function ComfortPostCard({
             {/* 댓글 섹션 */}
             {showComments && (
                 <View style={styles.commentsSection}>
-                    {comments.map(comment => (
-                        <View key={comment.id} style={styles.commentItem}>
+                    {comments.map((comment, index) => (
+                        <View key={comment.id || `comment-${index}`} style={styles.commentItem}>
                             <View style={styles.commentHeader}>
-                                <Text style={styles.commentAuthor}>{comment.displayId}</Text>
+                                <Text style={styles.commentAuthor}>{comment.displayId || '익명'}</Text>
                                 <Text style={styles.commentTime}>{formatTime(comment.createdAt)}</Text>
                                 {comment.isOwner && (
                                     <Pressable
@@ -188,19 +189,35 @@ export function ComfortPostCard({
                                     </Pressable>
                                 )}
                             </View>
-                            <Text style={styles.commentContent}>{comment.content}</Text>
+                            <Text style={styles.commentContent}>{comment.content || ''}</Text>
                         </View>
                     ))}
 
                     {/* 댓글 입력 */}
-                    <View style={styles.commentInput}>
-                        <View style={styles.commentInputField}>
-                            <Pressable style={styles.commentInputPlaceholder}>
-                                <Text style={styles.commentInputText} numberOfLines={1}>
-                                    {COMFORT_MESSAGES.COMMENT_PLACEHOLDER}
-                                </Text>
-                            </Pressable>
-                        </View>
+                    <View style={styles.commentInputContainer}>
+                        <TextInput
+                            style={styles.commentInputField}
+                            value={commentText}
+                            onChangeText={setCommentText}
+                            placeholder={COMFORT_MESSAGES.COMMENT_PLACEHOLDER}
+                            placeholderTextColor={COLORS.textSecondary}
+                            maxLength={300}
+                            multiline
+                        />
+                        <Pressable
+                            style={[
+                                styles.commentSubmitButton,
+                                (!commentText.trim() || isSubmitting) && styles.commentSubmitButtonDisabled
+                            ]}
+                            onPress={handleSubmitComment}
+                            disabled={!commentText.trim() || isSubmitting}
+                        >
+                            <Feather
+                                name="send"
+                                size={18}
+                                color={commentText.trim() && !isSubmitting ? COLORS.primary : COLORS.textSecondary}
+                            />
+                        </Pressable>
                     </View>
                 </View>
             )}
@@ -323,11 +340,29 @@ const styles = StyleSheet.create({
     commentInput: {
         marginTop: 8,
     },
+    commentInputContainer: {
+        flexDirection: 'row',
+        alignItems: 'flex-end',
+        gap: 8,
+        marginTop: 8,
+    },
     commentInputField: {
+        flex: 1,
         backgroundColor: COLORS.background,
         borderRadius: 20,
         paddingHorizontal: 16,
         paddingVertical: 10,
+        fontSize: 13,
+        color: COLORS.textPrimary,
+        maxHeight: 100,
+    },
+    commentSubmitButton: {
+        padding: 10,
+        borderRadius: 20,
+        backgroundColor: COLORS.background,
+    },
+    commentSubmitButtonDisabled: {
+        opacity: 0.5,
     },
     commentInputPlaceholder: {
         flexDirection: 'row',
