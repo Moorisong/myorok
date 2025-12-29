@@ -3,14 +3,17 @@ import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { COLORS } from '../constants';
+import { useSelectedPet } from '../hooks/use-selected-pet';
 
 interface HeaderProps {
     title: string;
     showBack?: boolean;
+    showPetName?: boolean;
 }
 
-export default function Header({ title, showBack = false }: HeaderProps) {
+export default function Header({ title, showBack = false, showPetName = false }: HeaderProps) {
     const router = useRouter();
+    const { selectedPet } = useSelectedPet();
 
     return (
         <View style={styles.header}>
@@ -22,7 +25,14 @@ export default function Header({ title, showBack = false }: HeaderProps) {
                 <View style={styles.placeholder} />
             )}
             <Text style={styles.title}>{title}</Text>
-            <View style={styles.placeholder} />
+            {showPetName && selectedPet ? (
+                <View style={styles.petIndicator}>
+                    <Text style={styles.petEmoji}>🐱</Text>
+                    <Text style={styles.petName} numberOfLines={1}>{selectedPet.name}</Text>
+                </View>
+            ) : (
+                <View style={styles.placeholder} />
+            )}
         </View>
     );
 }
@@ -55,5 +65,23 @@ const styles = StyleSheet.create({
     },
     placeholder: {
         width: 40,
+    },
+    petIndicator: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FEF3C7',
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: 14,
+        maxWidth: 100,
+    },
+    petEmoji: {
+        fontSize: 12,
+        marginRight: 4,
+    },
+    petName: {
+        fontSize: 12,
+        fontWeight: '500',
+        color: COLORS.textPrimary,
     },
 });

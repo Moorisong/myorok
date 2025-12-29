@@ -15,6 +15,7 @@ import { Feather } from '@expo/vector-icons';
 import { COLORS } from '../../constants';
 import { CalendarGrid, DaySummaryCard } from '../../components';
 import { getMonthRecords, getDayDetail, CalendarDayData, getTodayDateString } from '../../services';
+import { useSelectedPet } from '../../hooks/use-selected-pet';
 
 
 
@@ -23,6 +24,7 @@ const FREE_DAYS_LIMIT = 15;
 
 export default function CalendarScreen() {
     const router = useRouter();
+    const { selectedPetId, selectedPet } = useSelectedPet();
     const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
     const [currentMonth, setCurrentMonth] = useState(new Date().getMonth() + 1);
     const [monthData, setMonthData] = useState<Map<string, CalendarDayData>>(new Map());
@@ -58,7 +60,7 @@ export default function CalendarScreen() {
                     setSelectedDayData(detail);
                 });
             }
-        }, [currentYear, currentMonth, selectedDate])
+        }, [currentYear, currentMonth, selectedDate, selectedPetId])
     );
 
     const loadMonthData = async () => {
@@ -217,6 +219,13 @@ export default function CalendarScreen() {
 
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
+            {/* Pet Indicator */}
+            <View style={styles.petIndicatorRow}>
+                <View style={styles.petIndicator}>
+                    <Text style={styles.petName} numberOfLines={1}>{selectedPet?.name || ''}</Text>
+                </View>
+            </View>
+
             <View style={styles.header}>
                 <View style={styles.monthNav}>
                     <Pressable onPress={handlePrevMonth} style={styles.navButton}>
@@ -317,7 +326,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center', // Center the nav
         alignItems: 'center',
         paddingHorizontal: 16,
-        paddingTop: 30,
+        paddingTop: 8,
         paddingBottom: 10,
         position: 'relative', // For absolute positioning of today button
     },
@@ -564,6 +573,30 @@ const styles = StyleSheet.create({
     },
     daySummaryContainer: {
         minHeight: 400,
+    },
+    petIndicatorRow: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        paddingHorizontal: 16,
+        paddingTop: 12,
+    },
+    petIndicator: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#F0F0F0',
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: 14,
+        maxWidth: 100,
+    },
+    petEmoji: {
+        fontSize: 12,
+        marginRight: 4,
+    },
+    petName: {
+        fontSize: 12,
+        fontWeight: '500',
+        color: COLORS.textPrimary,
     },
 
 });
