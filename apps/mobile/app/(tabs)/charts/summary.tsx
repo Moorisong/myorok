@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, DimensionValue } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { COLORS } from '../../../constants';
@@ -9,6 +9,7 @@ import { useFocusEffect } from 'expo-router';
 import { getLast7DaysRecords, getRecentDailyRecords, DailyRecord } from '../../../services/dailyRecords';
 import { getRecentSupplementHistory } from '../../../services/supplements';
 import { getRecentFluidHistory, FluidRecord } from '../../../services/fluidRecords';
+import { useSelectedPet } from '../../../hooks/use-selected-pet';
 
 type Period = '15d' | '1m' | '3m' | 'all';
 
@@ -26,16 +27,29 @@ interface HydrationData {
     fluid: number;
 }
 
-interface MedicineDisplay {
+// v1.2: Medicine Chart - Timeline Segment
+interface MedicineSegment {
+    type: 'bar' | 'dot';
+    startIndex: number; // 0 to 14 (relative to current view window)
+    length: number;     // 1 for dot, >=2 for bar
+    dateLabel?: string; // For dot hover/display?
+}
+
+interface MedicineRow {
     name: string;
-    startDate: string;
-    endDate: string;
+    isDeleted: boolean;
+    segments: MedicineSegment[];
 }
 
 export default function SummaryChartScreen() {
+    const { selectedPetId } = useSelectedPet();
     const [chartData, setChartData] = useState<ChartData[]>([]);
     const [hydrationData, setHydrationData] = useState<HydrationData[]>([]);
-    const [medicineList, setMedicineList] = useState<MedicineDisplay[]>([]);
+
+    // Medicine Chart State
+    const [medicineRows, setMedicineRows] = useState<MedicineRow[]>([]);
+    const [chartDates, setChartDates] = useState<string[]>([]); // Formatted M/D for column headers
+
     const [maxValue, setMaxValue] = useState(5);
     const [maxVolValue, setMaxVolValue] = useState(100);
 
@@ -46,7 +60,7 @@ export default function SummaryChartScreen() {
     useFocusEffect(
         useCallback(() => {
             loadData(period);
-        }, [period])
+        }, [period, selectedPetId])
     );
 
     const getDaysFromPeriod = (p: Period) => {
@@ -62,9 +76,34 @@ export default function SummaryChartScreen() {
     const loadData = async (currentPeriod: Period) => {
         try {
             const days = getDaysFromPeriod(currentPeriod);
+            const chartDays = 15; // Medicine chart is fixed to 15 days for now regardless of period selection (per spec "Last 15 days")? 
+            // Spec says "Last 15 days intake display". Let's assume it always shows last 15 days even if global filter is different, 
+            // or maybe it follows global filter but visualization is optimized for 15.
+            // For now, let's sync global period fetching data but Medicine Chart might need specific handling if period > 15d.
+            // Spec says "Area Name: Recent 15 Days Medicine Intake". So it implies it's always last 15 days.
+
+            // Calculate date range for chart columns
+            const today = new Date();
+            const dates: string[] = [];
+            const dateObjs: string[] = []; // YYYY-MM-DD for matching
+
+            // Generate last 15 days (D-14 to D)
+            for (let i = 14; i >= 0; i--) {
+                const d = new Date();
+                d.setDate(today.getDate() - i);
+                const mm = String(d.getMonth() + 1); // No pad for display
+                const dd = String(d.getDate());      // No pad
+                dates.push(`${mm}/${dd}`);
+
+                const yyyy = d.getFullYear();
+                const mmPad = String(d.getMonth() + 1).padStart(2, '0');
+                const ddPad = String(d.getDate()).padStart(2, '0');
+                dateObjs.push(`${yyyy}-${mmPad}-${ddPad}`);
+            }
+            setChartDates(dates);
 
             const records = await getRecentDailyRecords(days);
-            const medicines = await getRecentSupplementHistory(days);
+            const medicines = await getRecentSupplementHistory(Math.max(days, 15)); // Ensure we have at least 15 days for meds
             const fluids = await getRecentFluidHistory(days);
 
             // Process Chart Data
@@ -76,20 +115,15 @@ export default function SummaryChartScreen() {
             }));
 
             // Process Hydration Data
-            // We need to merge daily records (water) and fluid records (force/fluid)
-            // Create a map for the last 7 days (based on records which has the dates)
             const hydrationMap = new Map<string, { water: number, force: number, fluid: number }>();
-
-            // Initialize with dates from daily records (which covers last 7 days)
             records.forEach(r => {
                 hydrationMap.set(r.date, {
-                    water: 0, // Request to hide voluntary water
+                    water: 0,
                     force: 0,
                     fluid: 0
                 });
             });
 
-            // Add fluids
             fluids.forEach(f => {
                 if (hydrationMap.has(f.date)) {
                     const current = hydrationMap.get(f.date)!;
@@ -108,37 +142,96 @@ export default function SummaryChartScreen() {
 
             // Calculate Max Values
             const maxVal = Math.max(...processedData.map(d => d.poop + d.diarrhea + d.vomit), 5);
-            const maxVol = Math.max(...processedHydration.map(d => d.water + d.force + d.fluid), 100); // Min 100ml scale
+            const maxVol = Math.max(...processedHydration.map(d => d.water + d.force + d.fluid), 100);
 
             setChartData(processedData);
             setHydrationData(processedHydration);
             setMaxValue(maxVal);
             setMaxVolValue(maxVol);
 
-            // Process Medicine Data
-            const medMap = new Map<string, { name: string, dates: string[] }>();
+            // --- Process Medicine Data (Timeline) ---
+            const medMap = new Map<string, { isDeleted: boolean, takenMap: Map<string, boolean> }>();
+
+            // 1. Group by Medicine Name
             medicines.forEach(m => {
-                if (!medMap.has(m.name)) {
-                    medMap.set(m.name, { name: m.name, dates: [] });
+                // Determine display name
+                let name = m.name;
+                let isDeleted = false;
+
+                // Check if name contains "(삭제된 항목)" or logic from service
+                // The service adds '(삭제된 항목)' suffix if joined supplement is null (deleted)
+                // But currently hardcoded string check isn't ideal if name itself has it. 
+                // Assuming service contract: name is "Name (삭제된 항목)" or "Name".
+                if (m.name.includes('(삭제된 항목)')) {
+                    name = m.name.replace('(삭제된 항목)', '').trim();
+                    isDeleted = true;
                 }
-                medMap.get(m.name)?.dates.push(m.date);
+                // Also check if supplementId resolves to a deleted item via previous join logic
+                // For now relying on name suffix from service query.
+
+                if (!medMap.has(name)) {
+                    medMap.set(name, { isDeleted, takenMap: new Map() });
+                }
+
+                // Mark date as taken
+                if (m.taken === 1) {
+                    medMap.get(name)?.takenMap.set(m.date, true);
+                }
             });
 
-            // Flatten to ranges (Simplified logic: just show recent activity or separate blocks)
-            // For now, let's just show the last taken date or range if continuous
-            const displayMeds: MedicineDisplay[] = [];
-            medMap.forEach((value) => {
-                value.dates.sort();
-                // Simple logic: Start to End of all existing records in period
-                if (value.dates.length > 0) {
-                    displayMeds.push({
-                        name: value.name,
-                        startDate: value.dates[0].substring(5).replace('-', '/'),
-                        endDate: value.dates[value.dates.length - 1].substring(5).replace('-', '/')
+            // 2. Build Rows & Segments
+            const rows: MedicineRow[] = [];
+
+            medMap.forEach((data, name) => {
+                const segments: MedicineSegment[] = [];
+                let currentSegment: { start: number, length: number } | null = null;
+
+                // Iterate through the 15 chart columns (dateObjs)
+                for (let i = 0; i < dateObjs.length; i++) {
+                    const date = dateObjs[i];
+                    const isTaken = data.takenMap.has(date);
+
+                    if (isTaken) {
+                        if (currentSegment) {
+                            // Continue segment
+                            currentSegment.length++;
+                        } else {
+                            // Start new segment
+                            currentSegment = { start: i, length: 1 };
+                        }
+                    } else {
+                        // Gap encountered
+                        if (currentSegment) {
+                            // End existing segment -> determine type
+                            segments.push({
+                                type: currentSegment.length >= 2 ? 'bar' : 'dot',
+                                startIndex: currentSegment.start,
+                                length: currentSegment.length,
+                                dateLabel: dates[currentSegment.start] // Simplified label
+                            });
+                            currentSegment = null;
+                        }
+                    }
+                }
+
+                // Close open segment at the end
+                if (currentSegment) {
+                    segments.push({
+                        type: currentSegment.length >= 2 ? 'bar' : 'dot',
+                        startIndex: currentSegment.start,
+                        length: currentSegment.length,
+                        dateLabel: dates[currentSegment.start]
                     });
                 }
+
+                rows.push({
+                    name,
+                    isDeleted: data.isDeleted,
+                    segments
+                });
             });
-            setMedicineList(displayMeds);
+
+            setMedicineRows(rows);
 
         } catch (error) {
             console.error('Error loading summary chart data:', error);
@@ -147,9 +240,8 @@ export default function SummaryChartScreen() {
 
     const handlePeriodChange = (newPeriod: Period) => {
         if (!isPro && newPeriod !== '15d') {
-            // Simple alert for now, in real app this would open paywall
             alert('전체 기간 조회는 Pro 버전에서 가능합니다.\n(임시: Pro 모드가 활성화됩니다)');
-            setIsPro(true); // Auto-upgrade for testing as per request "Show UX"
+            setIsPro(true);
             setPeriod(newPeriod);
             return;
         }
@@ -189,7 +281,7 @@ export default function SummaryChartScreen() {
                                 period === '3m' ? '최근 3개월' : '전체 기간'} 기록
                     </Text>
 
-                    {/* 간단한 바 차트 */}
+                    {/* Basic Bar Chart */}
                     <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                         <View style={[styles.chart, { width: Math.max(chartData.length * 40, 300) }]}>
                             {chartData.length === 0 ? (
@@ -235,7 +327,7 @@ export default function SummaryChartScreen() {
                         </View>
                     </ScrollView>
 
-                    {/* 범례 */}
+                    {/* Legend */}
                     <View style={styles.legend}>
                         <View style={styles.legendItem}>
                             <View style={[styles.legendColor, styles.barPoop]} />
@@ -250,6 +342,92 @@ export default function SummaryChartScreen() {
                             <Text style={styles.legendText}>구토</Text>
                         </View>
                     </View>
+                </Card>
+
+                <Card style={styles.card}>
+                    <Text style={styles.sectionTitle}>최근 15일 약/영양제 복용</Text>
+
+                    {medicineRows.length === 0 ? (
+                        <View style={styles.emptyContainer}>
+                            <Text style={styles.emptyText}>복용 기록이 없습니다.</Text>
+                        </View>
+                    ) : (
+                        <View style={styles.medicineChartContainer}>
+                            {/* Date Header Row */}
+                            <View style={styles.medHeaderRow}>
+                                <View style={styles.medNameHeader} />
+                                <View style={styles.medGrid}>
+                                    {chartDates.map((date, i) => (
+                                        <View key={i} style={styles.medGridCol}>
+                                            <Text style={styles.medDateLabel}>{date.split('/')[1]}</Text>
+                                        </View>
+                                    ))}
+                                </View>
+                            </View>
+
+                            {/* Medicine Rows */}
+                            {medicineRows.map((row, rowIndex) => (
+                                <View key={rowIndex} style={styles.medRow}>
+                                    <View style={styles.medNameCol}>
+                                        <Text
+                                            style={[styles.medNameText, row.isDeleted && styles.textDeleted]}
+                                            numberOfLines={1}
+                                            ellipsizeMode="tail"
+                                        >
+                                            {row.name}
+                                        </Text>
+                                        {row.isDeleted && <Text style={styles.textDeletedSmall}>(삭제)</Text>}
+                                    </View>
+
+                                    <View style={styles.medGrid}>
+                                        {/* Background Grid Lines */}
+                                        {chartDates.map((_, i) => (
+                                            <View key={`grid-${i}`} style={styles.medGridColLine} />
+                                        ))}
+
+                                        {/* Segments (Bars and Dots) */}
+                                        {row.segments.map((seg, segIndex) => {
+                                            // Calculate position
+                                            const cellWidth = 100 / 15; // Percent width per cell
+                                            const left = `${seg.startIndex * cellWidth}%`;
+                                            const width = `${seg.length * cellWidth}%`;
+
+                                            if (seg.type === 'bar') {
+                                                return (
+                                                    <View
+                                                        key={segIndex}
+                                                        style={[
+                                                            styles.medBar,
+                                                            { left: left as DimensionValue, width: width as DimensionValue },
+                                                            row.isDeleted && styles.medBarDeleted
+                                                        ]}
+                                                    />
+                                                );
+                                            } else {
+                                                // Dot (Center in the cell)
+                                                // width is 1 cell width
+                                                // We want to center a dot inside this cell
+                                                return (
+                                                    <View
+                                                        key={segIndex}
+                                                        style={[
+                                                            styles.medDotContainer,
+                                                            { left: left as DimensionValue, width: width as DimensionValue }
+                                                        ]}
+                                                    >
+                                                        <View style={[
+                                                            styles.medDot,
+                                                            row.isDeleted && styles.medDotDeleted
+                                                        ]} />
+                                                    </View>
+                                                );
+                                            }
+                                        })}
+                                    </View>
+                                </View>
+                            ))}
+                        </View>
+                    )}
                 </Card>
 
                 <Card style={styles.card}>
@@ -269,7 +447,6 @@ export default function SummaryChartScreen() {
                                 hydrationData.map((day, index) => (
                                     <View key={index} style={styles.barContainer}>
                                         <View style={styles.barWrapper}>
-                                            {/* Stacked Bars: Fluid (Top), Force (Middle) - Water removed */}
                                             {day.fluid > 0 && (
                                                 <View
                                                     style={[
@@ -311,28 +488,10 @@ export default function SummaryChartScreen() {
                     </View>
                 </Card>
 
-                <Card style={styles.card}>
-                    <Text style={styles.sectionTitle}>
-                        {period === '15d' ? '최근 15일' :
-                            period === '1m' ? '최근 1개월' :
-                                period === '3m' ? '최근 3개월' : '전체 기간'} 약/영양제 복용
-                    </Text>
-                    {medicineList.length === 0 ? (
-                        <Text style={styles.emptyText}>복용 기록이 없습니다.</Text>
-                    ) : (
-                        medicineList.map((med, index) => (
-                            <View key={index} style={styles.medicineItem}>
-                                <Text style={styles.medicineName}>💊 {med.name}</Text>
-                                <Text style={styles.medicinePeriod}>
-                                    {med.startDate} {med.startDate !== med.endDate ? `~${med.endDate} ` : ''}
-                                </Text>
-                            </View>
-                        ))
-                    )}
-                </Card>
-
                 <Text style={styles.hint}>
-                    💡 이 화면을 병원에서 보여주세요. 수의사 선생님이 증상 추이를 한눈에 파악할 수 있습니다.
+                    💡 이 화면을 병원에서 보여주세요. {"\n"}
+                    약/영양제 차트는 최근 15일 기준이며, {"\n"}
+                    연속된 날짜는 막대(Bar), 하루 복용은 점(Dot)으로 표시됩니다.
                 </Text>
 
                 <View style={styles.bottomPadding} />
@@ -429,28 +588,13 @@ const styles = StyleSheet.create({
         fontSize: 13,
         color: COLORS.textSecondary,
     },
-    medicineItem: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingVertical: 12,
-        borderBottomWidth: 1,
-        borderBottomColor: COLORS.border,
-    },
-    medicineName: {
-        fontSize: 15,
-        color: COLORS.textPrimary,
-    },
-    medicinePeriod: {
-        fontSize: 14,
-        color: COLORS.textSecondary,
-    },
     hint: {
         marginHorizontal: 16,
         marginTop: 16,
         fontSize: 14,
         color: COLORS.textSecondary,
         lineHeight: 20,
+        textAlign: 'center',
     },
     bottomPadding: {
         height: 32,
@@ -460,12 +604,12 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         width: '100%',
+        paddingVertical: 20,
     },
     emptyText: {
         fontSize: 14,
         color: COLORS.textSecondary,
         textAlign: 'center',
-        paddingVertical: 20,
     },
     periodSelector: {
         flexDirection: 'row',
@@ -494,4 +638,83 @@ const styles = StyleSheet.create({
         color: COLORS.surface,
         fontWeight: '600',
     },
+    // Medicine Chart Styles
+    medicineChartContainer: {
+        marginTop: 8,
+        paddingBottom: 8,
+    },
+    medHeaderRow: {
+        flexDirection: 'row',
+        marginBottom: 8,
+    },
+    medNameHeader: {
+        width: 80,
+    },
+    medGrid: {
+        flex: 1,
+        flexDirection: 'row',
+        position: 'relative',
+    },
+    medGridCol: {
+        flex: 1,
+        alignItems: 'center',
+    },
+    medDateLabel: {
+        fontSize: 10,
+        color: COLORS.textSecondary,
+    },
+    medRow: {
+        flexDirection: 'row',
+        height: 36,
+        alignItems: 'center',
+        marginBottom: 4,
+    },
+    medNameCol: {
+        width: 80,
+        paddingRight: 8,
+        justifyContent: 'center',
+    },
+    medNameText: {
+        fontSize: 12,
+        color: COLORS.textPrimary,
+    },
+    textDeleted: {
+        color: COLORS.textSecondary,
+        textDecorationLine: 'line-through',
+    },
+    textDeletedSmall: {
+        fontSize: 10,
+        color: COLORS.textSecondary,
+    },
+    medGridColLine: {
+        flex: 1,
+        borderLeftWidth: 1,
+        borderLeftColor: '#F0F0F0', // Very light info grid
+        height: '100%',
+    },
+    medBar: {
+        position: 'absolute',
+        height: 14, // Bar Height
+        backgroundColor: COLORS.primary, // Green bar for meds
+        borderRadius: 7,
+        top: 11, // Center in 36px height
+    },
+    medBarDeleted: {
+        backgroundColor: COLORS.border,
+    },
+    medDotContainer: {
+        position: 'absolute',
+        height: '100%' as DimensionValue,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    medDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: COLORS.primary,
+    },
+    medDotDeleted: {
+        backgroundColor: COLORS.border,
+    }
 });
