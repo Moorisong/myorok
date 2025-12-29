@@ -41,8 +41,9 @@ export async function POST(request: NextRequest) {
             // 해당 기기의 최근 게시글 시간을 24시간 전으로 돌림
             const lastPost = await PostModel.findOne({ deviceId }).sort({ createdAt: -1 });
             if (lastPost) {
-                const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-                lastPost.createdAt = yesterday;
+                // 쿨타임(1시간)만 해제되도록 1시간 5분 전으로 설정 (자정 삭제 방지)
+                const oneHourFiveMinAgo = new Date(Date.now() - 65 * 60 * 1000).toISOString();
+                lastPost.createdAt = oneHourFiveMinAgo;
                 await lastPost.save();
                 return NextResponse.json({ success: true, message: '쿨타임이 리셋되었습니다.' });
             }
@@ -51,28 +52,41 @@ export async function POST(request: NextRequest) {
 
         if (action === 'create-sample') {
             // 랜덤 닉네임, 욕설 포함 샘플 글 생성
-            // 닉네임은 deviceId 해싱이므로 랜덤 deviceId 생성
-            const randomDeviceId = `test-user-${Math.random().toString(36).substring(7)}`;
-            const rawContent = generateSampleContent();
-            // 서버 로직에서는 필터링을 거쳐서 저장됨 (실제 동작 시뮬레이션)
-            const filteredContent = filterBadWords(rawContent);
+            const count = body.count || 1;
+            const sameUser = body.sameUser || false;
 
-            const newPost: Post = {
-                id: generateId(),
-                deviceId: randomDeviceId,
-                content: filteredContent,
-                emoji: '🧪',
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-                likes: [],
-                comments: [],
-                reportCount: 0,
-                reportedBy: [],
-                hidden: false,
-            };
+            // 동일 유저 옵션일 경우 하나의 deviceId 생성, 아니면 null (루프 안에서 생성)
+            const fixedDeviceId = sameUser ? `test-user-${Math.random().toString(36).substring(7)}` : null;
 
-            await PostModel.create(newPost);
-            return NextResponse.json({ success: true, message: '샘플 게시글이 생성되었습니다.', data: newPost });
+            const createdPosts: Post[] = [];
+
+            for (let i = 0; i < count; i++) {
+                // 닉네임은 deviceId 해싱이므로 랜덤 deviceId 생성
+                const deviceId = fixedDeviceId || `test-user-${Math.random().toString(36).substring(7)}`;
+                const rawContent = generateSampleContent();
+                // 서버 로직에서는 필터링을 거쳐서 저장됨 (실제 동작 시뮬레이션)
+                const filteredContent = filterBadWords(rawContent);
+
+                const newPost: Post = {
+                    id: generateId(),
+                    deviceId: deviceId,
+                    content: filteredContent,
+                    emoji: '🧪',
+                    // 생성 시간 차이를 약간 둠 (정렬 테스트 용이)
+                    createdAt: new Date(Date.now() - i * 1000).toISOString(),
+                    updatedAt: new Date(Date.now() - i * 1000).toISOString(),
+                    likes: [],
+                    comments: [],
+                    reportCount: 0,
+                    reportedBy: [],
+                    hidden: false,
+                };
+                createdPosts.push(newPost);
+            }
+
+            // insertMany로 한 번에 저장
+            await PostModel.insertMany(createdPosts);
+            return NextResponse.json({ success: true, message: `${count}개의 샘플 게시글이 생성되었습니다.`, data: createdPosts });
         }
 
         if (action === 'time-travel') {
@@ -87,6 +101,17 @@ export async function POST(request: NextRequest) {
                 lastPost.createdAt = pastTime;
                 await lastPost.save();
                 return NextResponse.json({ success: true, message: `${hours}시간 전으로 이동했습니다.` });
+            }
+            return NextResponse.json({ success: false, error: '작성한 게시글이 없습니다.' }, { status: 404 });
+        }
+
+        if (action === 'reset-time') {
+            // 작성 시간을 현재로 리셋 (쿨타임 다시 적용)
+            const lastPost = await PostModel.findOne({ deviceId }).sort({ createdAt: -1 });
+            if (lastPost) {
+                lastPost.createdAt = new Date().toISOString();
+                await lastPost.save();
+                return NextResponse.json({ success: true, message: '작성 시간이 현재로 리셋되었습니다. (쿨타임 적용)' });
             }
             return NextResponse.json({ success: false, error: '작성한 게시글이 없습니다.' }, { status: 404 });
         }
