@@ -13,3 +13,4 @@ export { PinInputModal } from './pin-input-modal';
 export { ComfortPostCard } from './comfort-post-card';
 export { ComfortComposeModal } from './comfort-compose-modal';
 export { ComfortDebugModal } from './comfort-debug-modal';
+export { ComfortReportModal } from './comfort-report-modal';

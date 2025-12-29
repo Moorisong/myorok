@@ -15,7 +15,7 @@ import { Feather } from '@expo/vector-icons';
 
 import { COLORS, COMFORT_MESSAGES } from '../../constants';
 import { ComfortPost, getPosts, createPost, updatePost, toggleLike, deletePost, blockUser, reportPost } from '../../services';
-import { ComfortPostCard, ComfortComposeModal, ComfortDebugModal } from '../../components';
+import { ComfortPostCard, ComfortComposeModal, ComfortDebugModal, ComfortReportModal } from '../../components';
 
 export default function ComfortScreen() {
     const [posts, setPosts] = useState<ComfortPost[]>([]);
@@ -28,6 +28,8 @@ export default function ComfortScreen() {
     const [skipCooldown, setSkipCooldown] = useState(false);
     const [editingPost, setEditingPost] = useState<ComfortPost | null>(null);
     const [showDebugModal, setShowDebugModal] = useState(false);
+    const [reportModalVisible, setReportModalVisible] = useState(false);
+    const [reportingPostId, setReportingPostId] = useState<string | null>(null);
 
     const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -170,23 +172,9 @@ export default function ComfortScreen() {
         );
     };
 
-    const handleReport = async (postId: string) => {
-        Alert.alert(
-            COMFORT_MESSAGES.REPORT,
-            '신고 사유를 선택해주세요',
-            [
-                ...COMFORT_MESSAGES.REPORT_REASONS.map(reason => ({
-                    text: reason,
-                    onPress: async () => {
-                        const response = await reportPost(postId, reason);
-                        if (response.success) {
-                            Alert.alert('완료', COMFORT_MESSAGES.REPORT_SUCCESS);
-                        }
-                    },
-                })),
-                { text: '취소', style: 'cancel' },
-            ]
-        );
+    const handleReport = (postId: string) => {
+        setReportingPostId(postId);
+        setReportModalVisible(true);
     };
 
     const renderEmptyState = () => {
@@ -304,6 +292,14 @@ export default function ComfortScreen() {
                 onClose={() => setShowDebugModal(false)}
                 onResetCooldown={() => loadPosts(false)}
                 onReload={() => loadPosts(false)}
+            />
+            <ComfortReportModal
+                visible={reportModalVisible}
+                postId={reportingPostId}
+                onClose={() => {
+                    setReportModalVisible(false);
+                    setReportingPostId(null);
+                }}
             />
         </SafeAreaView>
     );
