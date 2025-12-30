@@ -182,7 +182,6 @@ export async function resetSubscription(): Promise<void> {
         await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS);
         await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_START_DATE);
         await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_EXPIRY_DATE);
-        await AsyncStorage.removeItem(STORAGE_KEY); // Clear the new cache key
         console.log('[Subscription] Cleared AsyncStorage');
 
         // Clear database
@@ -202,4 +201,3 @@ export async function resetSubscription(): Promise<void> {
         throw error;
     }
 }
-```
