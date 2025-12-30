@@ -1,5 +1,4 @@
 import { useState, useCallback, useRef } from 'react';
-import { Alert } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import type { VomitColor } from '../constants';
 import {
@@ -24,6 +23,7 @@ import {
     type Supplement,
     type FluidRecord,
 } from '../services';
+import { useToast as useGlobalToast } from '../components/ToastContext';
 import { useSelectedPet } from './use-selected-pet';
 
 type ActionType = 'pee' | 'poop' | 'diarrhea' | 'vomit' | 'fluid' | 'water' | 'force';
@@ -36,6 +36,7 @@ interface LastAction {
 
 export function useTodayScreen() {
     const { selectedPetId } = useSelectedPet();
+    const { showToast: showGlobalToast } = useGlobalToast();
 
     // Daily counts
     const [peeCount, setPeeCount] = useState(0);
@@ -175,9 +176,16 @@ export function useTodayScreen() {
                         await updateDailyRecord({ waterIntake: newWater });
                     }
                     break;
+                case 'water':
+                    if (lastAction.value) {
+                        const newWater = Math.max(0, waterIntake - lastAction.value);
+                        setWaterIntake(newWater);
+                        await updateDailyRecord({ waterIntake: newWater });
+                    }
+                    break;
             }
         } catch (error) {
-            Alert.alert(ALERT_TITLES.ERROR, ERROR_MESSAGES.UNDO_FAILED);
+            showGlobalToast(ERROR_MESSAGES.UNDO_FAILED, { variant: 'error' });
         }
     };
 
@@ -280,7 +288,7 @@ export function useTodayScreen() {
                     break;
             }
         } catch (error) {
-            Alert.alert(ALERT_TITLES.ERROR, ERROR_MESSAGES.SAVE_FAILED);
+            showGlobalToast(ERROR_MESSAGES.SAVE_FAILED, { variant: 'error' });
         }
     };
 
@@ -291,7 +299,7 @@ export function useTodayScreen() {
             setTodayFluids(fluids);
             setToastVisible(false); // Hide existing toast if any
         } catch (error) {
-            Alert.alert(ALERT_TITLES.ERROR, ERROR_MESSAGES.DELETE_FAILED);
+            showGlobalToast(ERROR_MESSAGES.DELETE_FAILED, { variant: 'error' });
         }
     };
 
@@ -305,7 +313,7 @@ export function useTodayScreen() {
                 return newMap;
             });
         } catch (error) {
-            Alert.alert(ALERT_TITLES.ERROR, ERROR_MESSAGES.STATUS_CHANGE_FAILED);
+            showGlobalToast(ERROR_MESSAGES.STATUS_CHANGE_FAILED, { variant: 'error' });
         }
     };
 
@@ -320,13 +328,13 @@ export function useTodayScreen() {
             const status = await getTodaySupplementStatus();
             setTakenStatus(status);
         } catch (error) {
-            Alert.alert(ALERT_TITLES.ERROR, ERROR_MESSAGES.ADD_FAILED);
+            showGlobalToast(ERROR_MESSAGES.ADD_FAILED, { variant: 'error' });
         }
     };
 
     const handleSupplementDelete = async (supplementId: string, deleteRecords: boolean) => {
         try {
-            await deleteSupplement(supplementId, deleteRecords);
+            await deleteSupplement(supplementId);
             // Refresh list
             const suppList = await getSupplements();
             setSupplements(suppList);
@@ -340,7 +348,7 @@ export function useTodayScreen() {
                 });
             }
         } catch (error) {
-            Alert.alert(ALERT_TITLES.ERROR, ERROR_MESSAGES.DELETE_FAILED);
+            showGlobalToast(ERROR_MESSAGES.DELETE_FAILED, { variant: 'error' });
         }
     };
 
@@ -351,7 +359,7 @@ export function useTodayScreen() {
             const fluids = await getTodayFluidRecords();
             setTodayFluids(fluids);
         } catch (error) {
-            Alert.alert(ALERT_TITLES.ERROR, ERROR_MESSAGES.RECORD_FAILED);
+            showGlobalToast(ERROR_MESSAGES.RECORD_FAILED, { variant: 'error' });
         }
     };
 
@@ -359,9 +367,9 @@ export function useTodayScreen() {
     const handleMemoSave = async () => {
         try {
             await updateDailyRecord({ memo: memo || null });
-            Alert.alert(ALERT_TITLES.SAVE_COMPLETE, SUCCESS_MESSAGES.SAVED);
+            showGlobalToast(SUCCESS_MESSAGES.SAVED);
         } catch (error) {
-            Alert.alert(ALERT_TITLES.ERROR, ERROR_MESSAGES.SAVE_FAILED);
+            showGlobalToast(ERROR_MESSAGES.SAVE_FAILED, { variant: 'error' });
         }
     };
 

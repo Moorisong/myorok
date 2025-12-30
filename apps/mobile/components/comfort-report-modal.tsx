@@ -13,6 +13,7 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { COLORS, COMFORT_MESSAGES } from '../constants';
 import { reportPost } from '../services';
+import { useToast } from './ToastContext';
 
 interface ComfortReportModalProps {
     visible: boolean;
@@ -26,6 +27,7 @@ export function ComfortReportModal({
     onClose,
 }: ComfortReportModalProps) {
     const [isLoading, setIsLoading] = useState(false);
+    const { showToast } = useToast();
 
     const handleReport = async (reason: string) => {
         if (!postId) return;
@@ -34,13 +36,13 @@ export function ComfortReportModal({
         try {
             const response = await reportPost(postId, reason);
             if (response.success) {
-                Alert.alert('완료', COMFORT_MESSAGES.REPORT_SUCCESS);
+                showToast(COMFORT_MESSAGES.REPORT_SUCCESS);
                 onClose();
             } else {
-                Alert.alert('오류', response.error?.message || '신고 접수에 실패했습니다.');
+                showToast(response.error?.message || '신고 접수에 실패했습니다.', { variant: 'error' });
             }
         } catch {
-            Alert.alert('오류', '신고 접수 중 문제가 발생했습니다.');
+            showToast('신고 접수 중 문제가 발생했습니다.', { variant: 'error' });
         } finally {
             setIsLoading(false);
         }
