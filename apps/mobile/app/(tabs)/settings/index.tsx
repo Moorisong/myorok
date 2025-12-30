@@ -174,6 +174,26 @@ export default function SettingsScreen() {
 
                 <Card style={styles.card}>
                     <SettingItem
+                        emoji="🧪"
+                        title="참고용 메모 보관함 (베타)"
+                        description="사료 기호성 / 약물 메모를 간단히 저장해둘 수 있어요"
+                        onPress={() => handleNavigate('/settings/reference-memos')}
+                    />
+                </Card>
+
+                {__DEV__ && (
+                    <Card style={styles.card}>
+                        <SettingItem
+                            emoji="🧪"
+                            title="알림 테스트 (Dev)"
+                            description="푸시 알림 로직 검증"
+                            onPress={() => handleNavigate('/settings/notification-test')}
+                        />
+                    </Card>
+                )}
+
+                <Card style={styles.card}>
+                    <SettingItem
                         emoji="ℹ️"
                         title="앱 정보"
                         description="묘록 v1.0.0"
@@ -188,15 +208,6 @@ export default function SettingsScreen() {
                         emoji="📋"
                         title="이용약관"
                         onPress={() => { }}
-                    />
-                </Card>
-
-                <Card style={styles.card}>
-                    <SettingItem
-                        emoji="🧪"
-                        title="알림 테스트 (Dev)"
-                        description="푸시 알림 로직 검증"
-                        onPress={() => handleNavigate('/settings/notification-test')}
                     />
                 </Card>
 
