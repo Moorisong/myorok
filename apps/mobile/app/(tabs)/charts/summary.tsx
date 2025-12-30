@@ -209,57 +209,74 @@ export default function SummaryChartScreen() {
                 });
             }
 
-            // Process Hydration Data (Fill empty dates)
+            // Process Hydration Data (Fill empty dates strictly aligned with dateObjs)
             const hydrationMap = new Map<string, { water: number, force: number, fluid: number }>();
 
-            // Initialize map with all dates first (for 15d/1m/3m)
-            if (currentPeriod !== 'all') {
-                // Recalculate date range if needed (reusing logic above is better)
-                const todayDate = new Date();
-                for (let i = days - 1; i >= 0; i--) {
-                    const d = new Date();
-                    d.setDate(todayDate.getDate() - i);
-                    const yyyy = d.getFullYear();
-                    const mm = String(d.getMonth() + 1).padStart(2, '0');
-                    const dd = String(d.getDate()).padStart(2, '0');
-                    const dateStr = `${yyyy}-${mm}-${dd}`;
-
-                    hydrationMap.set(dateStr, { water: 0, force: 0, fluid: 0 });
-                }
-            }
-
-            // Fill actual data
+            // 1. Populate map with actual data first
             records.forEach(r => {
-                // If 'all', we create entry. If not, we update existing (or create if missing)
                 if (!hydrationMap.has(r.date)) {
                     hydrationMap.set(r.date, { water: 0, force: 0, fluid: 0 });
                 }
                 const current = hydrationMap.get(r.date)!;
-                // Water from daily record (if we track it there)
-                // current.water += r.waterIntake || 0; // dailyRecord doesn't have waterIntake in ChartData interface but interface has it.
+                current.water += r.waterIntake || 0;
             });
 
             fluids.forEach(f => {
-                if (!hydrationMap.has(f.date) && currentPeriod === 'all') {
+                if (!hydrationMap.has(f.date)) {
                     hydrationMap.set(f.date, { water: 0, force: 0, fluid: 0 });
                 }
-
-                if (hydrationMap.has(f.date)) {
-                    const current = hydrationMap.get(f.date)!;
-                    if (f.fluidType === 'force') {
-                        current.force += (f.volume || 0);
-                    } else {
-                        current.fluid += (f.volume || 0);
-                    }
+                const current = hydrationMap.get(f.date)!;
+                if (f.fluidType === 'force') {
+                    current.force += (f.volume || 0);
+                } else {
+                    current.fluid += (f.volume || 0);
                 }
             });
 
-            const processedHydration = Array.from(hydrationMap.entries())
-                .sort((a, b) => a[0].localeCompare(b[0])) // Sort by date key
-                .map(([date, data]) => ({
-                    date: date.substring(5).replace('-', '/'),
-                    ...data
-                }));
+            const processedHydration: HydrationData[] = [];
+
+            // 2. Iterate dateObjs (or dates list) to ensure perfect alignment and filling
+            if (currentPeriod === '15d' || currentPeriod === '1m') {
+                for (let i = 0; i < dateObjs.length; i++) {
+                    const dateStr = dateObjs[i];
+                    const data = hydrationMap.get(dateStr) || { water: 0, force: 0, fluid: 0 };
+
+                    processedHydration.push({
+                        date: dates[i], // "MM/DD"
+                        ...data
+                    });
+                }
+            } else if (currentPeriod === '3m') {
+                // Re-generate dates for 3m if needed (same as processedData logic)
+                const todayDate = new Date();
+                for (let i = days - 1; i >= 0; i--) {
+                    const d = new Date();
+                    d.setDate(todayDate.getDate() - i);
+
+                    const yyyy = d.getFullYear();
+                    const mm = String(d.getMonth() + 1).padStart(2, '0');
+                    const dd = String(d.getDate()).padStart(2, '0');
+                    const dateStr = `${yyyy}-${mm}-${dd}`;
+                    const displayDate = `${Number(mm)}/${Number(dd)}`;
+
+                    const data = hydrationMap.get(dateStr) || { water: 0, force: 0, fluid: 0 };
+
+                    processedHydration.push({
+                        date: displayDate,
+                        ...data
+                    });
+                }
+            } else {
+                // All: Sort by date string key
+                const sortedKeys = Array.from(hydrationMap.keys()).sort();
+                sortedKeys.forEach(key => {
+                    const data = hydrationMap.get(key)!;
+                    processedHydration.push({
+                        date: key.substring(5).replace('-', '/'),
+                        ...data
+                    });
+                });
+            }
 
             // Calculate Max Values
             const maxVal = Math.max(...processedData.map(d => d.poop + d.diarrhea + d.vomit), 5);
