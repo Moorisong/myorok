@@ -34,13 +34,13 @@ export function PinInputModal({
 
     const shakeAnim = useRef(new Animated.Value(0)).current;
 
-    // PIN 초기화 (모달 열림 또는 단계 변경 시)
+    // PIN 초기화
     useEffect(() => {
         if (visible) {
             setPin('');
             setError(null);
         }
-    }, [visible, description]);
+    }, [visible]);
 
     // PIN 완성 시 자동 제출
     useEffect(() => {
