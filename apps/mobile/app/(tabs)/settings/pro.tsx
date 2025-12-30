@@ -14,7 +14,6 @@ const FEATURES = [
     { emoji: '📊', title: '전체 기간 차트', description: '과거부터 현재까지 모든 데이터' },
     { emoji: '🏥', title: '병원용 차트', description: '진료 시 보여줄 수 있는 전문 차트' },
     { emoji: '📈', title: '무제한 커스텀 수치', description: '혈액검사 수치를 무제한으로 추적' },
-    { emoji: '☁️', title: '클라우드 백업', description: '안전한 데이터 보관' },
 ];
 
 export default function ProScreen() {
