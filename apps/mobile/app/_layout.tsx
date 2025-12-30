@@ -6,6 +6,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { COLORS } from '../constants';
 import { PetProvider } from '../hooks/use-selected-pet';
 import { PinLockProvider } from '../hooks/use-pin-lock';
+import { AppLockScreen } from '../components/app-lock-screen';
 
 export default function RootLayout() {
   return (
@@ -34,10 +35,11 @@ export default function RootLayout() {
                 }}
               />
             </Stack>
+            {/* 앱 전체 잠금 화면 */}
+            <AppLockScreen />
           </PinLockProvider>
         </PetProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }
-

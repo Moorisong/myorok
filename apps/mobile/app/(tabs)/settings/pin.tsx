@@ -90,7 +90,7 @@ export default function PinSettingsScreen() {
             if (response.success) {
                 setStep('idle');
                 setNewPin('');
-                await refreshPinStatus();
+                await refreshPinStatus({ forceUnlock: true });
                 Alert.alert('완료', PIN_MESSAGES.PIN_SET_SUCCESS);
                 return { success: true };
             } else {
@@ -299,8 +299,7 @@ export default function PinSettingsScreen() {
                     <Text style={styles.infoTitle}>📌 안내</Text>
                     <Text style={styles.infoText}>
                         • PIN은 4자리 숫자입니다{'\n'}
-                        • PIN을 설정하면 설정 변경 시 입력이 필요합니다{'\n'}
-                        • 10분 동안 활동이 없으면 자동으로 잠깁니다{'\n'}
+                        • PIN을 설정하면 앱 실행 시 입력이 필요합니다{'\n'}
                         • 5회 연속 실패 시 5분간 잠깁니다
                     </Text>
                 </View>

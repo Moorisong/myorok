@@ -13,7 +13,7 @@ interface PinLockContextValue {
     // 액션
     unlock: (pin: string) => Promise<{ success: boolean; error?: string }>;
     lock: () => void;
-    refreshPinStatus: () => Promise<void>;
+    refreshPinStatus: (options?: { forceUnlock?: boolean }) => Promise<void>;
     resetInactivityTimer: () => void;
 }
 
@@ -32,8 +32,8 @@ export function PinLockProvider({ children }: PinLockProviderProps) {
     const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const appStateRef = useRef(AppState.currentState);
 
-    // PIN 상태 조회
-    const refreshPinStatus = useCallback(async () => {
+    // PIN 상태 조회 (forceUnlock: PIN 설정 직후 잠금 해제 유지)
+    const refreshPinStatus = useCallback(async (options?: { forceUnlock?: boolean }) => {
         try {
             setIsLoading(true);
             const response = await getPinStatus();
@@ -42,9 +42,13 @@ export function PinLockProvider({ children }: PinLockProviderProps) {
                 setIsPinSet(response.data.isPinSet);
                 setServerAvailable(true);
 
-                // PIN이 설정되어 있으면 잠금 상태 유지
+                // PIN이 설정되어 있고 forceUnlock이 아닌 경우에만 잠금
+                // 이미 잠금 해제 상태라면 유지 (세션 중 상태 보존)
                 if (response.data.isPinSet) {
-                    setIsLocked(true);
+                    if (options?.forceUnlock) {
+                        setIsLocked(false);
+                    }
+                    // 기존 isLocked 상태 유지 (변경하지 않음)
                 } else {
                     setIsLocked(false);
                 }
