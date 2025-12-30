@@ -1,172 +1,123 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View,
     Text,
     StyleSheet,
-    Pressable,
-    Animated,
-    Vibration,
-    Modal,
+    TouchableOpacity,
+    Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
+
+import { COLORS, PIN_MESSAGES } from '../constants';
 import { usePinLock } from '../hooks/use-pin-lock';
-import { COLORS, CONFIG, PIN_MESSAGES } from '../constants';
 
-export function AppLockScreen() {
-    const { isPinSet, isLocked, unlock, isLoading } = usePinLock();
+const { width } = Dimensions.get('window');
 
+export default function AppLockScreen() {
+    const { isLocked, unlock } = usePinLock();
     const [pin, setPin] = useState('');
     const [error, setError] = useState<string | null>(null);
-    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isBiometricAvailable, setIsBiometricAvailable] = useState(false); // 추후 생체인증 지원 시 사용
 
-    const shakeAnim = useRef(new Animated.Value(0)).current;
+    // 잠금 상태가 아니면 렌더링하지 않음
+    if (!isLocked) {
+        return null;
+    }
 
-    // 모달이 표시될 때 PIN 초기화
-    const visible = isPinSet && isLocked && !isLoading;
-
-    useEffect(() => {
-        if (visible) {
-            setPin('');
+    const handleNumberPress = (num: string) => {
+        if (pin.length < 4) {
+            const newPin = pin + num;
+            setPin(newPin);
             setError(null);
-        }
-    }, [visible]);
 
-    // PIN 완성 시 자동 제출
-    useEffect(() => {
-        if (pin.length === CONFIG.PIN_LENGTH && !isSubmitting) {
-            handleSubmit();
-        }
-    }, [pin]);
-
-    const handleSubmit = async () => {
-        if (pin.length !== CONFIG.PIN_LENGTH) return;
-
-        setIsSubmitting(true);
-        setError(null);
-
-        try {
-            const result = await unlock(pin);
-
-            if (!result.success) {
-                setError(result.error || '인증에 실패했습니다.');
-                setPin('');
-                shake();
-                Vibration.vibrate(100);
+            if (newPin.length === 4) {
+                handleUnlock(newPin);
             }
-        } catch {
-            setError('오류가 발생했습니다.');
-            setPin('');
-            shake();
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
-
-    const shake = useCallback(() => {
-        Animated.sequence([
-            Animated.timing(shakeAnim, { toValue: 10, duration: 50, useNativeDriver: true }),
-            Animated.timing(shakeAnim, { toValue: -10, duration: 50, useNativeDriver: true }),
-            Animated.timing(shakeAnim, { toValue: 10, duration: 50, useNativeDriver: true }),
-            Animated.timing(shakeAnim, { toValue: 0, duration: 50, useNativeDriver: true }),
-        ]).start();
-    }, [shakeAnim]);
-
-    const handlePress = (digit: string) => {
-        if (pin.length < CONFIG.PIN_LENGTH && !isSubmitting) {
-            setPin(prev => prev + digit);
-            setError(null);
         }
     };
 
     const handleDelete = () => {
-        if (!isSubmitting) {
+        if (pin.length > 0) {
             setPin(prev => prev.slice(0, -1));
             setError(null);
         }
     };
 
-    if (!visible) return null;
+    const handleUnlock = async (inputPin: string) => {
+        const result = await unlock(inputPin);
+        if (result.success) {
+            setPin('');
+            setError(null);
+        } else {
+            setError(result.error || PIN_MESSAGES.PIN_MISMATCH);
+            setPin('');
+            // Shake animation or vibration could be added here
+        }
+    };
 
     return (
-        <Modal
-            visible={true}
-            animationType="fade"
-            statusBarTranslucent
-        >
-            <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+        <View style={styles.absoluteContainer}>
+            <SafeAreaView style={styles.container}>
                 <View style={styles.content}>
-                    <View style={styles.header}>
-                        <View style={styles.iconContainer}>
-                            <Feather name="lock" size={32} color={COLORS.primary} />
-                        </View>
-                        <Text style={styles.title}>묘록</Text>
-                        <Text style={styles.description}>{PIN_MESSAGES.PIN_VERIFY_DESCRIPTION}</Text>
+                    <View style={styles.iconContainer}>
+                        <Feather name="lock" size={48} color={COLORS.primary} />
                     </View>
+                    <Text style={styles.title}>{PIN_MESSAGES.PIN_VERIFY_TITLE}</Text>
+                    <Text style={styles.description}>
+                        {error || PIN_MESSAGES.PIN_VERIFY_DESCRIPTION}
+                    </Text>
 
-                    {/* PIN Dots */}
-                    <Animated.View
-                        style={[
-                            styles.dotsContainer,
-                            { transform: [{ translateX: shakeAnim }] }
-                        ]}
-                    >
-                        {Array.from({ length: CONFIG.PIN_LENGTH }).map((_, index) => (
+                    {/* PIN Indicator */}
+                    <View style={styles.indicatorContainer}>
+                        {[0, 1, 2, 3].map((i) => (
                             <View
-                                key={index}
+                                key={i}
                                 style={[
-                                    styles.dot,
-                                    pin.length > index && styles.dotFilled,
-                                    error && styles.dotError,
+                                    styles.indicator,
+                                    pin.length > i && styles.indicatorActive,
+                                    error ? styles.indicatorError : null,
                                 ]}
                             />
                         ))}
-                    </Animated.View>
-
-                    {/* Error Message */}
-                    {error && (
-                        <View style={styles.errorContainer}>
-                            <Text style={styles.errorText}>{error}</Text>
-                        </View>
-                    )}
+                    </View>
 
                     {/* Keypad */}
                     <View style={styles.keypad}>
-                        {[['1', '2', '3'], ['4', '5', '6'], ['7', '8', '9'], ['', '0', 'delete']].map((row, rowIndex) => (
-                            <View key={rowIndex} style={styles.keypadRow}>
-                                {row.map((key, keyIndex) => {
-                                    if (key === '') {
-                                        return <View key={keyIndex} style={styles.keyEmpty} />;
-                                    }
-
-                                    if (key === 'delete') {
+                        {[
+                            ['1', '2', '3'],
+                            ['4', '5', '6'],
+                            ['7', '8', '9'],
+                            ['fingereprint', '0', 'delete'],
+                        ].map((row, rowIndex) => (
+                            <View key={rowIndex} style={styles.row}>
+                                {row.map((item) => {
+                                    if (item === 'delete') {
                                         return (
-                                            <Pressable
-                                                key={keyIndex}
-                                                style={({ pressed }) => [
-                                                    styles.key,
-                                                    pressed && styles.keyPressed,
-                                                ]}
+                                            <TouchableOpacity
+                                                key={item}
+                                                style={styles.keyButton}
                                                 onPress={handleDelete}
-                                                disabled={isSubmitting}
                                             >
                                                 <Feather name="delete" size={24} color={COLORS.textPrimary} />
-                                            </Pressable>
+                                            </TouchableOpacity>
                                         );
                                     }
-
+                                    if (item === 'fingereprint') {
+                                        return (
+                                            <View key={item} style={styles.keyButton}>
+                                                {/* 생체인증 버튼 자리 (추후 구현) */}
+                                            </View>
+                                        );
+                                    }
                                     return (
-                                        <Pressable
-                                            key={keyIndex}
-                                            style={({ pressed }) => [
-                                                styles.key,
-                                                pressed && styles.keyPressed,
-                                            ]}
-                                            onPress={() => handlePress(key)}
-                                            disabled={isSubmitting}
+                                        <TouchableOpacity
+                                            key={item}
+                                            style={styles.keyButton}
+                                            onPress={() => handleNumberPress(item)}
                                         >
-                                            <Text style={styles.keyText}>{key}</Text>
-                                        </Pressable>
+                                            <Text style={styles.keyText}>{item}</Text>
+                                        </TouchableOpacity>
                                     );
                                 })}
                             </View>
@@ -174,100 +125,91 @@ export function AppLockScreen() {
                     </View>
                 </View>
             </SafeAreaView>
-        </Modal>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
+    absoluteContainer: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 9999, // 최상위 레이어
+        backgroundColor: COLORS.background,
+    },
     container: {
         flex: 1,
-        backgroundColor: COLORS.surface,
     },
     content: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        paddingHorizontal: 24,
-    },
-    header: {
-        alignItems: 'center',
-        marginBottom: 40,
+        paddingHorizontal: 20,
     },
     iconContainer: {
-        width: 72,
-        height: 72,
-        borderRadius: 36,
-        backgroundColor: '#E8F5E9',
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        backgroundColor: COLORS.surface,
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: 16,
+        marginBottom: 24,
+        borderWidth: 1,
+        borderColor: COLORS.border,
     },
     title: {
-        fontSize: 28,
+        fontSize: 24,
         fontWeight: 'bold',
         color: COLORS.textPrimary,
         marginBottom: 8,
     },
     description: {
-        fontSize: 14,
+        fontSize: 16,
         color: COLORS.textSecondary,
-        textAlign: 'center',
+        marginBottom: 32,
     },
-    dotsContainer: {
+    indicatorContainer: {
         flexDirection: 'row',
-        justifyContent: 'center',
-        marginBottom: 24,
         gap: 16,
+        marginBottom: 48,
     },
-    dot: {
+    indicator: {
         width: 16,
         height: 16,
         borderRadius: 8,
-        borderWidth: 2,
+        borderWidth: 1,
         borderColor: COLORS.border,
-        backgroundColor: 'transparent',
+        backgroundColor: COLORS.surface,
     },
-    dotFilled: {
+    indicatorActive: {
         backgroundColor: COLORS.primary,
         borderColor: COLORS.primary,
     },
-    dotError: {
+    indicatorError: {
         borderColor: COLORS.error,
-        backgroundColor: 'transparent',
-    },
-    errorContainer: {
-        marginBottom: 24,
-        paddingHorizontal: 16,
-    },
-    errorText: {
-        fontSize: 13,
-        color: COLORS.error,
-        textAlign: 'center',
+        backgroundColor: COLORS.error,
     },
     keypad: {
-        gap: 12,
-    },
-    keypadRow: {
-        flexDirection: 'row',
+        width: '100%',
+        maxWidth: 320,
         gap: 20,
     },
-    key: {
+    row: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+    },
+    keyButton: {
         width: 72,
         height: 72,
         borderRadius: 36,
-        backgroundColor: COLORS.background,
         justifyContent: 'center',
         alignItems: 'center',
-    },
-    keyPressed: {
-        backgroundColor: COLORS.border,
-    },
-    keyEmpty: {
-        width: 72,
-        height: 72,
+        backgroundColor: 'transparent',
     },
     keyText: {
-        fontSize: 32,
+        fontSize: 28,
         fontWeight: '500',
         color: COLORS.textPrimary,
     },

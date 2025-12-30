@@ -71,6 +71,7 @@ POST /api/settings/pin
 - 서버에서 bcrypt 해시 생성
 - 기존 PIN 덮어쓰기
 - 실패 횟수 초기화
+- 성공 시 Toast 알림 ("PIN이 설정되었습니다")
 
 **응답:**
 ```json
@@ -157,6 +158,7 @@ DELETE /api/settings/pin?deviceId=xxx
 
 **처리:**
 - deviceId에 해당하는 PIN 데이터 삭제
+- 성공 시 Toast 알림 ("PIN 설정이 해제되었습니다")
 
 ---
 
