@@ -8,10 +8,10 @@ import type { WeeklyChartData, WeeklyHydrationData } from '../types/chart-types'
 interface SummaryWeeklyChartsProps {
     weeklyChartData: WeeklyChartData[];
     weeklyHydrationData: WeeklyHydrationData[];
-    scrollViewRef3m1: React.RefObject<ScrollView>;
-    scrollViewRef3m2: React.RefObject<ScrollView>;
-    scrollViewRef3m3: React.RefObject<ScrollView>;
-    scrollViewRef3m4: React.RefObject<ScrollView>;
+    scrollViewRef3m1: React.RefObject<ScrollView | null>;
+    scrollViewRef3m2: React.RefObject<ScrollView | null>;
+    scrollViewRef3m3: React.RefObject<ScrollView | null>;
+    scrollViewRef3m4: React.RefObject<ScrollView | null>;
 }
 
 export default function SummaryWeeklyCharts({

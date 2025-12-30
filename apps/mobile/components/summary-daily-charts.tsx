@@ -10,10 +10,10 @@ interface SummaryDailyChartsProps {
     hydrationData: HydrationData[];
     maxValue: number;
     maxVolValue: number;
-    scrollViewRef: React.RefObject<ScrollView>;
-    scrollViewRef2: React.RefObject<ScrollView>;
-    scrollViewRef3: React.RefObject<ScrollView>;
-    scrollViewRef4: React.RefObject<ScrollView>;
+    scrollViewRef: React.RefObject<ScrollView | null>;
+    scrollViewRef2: React.RefObject<ScrollView | null>;
+    scrollViewRef3: React.RefObject<ScrollView | null>;
+    scrollViewRef4: React.RefObject<ScrollView | null>;
 }
 
 export default function SummaryDailyCharts({
