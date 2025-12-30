@@ -7,7 +7,6 @@ import {
     ScrollView,
     TextInput,
     KeyboardAvoidingView,
-    Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -94,7 +93,7 @@ export default function TodayScreen() {
         <SafeAreaView style={styles.container} edges={['top']}>
             <KeyboardAvoidingView
                 style={{ flex: 1 }}
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                behavior="height"
                 keyboardVerticalOffset={0}
             >
                 {/* Pet Selector - Fixed at top */}

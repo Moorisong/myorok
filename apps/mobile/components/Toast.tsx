@@ -5,7 +5,6 @@ import {
     StyleSheet,
     TouchableOpacity,
     Animated,
-    Platform,
 } from 'react-native';
 import { COLORS } from '../constants';
 
@@ -85,7 +84,7 @@ export default function Toast({ visible, message, onUndo }: ToastProps) {
 const styles = StyleSheet.create({
     container: {
         position: 'absolute',
-        bottom: Platform.OS === 'ios' ? 100 : 80, // 탭바 위에 표시
+        bottom: 80, // 탭바 위에 표시
         left: 20,
         right: 20,
         backgroundColor: 'rgba(46, 46, 46, 0.9)',

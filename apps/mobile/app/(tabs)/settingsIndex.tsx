@@ -133,6 +133,15 @@ export default function SettingsScreen() {
 
                 <Card style={styles.card}>
                     <SettingItem
+                        emoji="🚫"
+                        title="차단 목록 관리"
+                        description="쉼터 차단 사용자 관리"
+                        onPress={() => handleNavigate('/settings/block-list')}
+                    />
+                </Card>
+
+                <Card style={styles.card}>
+                    <SettingItem
                         emoji="ℹ️"
                         title="앱 정보"
                         description="묘록 v1.0.0"
