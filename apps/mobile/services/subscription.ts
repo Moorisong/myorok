@@ -171,13 +171,35 @@ export function getTrialCountdownText(daysRemaining: number): string {
 }
 
 /**
- * Cancel/reset subscription (for testing)
+ * Reset subscription (for testing)
  */
 export async function resetSubscription(): Promise<void> {
-    await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.TRIAL_START_DATE);
-    await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS);
-    await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_START_DATE);
-    await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_EXPIRY_DATE);
+    try {
+        console.log('[Subscription] Resetting subscription state...');
 
-    // Note: Database table will be recreated on next app launch
+        // Clear AsyncStorage
+        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.TRIAL_START_DATE);
+        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS);
+        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_START_DATE);
+        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_EXPIRY_DATE);
+        await AsyncStorage.removeItem(STORAGE_KEY); // Clear the new cache key
+        console.log('[Subscription] Cleared AsyncStorage');
+
+        // Clear database
+        const db = await getDatabase();
+        await db.execAsync('DELETE FROM subscription_state');
+        console.log('[Subscription] Cleared database');
+
+        // Re-initialize
+        await initializeSubscription();
+        console.log('[Subscription] Re-initialized subscription');
+
+        // Verify
+        const status = await getSubscriptionStatus();
+        console.log('[Subscription] New status:', status);
+    } catch (error) {
+        console.error('[Subscription] Reset failed:', error);
+        throw error;
+    }
 }
+```
