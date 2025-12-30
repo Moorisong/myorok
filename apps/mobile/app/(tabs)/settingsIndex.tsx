@@ -1,10 +1,11 @@
-import React, { useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Feather } from '@expo/vector-icons';
 
-import { COLORS } from '../../constants';
-import { Card } from '../../components';
+import { COLORS, PIN_MESSAGES } from '../../constants';
+import { Card, PinInputModal } from '../../components';
 import { useSelectedPet } from '../../hooks/use-selected-pet';
 import { usePinLock } from '../../hooks/use-pin-lock';
 
@@ -51,7 +52,9 @@ function SettingItem({ emoji, title, description, onPress, danger, disabled }: S
 export default function SettingsScreen() {
     const router = useRouter();
     const { selectedPet } = useSelectedPet();
-    const { isPinSet, refreshPinStatus, resetInactivityTimer } = usePinLock();
+    const { isPinSet, isLocked, unlock, refreshPinStatus, resetInactivityTimer } = usePinLock();
+
+    const [showPinModal, setShowPinModal] = useState(false);
 
     useFocusEffect(
         useCallback(() => {
@@ -61,11 +64,30 @@ export default function SettingsScreen() {
 
     // 사용자 활동 시 무활동 타이머 리셋
     const handleUserActivity = useCallback(() => {
-        resetInactivityTimer();
-    }, [resetInactivityTimer]);
+        if (!isLocked) {
+            resetInactivityTimer();
+        }
+    }, [isLocked, resetInactivityTimer]);
+
+    const handleUnlock = () => {
+        setShowPinModal(true);
+    };
+
+    const handlePinSubmit = async (pin: string): Promise<{ success: boolean; error?: string }> => {
+        const result = await unlock(pin);
+        if (result.success) {
+            setShowPinModal(false);
+        }
+        return result;
+    };
 
     const handleReset = () => {
         handleUserActivity();
+
+        if (isLocked) {
+            handleUnlock();
+            return;
+        }
 
         Alert.alert(
             '데이터 초기화',
@@ -84,7 +106,7 @@ export default function SettingsScreen() {
 
     const getPinDescription = () => {
         if (isPinSet) {
-            return '설정됨';
+            return isLocked ? '잠김' : '설정됨';
         }
         return '앱 접근 보호';
     };
@@ -92,6 +114,18 @@ export default function SettingsScreen() {
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
             <ScrollView style={styles.scrollView}>
+                {/* Lock Banner */}
+                {isLocked && (
+                    <Pressable style={styles.lockBanner} onPress={handleUnlock}>
+                        <View style={styles.lockBannerContent}>
+                            <Text style={styles.lockBannerText}>{PIN_MESSAGES.LOCKED_BANNER}</Text>
+                            <View style={styles.unlockButton}>
+                                <Text style={styles.unlockButtonText}>{PIN_MESSAGES.UNLOCK_BUTTON}</Text>
+                                <Feather name="unlock" size={14} color={COLORS.primary} />
+                            </View>
+                        </View>
+                    </Pressable>
+                )}
 
                 {/* Pet Indicator */}
                 <View style={styles.petIndicatorRow}>
@@ -110,6 +144,13 @@ export default function SettingsScreen() {
                         title="고양이 관리"
                         description="고양이 추가/편집/삭제"
                         onPress={() => handleNavigate('/settings/pets')}
+                        disabled={isLocked}
+                    />
+                    <SettingItem
+                        emoji="🚫"
+                        title="차단 목록 관리"
+                        description="쉼터 차단 사용자 관리"
+                        onPress={() => handleNavigate('/settings/block-list')}
                     />
                 </Card>
 
@@ -128,15 +169,6 @@ export default function SettingsScreen() {
                         title="Pro 업그레이드"
                         description="모든 기록을 무제한으로"
                         onPress={() => handleNavigate('/pro')}
-                    />
-                </Card>
-
-                <Card style={styles.card}>
-                    <SettingItem
-                        emoji="🚫"
-                        title="차단 목록 관리"
-                        description="쉼터 차단 사용자 관리"
-                        onPress={() => handleNavigate('/settings/block-list')}
                     />
                 </Card>
 
@@ -166,12 +198,20 @@ export default function SettingsScreen() {
                         description="모든 기록을 삭제합니다"
                         onPress={handleReset}
                         danger
+                        disabled={isLocked}
                     />
                 </Card>
 
                 <View style={styles.bottomPadding} />
             </ScrollView>
 
+            <PinInputModal
+                visible={showPinModal}
+                title={PIN_MESSAGES.PIN_VERIFY_TITLE}
+                description={PIN_MESSAGES.PIN_VERIFY_DESCRIPTION}
+                onSubmit={handlePinSubmit}
+                onCancel={() => setShowPinModal(false)}
+            />
         </SafeAreaView>
     );
 }
@@ -183,6 +223,39 @@ const styles = StyleSheet.create({
     },
     scrollView: {
         flex: 1,
+    },
+    lockBanner: {
+        backgroundColor: '#FFF8E1',
+        borderBottomWidth: 1,
+        borderBottomColor: '#FFE082',
+    },
+    lockBannerContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+    },
+    lockBannerText: {
+        fontSize: 14,
+        fontWeight: '500',
+        color: '#F57C00',
+    },
+    unlockButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        backgroundColor: COLORS.surface,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: COLORS.primary,
+    },
+    unlockButtonText: {
+        fontSize: 13,
+        fontWeight: '500',
+        color: COLORS.primary,
     },
     header: {
         paddingHorizontal: 20,
