@@ -1,0 +1,549 @@
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { ScrollView } from 'react-native';
+import { useFocusEffect } from 'expo-router';
+
+import { getRecentDailyRecords } from '../services/dailyRecords';
+import { getRecentSupplementHistory } from '../services/supplements';
+import { getRecentFluidHistory } from '../services/fluidRecords';
+import { useSelectedPet } from './use-selected-pet';
+
+import type {
+    Period,
+    ChartData,
+    HydrationData,
+    MedicineRow,
+    OverallSummaryData,
+    WeeklyChartData,
+    WeeklyHydrationData,
+    MedicineSegment
+} from '../types/chart-types';
+
+export function useSummaryChart() {
+    const { selectedPetId } = useSelectedPet();
+    const [chartData, setChartData] = useState<ChartData[]>([]);
+    const [hydrationData, setHydrationData] = useState<HydrationData[]>([]);
+
+    // Medicine Chart State
+    const [medicineRows, setMedicineRows] = useState<MedicineRow[]>([]);
+    const [chartDates, setChartDates] = useState<string[]>([]);
+
+    const [maxValue, setMaxValue] = useState(5);
+    const [maxVolValue, setMaxVolValue] = useState(100);
+
+    // Period State
+    const [period, setPeriod] = useState<Period>('15d');
+    const [isLoading, setIsLoading] = useState(false);
+
+    // Overall Summary State (for 'all' period)
+    const [overallSummary, setOverallSummary] = useState<OverallSummaryData | null>(null);
+
+    // Weekly Chart State (for '3m' period)
+    const [weeklyChartData, setWeeklyChartData] = useState<WeeklyChartData[]>([]);
+    const [weeklyHydrationData, setWeeklyHydrationData] = useState<WeeklyHydrationData[]>([]);
+
+    // ScrollView refs
+    const scrollViewRef = useRef<ScrollView>(null);
+    const scrollViewRef2 = useRef<ScrollView>(null);
+    const scrollViewRef3 = useRef<ScrollView>(null);
+    const scrollViewRef4 = useRef<ScrollView>(null);
+    const scrollViewRef3m1 = useRef<ScrollView>(null);
+    const scrollViewRef3m2 = useRef<ScrollView>(null);
+    const scrollViewRef3m3 = useRef<ScrollView>(null);
+    const scrollViewRef3m4 = useRef<ScrollView>(null);
+
+    const getDaysFromPeriod = (p: Period) => {
+        switch (p) {
+            case '15d': return 15;
+            case '1m': return 30;
+            case '3m': return 90;
+            case 'all': return 365;
+            default: return 15;
+        }
+    };
+
+    const loadData = useCallback(async (currentPeriod: Period) => {
+        try {
+            // Clear previous data to prevent flash of old data during period transition
+            setIsLoading(true);
+            setMedicineRows([]);
+
+            // Determine days for data fetching based on period
+            let daysToFetch = 15;
+            let chartColumns = 15;
+
+            if (currentPeriod === '1m') {
+                daysToFetch = 30;
+                chartColumns = 30;
+            } else if (currentPeriod === '3m') {
+                daysToFetch = 90;
+                chartColumns = 12;
+            } else if (currentPeriod === 'all') {
+                daysToFetch = 365;
+                chartColumns = 0;
+            }
+
+            const days = getDaysFromPeriod(currentPeriod);
+
+            // Calculate date range for chart columns (15d / 1m only)
+            const today = new Date();
+            const dates: string[] = [];
+            const dateObjs: string[] = [];
+
+            if (currentPeriod === '15d' || currentPeriod === '1m') {
+                for (let i = chartColumns - 1; i >= 0; i--) {
+                    const d = new Date();
+                    d.setDate(today.getDate() - i);
+                    const mm = String(d.getMonth() + 1);
+                    const dd = String(d.getDate());
+                    dates.push(`${mm}/${dd}`);
+
+                    const yyyy = d.getFullYear();
+                    const mmPad = String(d.getMonth() + 1).padStart(2, '0');
+                    const ddPad = String(d.getDate()).padStart(2, '0');
+                    dateObjs.push(`${yyyy}-${mmPad}-${ddPad}`);
+                }
+            } else if (currentPeriod === '3m') {
+                for (let i = 11; i >= 0; i--) {
+                    dates.push(`W-${i}`);
+                }
+            }
+
+            setChartDates(dates);
+
+            const records = await getRecentDailyRecords(days);
+            const medicines = await getRecentSupplementHistory(Math.max(days, daysToFetch));
+            const fluids = await getRecentFluidHistory(days);
+
+            // Process Chart Data (Daily Records - Fill empty dates)
+            const recordMap = new Map<string, typeof records[0]>();
+            records.forEach(r => recordMap.set(r.date, r));
+
+            const processedData: ChartData[] = [];
+
+            if (currentPeriod === '15d' || currentPeriod === '1m') {
+                for (let i = 0; i < dateObjs.length; i++) {
+                    const dateStr = dateObjs[i];
+                    const record = recordMap.get(dateStr);
+
+                    processedData.push({
+                        date: dates[i],
+                        poop: record?.poopCount || 0,
+                        diarrhea: record?.diarrheaCount || 0,
+                        vomit: record?.vomitCount || 0
+                    });
+                }
+            } else if (currentPeriod === '3m') {
+                const todayDate = new Date();
+                for (let i = days - 1; i >= 0; i--) {
+                    const d = new Date();
+                    d.setDate(todayDate.getDate() - i);
+
+                    const yyyy = d.getFullYear();
+                    const mm = String(d.getMonth() + 1).padStart(2, '0');
+                    const dd = String(d.getDate()).padStart(2, '0');
+                    const dateStr = `${yyyy}-${mm}-${dd}`;
+                    const displayDate = `${Number(mm)}/${Number(dd)}`;
+
+                    const record = recordMap.get(dateStr);
+                    processedData.push({
+                        date: displayDate,
+                        poop: record?.poopCount || 0,
+                        diarrhea: record?.diarrheaCount || 0,
+                        vomit: record?.vomitCount || 0
+                    });
+                }
+            } else {
+                records.forEach(r => {
+                    processedData.push({
+                        date: r.date.substring(5).replace('-', '/'),
+                        poop: r.poopCount,
+                        diarrhea: r.diarrheaCount,
+                        vomit: r.vomitCount
+                    });
+                });
+            }
+
+            // Process Hydration Data
+            const hydrationMap = new Map<string, { water: number, force: number, fluid: number }>();
+
+            records.forEach(r => {
+                if (!hydrationMap.has(r.date)) {
+                    hydrationMap.set(r.date, { water: 0, force: 0, fluid: 0 });
+                }
+                const current = hydrationMap.get(r.date)!;
+                current.water += r.waterIntake || 0;
+            });
+
+            fluids.forEach(f => {
+                if (!hydrationMap.has(f.date)) {
+                    hydrationMap.set(f.date, { water: 0, force: 0, fluid: 0 });
+                }
+                const current = hydrationMap.get(f.date)!;
+                if (f.fluidType === 'force') {
+                    current.force += (f.volume || 0);
+                } else {
+                    current.fluid += (f.volume || 0);
+                }
+            });
+
+            const processedHydration: HydrationData[] = [];
+
+            if (currentPeriod === '15d' || currentPeriod === '1m') {
+                for (let i = 0; i < dateObjs.length; i++) {
+                    const dateStr = dateObjs[i];
+                    const data = hydrationMap.get(dateStr) || { water: 0, force: 0, fluid: 0 };
+
+                    processedHydration.push({
+                        date: dates[i],
+                        ...data
+                    });
+                }
+            } else if (currentPeriod === '3m') {
+                const todayDate = new Date();
+                for (let i = days - 1; i >= 0; i--) {
+                    const d = new Date();
+                    d.setDate(todayDate.getDate() - i);
+
+                    const yyyy = d.getFullYear();
+                    const mm = String(d.getMonth() + 1).padStart(2, '0');
+                    const dd = String(d.getDate()).padStart(2, '0');
+                    const dateStr = `${yyyy}-${mm}-${dd}`;
+                    const displayDate = `${Number(mm)}/${Number(dd)}`;
+
+                    const data = hydrationMap.get(dateStr) || { water: 0, force: 0, fluid: 0 };
+
+                    processedHydration.push({
+                        date: displayDate,
+                        ...data
+                    });
+                }
+            } else {
+                const sortedKeys = Array.from(hydrationMap.keys()).sort();
+                sortedKeys.forEach(key => {
+                    const data = hydrationMap.get(key)!;
+                    processedHydration.push({
+                        date: key.substring(5).replace('-', '/'),
+                        ...data
+                    });
+                });
+            }
+
+            // Calculate Max Values
+            const maxVal = Math.max(...processedData.map(d => d.poop + d.diarrhea + d.vomit), 5);
+            const maxVol = Math.max(...processedHydration.map(d => d.water + d.force + d.fluid), 100);
+
+            setChartData(processedData);
+            setHydrationData(processedHydration);
+            setMaxValue(maxVal);
+            setMaxVolValue(maxVol);
+
+            // --- Process Medicine Data (Adaptive) ---
+            const medMap = new Map<string, { isDeleted: boolean, takenMap: Map<string, boolean>, allDates: string[] }>();
+
+            medicines.forEach(m => {
+                let name = m.name;
+                let isDeleted = false;
+                if (m.name.includes('(삭제된 항목)')) {
+                    name = m.name.replace('(삭제된 항목)', '').trim();
+                    isDeleted = true;
+                }
+
+                if (!medMap.has(name)) {
+                    medMap.set(name, { isDeleted, takenMap: new Map(), allDates: [] });
+                }
+
+                const entry = medMap.get(name)!;
+                if (m.taken === 1) {
+                    entry.takenMap.set(m.date, true);
+                    entry.allDates.push(m.date);
+                }
+            });
+
+            const rows: MedicineRow[] = [];
+
+            medMap.forEach((data, name) => {
+                const row: MedicineRow = {
+                    name,
+                    isDeleted: data.isDeleted,
+                    segments: [],
+                    weekSegments: [],
+                    summary: undefined
+                };
+
+                if (currentPeriod === '15d' || currentPeriod === '1m') {
+                    // Timeline Logic
+                    const segments: MedicineSegment[] = [];
+                    let currentSegment: { start: number, length: number } | null = null;
+
+                    for (let i = 0; i < dateObjs.length; i++) {
+                        const date = dateObjs[i];
+                        const isTaken = data.takenMap.has(date);
+
+                        if (isTaken) {
+                            if (currentSegment) {
+                                currentSegment.length++;
+                            } else {
+                                currentSegment = { start: i, length: 1 };
+                            }
+                        } else {
+                            if (currentSegment) {
+                                segments.push({
+                                    type: currentSegment.length >= 2 ? 'bar' : 'dot',
+                                    startIndex: currentSegment.start,
+                                    length: currentSegment.length,
+                                    dateLabel: dates[currentSegment.start]
+                                });
+                                currentSegment = null;
+                            }
+                        }
+                    }
+                    if (currentSegment) {
+                        segments.push({
+                            type: currentSegment.length >= 2 ? 'bar' : 'dot',
+                            startIndex: currentSegment.start,
+                            length: currentSegment.length,
+                            dateLabel: dates[currentSegment.start]
+                        });
+                    }
+                    row.segments = segments;
+
+                } else if (currentPeriod === '3m') {
+                    // Week Aggregation Logic
+                    const weekSegments = [];
+                    for (let i = 11; i >= 0; i--) {
+                        const weekStart = new Date();
+                        weekStart.setDate(today.getDate() - (i * 7 + 6));
+                        const weekEnd = new Date();
+                        weekEnd.setDate(today.getDate() - (i * 7));
+
+                        let count = 0;
+                        for (let d = 0; d < 7; d++) {
+                            const checkDate = new Date(weekStart);
+                            checkDate.setDate(weekStart.getDate() + d);
+                            const y = checkDate.getFullYear();
+                            const m = String(checkDate.getMonth() + 1).padStart(2, '0');
+                            const dayStr = String(checkDate.getDate()).padStart(2, '0');
+                            if (data.takenMap.has(`${y}-${m}-${dayStr}`)) {
+                                count++;
+                            }
+                        }
+
+                        let type: 'thick' | 'thin' | 'dot' | 'none' = 'none';
+                        if (count >= 5) type = 'thick';
+                        else if (count >= 2) type = 'thin';
+                        else if (count >= 1) type = 'dot';
+                        else type = 'none';
+
+                        weekSegments.push({
+                            weekIndex: 11 - i,
+                            count,
+                            type,
+                            label: `${weekStart.getMonth() + 1}/${weekStart.getDate()}`
+                        });
+                    }
+                    row.weekSegments = weekSegments;
+
+                } else if (currentPeriod === 'all') {
+                    // Summary Logic
+                    data.allDates.sort();
+                    if (data.allDates.length > 0) {
+                        const start = data.allDates[0];
+                        const end = data.allDates[data.allDates.length - 1];
+
+                        const startDate = new Date(start);
+                        const endDate = new Date(end);
+                        const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
+                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+                        const weeks = Math.max(diffDays / 7, 1);
+                        const avg = (data.allDates.length / weeks).toFixed(1);
+
+                        row.summary = {
+                            startDate: start.substring(5).replace('-', '.'),
+                            endDate: end.substring(5).replace('-', '.'),
+                            totalDays: data.allDates.length,
+                            avgFreq: `주 ${avg}회`
+                        };
+                    }
+                }
+
+                rows.push(row);
+            });
+
+            // --- Calculate Overall Summary for 'all' period ---
+            if (currentPeriod === 'all' && records.length > 0) {
+                const sortedRecords = [...records].sort((a, b) => a.date.localeCompare(b.date));
+                const firstDate = sortedRecords[0].date;
+                const lastDate = sortedRecords[sortedRecords.length - 1].date;
+
+                const firstDateObj = new Date(firstDate);
+                const lastDateObj = new Date(lastDate);
+                const totalDays = Math.ceil((lastDateObj.getTime() - firstDateObj.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+                let totalVomit = 0;
+                let totalPoop = 0;
+                let diarrheaDays = 0;
+
+                records.forEach(r => {
+                    totalVomit += r.vomitCount || 0;
+                    totalPoop += r.poopCount || 0;
+                    if ((r.diarrheaCount || 0) > 0) {
+                        diarrheaDays++;
+                    }
+                });
+
+                const avgPoop = records.length > 0 ? totalPoop / records.length : 0;
+
+                let totalForce = 0;
+                let totalFluid = 0;
+
+                fluids.forEach(f => {
+                    if (f.fluidType === 'force') {
+                        totalForce += f.volume || 0;
+                    } else {
+                        totalFluid += f.volume || 0;
+                    }
+                });
+
+                const recordedDays = records.length;
+                const recordingRate = totalDays > 0 ? (recordedDays / totalDays) * 100 : 0;
+
+                setOverallSummary({
+                    firstRecordDate: firstDate,
+                    lastRecordDate: lastDate,
+                    totalDays,
+                    totalVomit,
+                    diarrheaDays,
+                    avgPoop: Math.round(avgPoop * 10) / 10,
+                    totalForce,
+                    totalFluid,
+                    recordedDays,
+                    recordingRate: Math.round(recordingRate)
+                });
+            } else {
+                setOverallSummary(null);
+            }
+
+            // --- Calculate Weekly Data for '3m' period ---
+            if (currentPeriod === '3m') {
+                const sortedRecords = [...records].sort((a, b) => a.date.localeCompare(b.date));
+                const weeklyData: WeeklyChartData[] = [];
+                const weeklyHydration: WeeklyHydrationData[] = [];
+
+                const numWeeks = Math.min(Math.ceil(days / 7), 13);
+
+                for (let i = 0; i < numWeeks; i++) {
+                    weeklyData.push({
+                        weekLabel: `W${i + 1}`,
+                        poop: 0,
+                        diarrhea: 0,
+                        vomit: 0
+                    });
+                    weeklyHydration.push({
+                        weekLabel: `W${i + 1}`,
+                        force: 0,
+                        fluid: 0
+                    });
+                }
+
+                const todayDate = new Date();
+                const startDate = new Date(todayDate);
+                startDate.setDate(startDate.getDate() - days + 1);
+
+                sortedRecords.forEach(r => {
+                    const recordDate = new Date(r.date);
+                    const daysSinceStart = Math.floor((recordDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+                    const weekIndex = Math.min(Math.floor(daysSinceStart / 7), numWeeks - 1);
+
+                    if (weekIndex >= 0 && weekIndex < numWeeks) {
+                        weeklyData[weekIndex].poop += r.poopCount || 0;
+                        weeklyData[weekIndex].diarrhea += r.diarrheaCount || 0;
+                        weeklyData[weekIndex].vomit += r.vomitCount || 0;
+                    }
+                });
+
+                fluids.forEach(f => {
+                    const recordDate = new Date(f.date);
+                    const daysSinceStart = Math.floor((recordDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+                    const weekIndex = Math.min(Math.floor(daysSinceStart / 7), numWeeks - 1);
+
+                    if (weekIndex >= 0 && weekIndex < numWeeks) {
+                        if (f.fluidType === 'force') {
+                            weeklyHydration[weekIndex].force += f.volume || 0;
+                        } else {
+                            weeklyHydration[weekIndex].fluid += f.volume || 0;
+                        }
+                    }
+                });
+
+                setWeeklyChartData(weeklyData);
+                setWeeklyHydrationData(weeklyHydration);
+            } else {
+                setWeeklyChartData([]);
+                setWeeklyHydrationData([]);
+            }
+
+            setMedicineRows(rows);
+            setIsLoading(false);
+
+        } catch (error) {
+            console.error('Error loading summary chart data:', error);
+            setIsLoading(false);
+        }
+    }, [selectedPetId]);
+
+    useFocusEffect(
+        useCallback(() => {
+            loadData(period);
+        }, [period, loadData])
+    );
+
+    const handlePeriodChange = useCallback((newPeriod: Period) => {
+        setPeriod(newPeriod);
+    }, []);
+
+    // Scroll to end when data loads
+    useEffect(() => {
+        if (chartData.length > 0 || weeklyChartData.length > 0) {
+            setTimeout(() => {
+                scrollViewRef.current?.scrollToEnd({ animated: false });
+                scrollViewRef2.current?.scrollToEnd({ animated: false });
+                scrollViewRef3.current?.scrollToEnd({ animated: false });
+                scrollViewRef4.current?.scrollToEnd({ animated: false });
+
+                scrollViewRef3m1.current?.scrollToEnd({ animated: false });
+                scrollViewRef3m2.current?.scrollToEnd({ animated: false });
+                scrollViewRef3m3.current?.scrollToEnd({ animated: false });
+                scrollViewRef3m4.current?.scrollToEnd({ animated: false });
+            }, 100);
+        }
+    }, [chartData, weeklyChartData]);
+
+    return {
+        // State
+        period,
+        isLoading,
+        chartData,
+        hydrationData,
+        medicineRows,
+        chartDates,
+        maxValue,
+        maxVolValue,
+        overallSummary,
+        weeklyChartData,
+        weeklyHydrationData,
+
+        // Refs
+        scrollViewRef,
+        scrollViewRef2,
+        scrollViewRef3,
+        scrollViewRef4,
+        scrollViewRef3m1,
+        scrollViewRef3m2,
+        scrollViewRef3m3,
+        scrollViewRef3m4,
+
+        // Handlers
+        handlePeriodChange
+    };
+}
