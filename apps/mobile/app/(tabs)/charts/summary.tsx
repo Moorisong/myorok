@@ -58,6 +58,41 @@ interface MedicineRow {
     summary?: MedicineSummary;      // For all
 }
 
+// Overall Summary Data for 'all' period
+interface OverallSummaryData {
+    // 기록 기간
+    firstRecordDate: string;
+    lastRecordDate: string;
+    totalDays: number;
+
+    // 증상 요약
+    totalVomit: number;
+    diarrheaDays: number;
+    avgPoop: number;
+
+    // 강수/수액 요약
+    totalForce: number;
+    totalFluid: number;
+
+    // 관리 밀도
+    recordedDays: number;
+    recordingRate: number;
+}
+
+// Weekly aggregation for 3-month charts
+interface WeeklyChartData {
+    weekLabel: string;  // e.g., "W1", "W2"
+    poop: number;
+    diarrhea: number;
+    vomit: number;
+}
+
+interface WeeklyHydrationData {
+    weekLabel: string;
+    force: number;
+    fluid: number;
+}
+
 export default function SummaryChartScreen() {
     const { selectedPetId } = useSelectedPet();
     const [chartData, setChartData] = useState<ChartData[]>([]);
@@ -73,6 +108,13 @@ export default function SummaryChartScreen() {
     // v1.2 State
     const [period, setPeriod] = useState<Period>('15d');
     const [isLoading, setIsLoading] = useState(false);
+
+    // Overall Summary State (for 'all' period)
+    const [overallSummary, setOverallSummary] = useState<OverallSummaryData | null>(null);
+
+    // Weekly Chart State (for '3m' period)
+    const [weeklyChartData, setWeeklyChartData] = useState<WeeklyChartData[]>([]);
+    const [weeklyHydrationData, setWeeklyHydrationData] = useState<WeeklyHydrationData[]>([]);
 
     useFocusEffect(
         useCallback(() => {
@@ -424,6 +466,130 @@ export default function SummaryChartScreen() {
                 rows.push(row);
             });
 
+            // --- Calculate Overall Summary for 'all' period ---
+            if (currentPeriod === 'all' && records.length > 0) {
+                // Sort records by date
+                const sortedRecords = [...records].sort((a, b) => a.date.localeCompare(b.date));
+                const firstDate = sortedRecords[0].date;
+                const lastDate = sortedRecords[sortedRecords.length - 1].date;
+
+                // Calculate total days between first and last record
+                const firstDateObj = new Date(firstDate);
+                const lastDateObj = new Date(lastDate);
+                const totalDays = Math.ceil((lastDateObj.getTime() - firstDateObj.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+                // Calculate symptom totals
+                let totalVomit = 0;
+                let totalPoop = 0;
+                let diarrheaDays = 0;
+
+                records.forEach(r => {
+                    totalVomit += r.vomitCount || 0;
+                    totalPoop += r.poopCount || 0;
+                    if ((r.diarrheaCount || 0) > 0) {
+                        diarrheaDays++;
+                    }
+                });
+
+                const avgPoop = records.length > 0 ? totalPoop / records.length : 0;
+
+                // Calculate hydration totals
+                let totalForce = 0;
+                let totalFluid = 0;
+
+                fluids.forEach(f => {
+                    if (f.fluidType === 'force') {
+                        totalForce += f.volume || 0;
+                    } else {
+                        totalFluid += f.volume || 0;
+                    }
+                });
+
+                // Recording density
+                const recordedDays = records.length;
+                const recordingRate = totalDays > 0 ? (recordedDays / totalDays) * 100 : 0;
+
+                setOverallSummary({
+                    firstRecordDate: firstDate,
+                    lastRecordDate: lastDate,
+                    totalDays,
+                    totalVomit,
+                    diarrheaDays,
+                    avgPoop: Math.round(avgPoop * 10) / 10,
+                    totalForce,
+                    totalFluid,
+                    recordedDays,
+                    recordingRate: Math.round(recordingRate)
+                });
+            } else {
+                setOverallSummary(null);
+            }
+
+            // --- Calculate Weekly Data for '3m' period ---
+            if (currentPeriod === '3m') {
+                // Group records by week (7 days per week, starting from earliest date)
+                const sortedRecords = [...records].sort((a, b) => a.date.localeCompare(b.date));
+                const weeklyData: WeeklyChartData[] = [];
+                const weeklyHydration: WeeklyHydrationData[] = [];
+
+                // Calculate the number of weeks (max 13 weeks for 3 months)
+                const numWeeks = Math.min(Math.ceil(days / 7), 13);
+
+                // Initialize weekly buckets
+                for (let i = 0; i < numWeeks; i++) {
+                    weeklyData.push({
+                        weekLabel: `W${i + 1}`,
+                        poop: 0,
+                        diarrhea: 0,
+                        vomit: 0
+                    });
+                    weeklyHydration.push({
+                        weekLabel: `W${i + 1}`,
+                        force: 0,
+                        fluid: 0
+                    });
+                }
+
+                // Get the start date for calculating week index
+                const today = new Date();
+                const startDate = new Date(today);
+                startDate.setDate(startDate.getDate() - days + 1);
+
+                // Aggregate daily data into weekly buckets
+                sortedRecords.forEach(r => {
+                    const recordDate = new Date(r.date);
+                    const daysSinceStart = Math.floor((recordDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+                    const weekIndex = Math.min(Math.floor(daysSinceStart / 7), numWeeks - 1);
+
+                    if (weekIndex >= 0 && weekIndex < numWeeks) {
+                        weeklyData[weekIndex].poop += r.poopCount || 0;
+                        weeklyData[weekIndex].diarrhea += r.diarrheaCount || 0;
+                        weeklyData[weekIndex].vomit += r.vomitCount || 0;
+                    }
+                });
+
+                // Aggregate fluid data into weekly buckets
+                fluids.forEach(f => {
+                    const recordDate = new Date(f.date);
+                    const daysSinceStart = Math.floor((recordDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+                    const weekIndex = Math.min(Math.floor(daysSinceStart / 7), numWeeks - 1);
+
+                    if (weekIndex >= 0 && weekIndex < numWeeks) {
+                        if (f.fluidType === 'force') {
+                            weeklyHydration[weekIndex].force += f.volume || 0;
+                        } else {
+                            weeklyHydration[weekIndex].fluid += f.volume || 0;
+                        }
+                    }
+                });
+
+                setWeeklyChartData(weeklyData);
+                setWeeklyHydrationData(weeklyHydration);
+            } else {
+                setWeeklyChartData([]);
+                setWeeklyHydrationData([]);
+            }
+
             setMedicineRows(rows);
             setIsLoading(false);
 
@@ -439,15 +605,32 @@ export default function SummaryChartScreen() {
 
 
     const scrollViewRef = useRef<ScrollView>(null);
+    const scrollViewRef2 = useRef<ScrollView>(null);
+    const scrollViewRef3 = useRef<ScrollView>(null);
+    const scrollViewRef4 = useRef<ScrollView>(null);
+    // 3M Weekly Chart Refs
+    const scrollViewRef3m1 = useRef<ScrollView>(null);
+    const scrollViewRef3m2 = useRef<ScrollView>(null);
+    const scrollViewRef3m3 = useRef<ScrollView>(null);
+    const scrollViewRef3m4 = useRef<ScrollView>(null);
 
-    // Scroll to end when data loads
+    // Scroll to end when data loads (all charts)
     useEffect(() => {
-        if (chartData.length > 0 && scrollViewRef.current) {
+        if (chartData.length > 0 || weeklyChartData.length > 0) {
             setTimeout(() => {
                 scrollViewRef.current?.scrollToEnd({ animated: false });
+                scrollViewRef2.current?.scrollToEnd({ animated: false });
+                scrollViewRef3.current?.scrollToEnd({ animated: false });
+                scrollViewRef4.current?.scrollToEnd({ animated: false });
+
+                // 3M Charts
+                scrollViewRef3m1.current?.scrollToEnd({ animated: false });
+                scrollViewRef3m2.current?.scrollToEnd({ animated: false });
+                scrollViewRef3m3.current?.scrollToEnd({ animated: false });
+                scrollViewRef3m4.current?.scrollToEnd({ animated: false });
             }, 100);
         }
-    }, [chartData]);
+    }, [chartData, weeklyChartData]);
 
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
@@ -475,370 +658,591 @@ export default function SummaryChartScreen() {
             </View>
 
             <ScrollView style={styles.content}>
-                <Card style={styles.card}>
-                    <Text style={styles.sectionTitle}>
-                        {period === '15d' ? '최근 15일' :
-                            period === '1m' ? '최근 1개월' :
-                                period === '3m' ? '최근 3개월' : '전체 기간'} 기록
-                    </Text>
+                {/* 전체 기간: 요약 카드 표시 */}
+                {period === 'all' && overallSummary ? (
+                    <>
+                        {/* 기록 기간 카드 */}
+                        <Card style={styles.card}>
+                            <View style={styles.summaryCardHeader}>
+                                <Text style={styles.summaryCardIcon}>📅</Text>
+                                <Text style={styles.summaryCardTitle}>기록 기간</Text>
+                            </View>
+                            <Text style={styles.summaryDateRange}>
+                                {overallSummary.firstRecordDate.replace(/-/g, '.')} ~ {overallSummary.lastRecordDate.replace(/-/g, '.')}
+                            </Text>
+                            <Text style={styles.summarySubtext}>
+                                (총 {overallSummary.totalDays.toLocaleString()}일)
+                            </Text>
+                        </Card>
 
-                    {/* Basic Bar Chart */}
-                    <ScrollView
-                        ref={scrollViewRef}
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={{ paddingRight: 20 }}
-                    >
-                        <View style={[styles.chart, { width: Math.max(chartData.length * 40, 300) }]}>
-                            {chartData.length === 0 ? (
-                                <View style={styles.emptyContainer}>
-                                    <Text style={styles.emptyText}>해당 기간에 기록이 없습니다.</Text>
-                                </View>
-                            ) : (
-                                chartData.map((day, index) => (
-                                    <View key={index} style={styles.barContainer}>
-                                        <View style={styles.barWrapper}>
-                                            {day.vomit > 0 && (
-                                                <View
-                                                    style={[
-                                                        styles.bar,
-                                                        styles.barVomit,
-                                                        { height: (day.vomit / maxValue) * 100 },
-                                                    ]}
-                                                />
-                                            )}
-                                            {day.diarrhea > 0 && (
-                                                <View
-                                                    style={[
-                                                        styles.bar,
-                                                        styles.barDiarrhea,
-                                                        { height: (day.diarrhea / maxValue) * 100 },
-                                                    ]}
-                                                />
-                                            )}
-                                            {day.poop > 0 && (
-                                                <View
-                                                    style={[
-                                                        styles.bar,
-                                                        styles.barPoop,
-                                                        { height: (day.poop / maxValue) * 100 },
-                                                    ]}
-                                                />
-                                            )}
-                                        </View>
-                                        <Text style={styles.barLabel}>{day.date?.split?.('/')[2] || ''}</Text>
-                                    </View>
-                                ))
-                            )}
-                        </View>
-                    </ScrollView>
+                        {/* 증상 요약 카드 */}
+                        <Card style={styles.card}>
+                            <View style={styles.summaryCardHeader}>
+                                <Text style={styles.summaryCardIcon}>🏥</Text>
+                                <Text style={styles.summaryCardTitle}>증상 요약</Text>
+                            </View>
+                            <View style={styles.summaryStatRow}>
+                                <Text style={styles.summaryStatLabel}>구토:</Text>
+                                <Text style={styles.summaryStatValue}>{overallSummary.totalVomit.toLocaleString()}회</Text>
+                            </View>
+                            <View style={styles.summaryStatRow}>
+                                <Text style={styles.summaryStatLabel}>설사:</Text>
+                                <Text style={styles.summaryStatValue}>{overallSummary.diarrheaDays.toLocaleString()}일</Text>
+                            </View>
+                            <View style={styles.summaryStatRow}>
+                                <Text style={styles.summaryStatLabel}>평균 배변:</Text>
+                                <Text style={styles.summaryStatValue}>{overallSummary.avgPoop}회 / 일</Text>
+                            </View>
+                        </Card>
 
-                    {/* Legend */}
-                    <View style={styles.legend}>
-                        <View style={styles.legendItem}>
-                            <View style={[styles.legendColor, styles.barPoop]} />
-                            <Text style={styles.legendText}>배변</Text>
-                        </View>
-                        <View style={styles.legendItem}>
-                            <View style={[styles.legendColor, styles.barDiarrhea]} />
-                            <Text style={styles.legendText}>묽은 변</Text>
-                        </View>
-                        <View style={styles.legendItem}>
-                            <View style={[styles.legendColor, styles.barVomit]} />
-                            <Text style={styles.legendText}>구토</Text>
-                        </View>
-                    </View>
-                </Card>
+                        {/* 강수/수액 요약 카드 */}
+                        <Card style={styles.card}>
+                            <View style={styles.summaryCardHeader}>
+                                <Text style={styles.summaryCardIcon}>💧</Text>
+                                <Text style={styles.summaryCardTitle}>강수 / 수액 요약</Text>
+                            </View>
+                            <View style={styles.summaryStatRow}>
+                                <Text style={styles.summaryStatLabel}>강수:</Text>
+                                <Text style={styles.summaryStatValue}>{overallSummary.totalForce.toLocaleString()}ml</Text>
+                            </View>
+                            <View style={styles.summaryStatRow}>
+                                <Text style={styles.summaryStatLabel}>수액:</Text>
+                                <Text style={styles.summaryStatValue}>{overallSummary.totalFluid.toLocaleString()}ml</Text>
+                            </View>
+                            <View style={[styles.summaryStatRow, styles.summaryStatRowHighlight]}>
+                                <Text style={styles.summaryStatLabel}>총 투여량:</Text>
+                                <Text style={styles.summaryStatValueLarge}>
+                                    {(overallSummary.totalForce + overallSummary.totalFluid).toLocaleString()}ml
+                                </Text>
+                            </View>
+                        </Card>
 
-                <Card style={styles.card}>
-                    <Text style={styles.sectionTitle}>
-                        {period === '15d' ? '최근 15일' :
-                            period === '1m' ? '최근 1개월' :
-                                period === '3m' ? '최근 3개월' : '전체 기간'} 강수/수액
-                    </Text>
+                        {/* 관리 밀도 카드 */}
+                        <Card style={styles.card}>
+                            <View style={styles.summaryCardHeader}>
+                                <Text style={styles.summaryCardIcon}>📊</Text>
+                                <Text style={styles.summaryCardTitle}>관리 요약</Text>
+                            </View>
+                            <View style={styles.summaryStatRow}>
+                                <Text style={styles.summaryStatLabel}>기록된 날:</Text>
+                                <Text style={styles.summaryStatValue}>{overallSummary.recordedDays.toLocaleString()}일</Text>
+                            </View>
+                            <View style={styles.summaryStatRow}>
+                                <Text style={styles.summaryStatLabel}>기록률:</Text>
+                                <Text style={[
+                                    styles.summaryStatValue,
+                                    overallSummary.recordingRate >= 70 && styles.summaryStatValueGood,
+                                    overallSummary.recordingRate < 50 && styles.summaryStatValueWarning
+                                ]}>{overallSummary.recordingRate}%</Text>
+                            </View>
+                        </Card>
 
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                        <View style={[styles.chart, { width: Math.max(hydrationData.length * 40, 300) }]}>
-                            {hydrationData.length === 0 ? (
+                        <View style={styles.bottomPadding} />
+                    </>
+                ) : period === 'all' ? (
+                    <Card style={styles.card}>
+                        <View style={styles.emptyContainer}>
+                            <Text style={styles.emptyText}>기록이 없습니다.</Text>
+                        </View>
+                    </Card>
+                ) : period === '3m' ? (
+                    <>
+                        {/* 배변 주간 차트 */}
+                        <Card style={styles.card}>
+                            <Text style={styles.sectionTitle}>배변 횟수 (주간)</Text>
+                            {weeklyChartData.length === 0 ? (
                                 <View style={styles.emptyContainer}>
                                     <Text style={styles.emptyText}>기록이 없습니다.</Text>
                                 </View>
                             ) : (
-                                hydrationData.map((day, index) => (
-                                    <View key={index} style={styles.barContainer}>
-                                        <View style={styles.barWrapper}>
-                                            {day.fluid > 0 && (
-                                                <View
-                                                    style={[
-                                                        styles.bar,
-                                                        styles.barFluid,
-                                                        { height: (day.fluid / maxVolValue) * 100 },
-                                                    ]}
-                                                />
-                                            )}
-                                            {day.force > 0 && (
-                                                <View
-                                                    style={[
-                                                        styles.bar,
-                                                        styles.barForce,
-                                                        { height: (day.force / maxVolValue) * 100 },
-                                                    ]}
-                                                />
-                                            )}
-                                        </View>
-                                        <Text style={styles.barLabel}>{day.date?.split?.('/')[2] || ''}</Text>
-                                        <Text style={styles.volLabel}>
-                                            {day.fluid + day.force > 0 ? day.fluid + day.force : ''}
-                                        </Text>
-                                    </View>
-                                ))
-                            )}
-                        </View>
-                    </ScrollView>
-
-                    <View style={styles.legend}>
-                        <View style={styles.legendItem}>
-                            <View style={[styles.legendColor, styles.barForce]} />
-                            <Text style={styles.legendText}>강수</Text>
-                        </View>
-                        <View style={styles.legendItem}>
-                            <View style={[styles.legendColor, styles.barFluid]} />
-                            <Text style={styles.legendText}>수액</Text>
-                        </View>
-                    </View>
-                </Card>
-
-                <Card style={styles.card}>
-                    <Text style={styles.sectionTitle}>
-                        {period === '15d' ? '최근 15일' :
-                            period === '1m' ? '최근 1개월' :
-                                period === '3m' ? '최근 3개월' : '전체 기간'} 약/영양제 복용
-                    </Text>
-
-                    {medicineRows.length === 0 ? (
-                        <View style={styles.emptyContainer}>
-                            <Text style={styles.emptyText}>복용 기록이 없습니다.</Text>
-                        </View>
-                    ) : (
-                        <View style={styles.medicineChartContainer}>
-
-                            {/* Fixed Layout Medicine Chart - All periods share same container width */}
-
-                            {/* Render Logic: Timeline (15d/1m) vs Week (3m) vs Summary (All) */}
-                            {(period === '15d' || period === '1m') && (
-                                <>
-                                    {/* Date Header Row - Fixed 3-point anchor system */}
-                                    <View style={styles.medHeaderRow}>
-                                        <View style={styles.medNameHeader} />
-                                        <View style={styles.medGridFixed}>
-                                            {/* Fixed anchor points: Start, Middle, End */}
-                                            <Text style={styles.medDateLabelStart}>
-                                                {chartDates[0]}
-                                            </Text>
-                                            <Text style={styles.medDateLabelCenter}>
-                                                {chartDates[Math.floor(chartDates.length / 2)]}
-                                            </Text>
-                                            <Text style={styles.medDateLabelEnd}>
-                                                {chartDates[chartDates.length - 1]}
-                                            </Text>
-                                        </View>
-                                    </View>
-
-                                    {/* Medicine Rows with Fixed Grid */}
-                                    {medicineRows.map((row, rowIndex) => (
-                                        <View key={rowIndex} style={styles.medRow}>
-                                            <View style={styles.medNameCol}>
-                                                <Text
-                                                    style={[styles.medNameText, row.isDeleted && styles.textDeleted]}
-                                                    numberOfLines={1}
-                                                    ellipsizeMode="tail"
-                                                >
-                                                    {row.name}
-                                                </Text>
-                                                {row.isDeleted && <Text style={styles.textDeletedSmall}>(삭제)</Text>}
-                                            </View>
-
-                                            <View style={styles.medGridFixed}>
-                                                {/* Fixed Grid Background - 3 vertical lines for anchor points */}
-                                                <View style={styles.gridLineStart} />
-                                                <View style={styles.gridLineCenter} />
-                                                <View style={styles.gridLineEnd} />
-
-                                                {/* Segments (Bars and Dots) - positioned within fixed grid */}
-                                                {row.segments.map((seg, segIndex) => {
-                                                    const columns = period === '1m' ? 30 : 15;
-                                                    const cellWidthPercent = 100 / columns;
-                                                    const leftPercent = seg.startIndex * cellWidthPercent;
-                                                    const widthPercent = seg.length * cellWidthPercent;
-
-                                                    if (seg.type === 'bar') {
-                                                        return (
+                                <ScrollView
+                                    ref={scrollViewRef3m1}
+                                    horizontal
+                                    showsHorizontalScrollIndicator={false}
+                                >
+                                    <View style={styles.weeklyChart}>
+                                        {weeklyChartData.map((week, index) => {
+                                            const maxWeeklyValue = Math.max(...weeklyChartData.map(w => w.poop), 10);
+                                            const hasData = week.poop > 0;
+                                            return (
+                                                <View key={index} style={styles.weeklyColumn}>
+                                                    <Text style={styles.weeklyBarLabel}>
+                                                        {hasData ? `${week.poop}회` : ''}
+                                                    </Text>
+                                                    <View style={styles.weeklyBarArea}>
+                                                        {hasData && (
                                                             <View
-                                                                key={segIndex}
                                                                 style={[
-                                                                    styles.medBarFixed,
-                                                                    {
-                                                                        left: `${leftPercent}%` as DimensionValue,
-                                                                        width: `${widthPercent}%` as DimensionValue
-                                                                    },
-                                                                    row.isDeleted && styles.medBarDeleted,
+                                                                    styles.weeklyBar,
+                                                                    styles.weeklyBarPoop,
+                                                                    { height: Math.max((week.poop / maxWeeklyValue) * 60, 4) }
                                                                 ]}
                                                             />
-                                                        );
-                                                    } else {
-                                                        // Single dot - center it within its cell
-                                                        const dotCenterPercent = leftPercent + (cellWidthPercent / 2);
-                                                        return (
-                                                            <View
-                                                                key={segIndex}
-                                                                style={[
-                                                                    styles.medDotFixed,
-                                                                    { left: `${dotCenterPercent}%` as DimensionValue },
-                                                                    period === '1m' && styles.medDotSmall,
-                                                                    row.isDeleted && styles.medDotDeleted,
-                                                                ]}
-                                                            />
-                                                        );
-                                                    }
-                                                })}
-                                            </View>
-                                        </View>
-                                    ))}
-                                </>
+                                                        )}
+                                                    </View>
+                                                    <Text style={styles.weeklyLabel}>{week.weekLabel}</Text>
+                                                </View>
+                                            );
+                                        })}
+                                    </View>
+                                </ScrollView>
                             )}
+                        </Card>
 
-                            {period === '3m' && (
-                                <>
-                                    {/* Week Legend Header */}
-                                    <View style={styles.medHeaderRow}>
-                                        <View style={styles.medNameHeader} />
-                                        <View style={styles.weekLegendContainer}>
-                                            <View style={styles.legendItem}>
-                                                <View style={styles.legendThickBar} />
-                                                <Text style={styles.legendText}>주 5회↑</Text>
-                                            </View>
-                                            <View style={styles.legendItem}>
-                                                <View style={styles.legendThinBar} />
-                                                <Text style={styles.legendText}>주 2~4회</Text>
-                                            </View>
-                                            <View style={styles.legendItem}>
-                                                <View style={styles.legendDot} />
-                                                <Text style={styles.legendText}>주 1회↓</Text>
-                                            </View>
-                                        </View>
-                                    </View>
-
-                                    {/* Date Header Row - Fixed anchor points for 3m (12 weeks) */}
-                                    <View style={styles.medHeaderRow}>
-                                        <View style={styles.medNameHeader} />
-                                        <View style={styles.medGridFixed}>
-                                            <Text style={styles.medDateLabelStart}>
-                                                {medicineRows[0]?.weekSegments?.[0]?.label || '12주전'}
-                                            </Text>
-                                            <Text style={styles.medDateLabelCenter}>
-                                                {medicineRows[0]?.weekSegments?.[5]?.label || '6주전'}
-                                            </Text>
-                                            <Text style={styles.medDateLabelEnd}>
-                                                오늘
-                                            </Text>
-                                        </View>
-                                    </View>
-
-                                    {/* Week Rows with Fixed Grid */}
-                                    {medicineRows.map((row, rowIndex) => (
-                                        <View key={rowIndex} style={styles.medRow}>
-                                            <View style={styles.medNameCol}>
-                                                <Text
-                                                    style={[styles.medNameText, row.isDeleted && styles.textDeleted]}
-                                                    numberOfLines={1}
-                                                    ellipsizeMode="tail"
-                                                >
-                                                    {row.name}
+                        {/* 설사 주간 차트 */}
+                        <Card style={styles.card}>
+                            <Text style={styles.sectionTitle}>설사 횟수 (주간)</Text>
+                            <ScrollView
+                                ref={scrollViewRef3m2}
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                            >
+                                <View style={styles.weeklyChart}>
+                                    {weeklyChartData.map((week, index) => {
+                                        const maxWeeklyValue = Math.max(...weeklyChartData.map(w => w.diarrhea), 5);
+                                        const hasData = week.diarrhea > 0;
+                                        return (
+                                            <View key={index} style={styles.weeklyColumn}>
+                                                <Text style={[styles.weeklyBarLabel, styles.weeklyBarLabelWarning]}>
+                                                    {hasData ? `${week.diarrhea}회` : ''}
                                                 </Text>
-                                            </View>
-
-                                            <View style={styles.medGridFixed}>
-                                                {/* Fixed Grid Background */}
-                                                <View style={styles.gridLineStart} />
-                                                <View style={styles.gridLineCenter} />
-                                                <View style={styles.gridLineEnd} />
-
-                                                {/* Week Segments - 12 fixed columns */}
-                                                {row.weekSegments?.map((seg, i) => {
-                                                    const cellWidthPercent = 100 / 12;
-                                                    const leftPercent = i * cellWidthPercent;
-                                                    const centerPercent = leftPercent + (cellWidthPercent / 2);
-
-                                                    return (
+                                                <View style={styles.weeklyBarArea}>
+                                                    {hasData && (
                                                         <View
-                                                            key={i}
                                                             style={[
-                                                                styles.weekCellFixed,
-                                                                { left: `${leftPercent}%` as DimensionValue }
+                                                                styles.weeklyBar,
+                                                                styles.weeklyBarWarning,
+                                                                { height: Math.max((week.diarrhea / maxWeeklyValue) * 60, 4) }
                                                             ]}
-                                                        >
-                                                            {seg.type === 'thick' && (
-                                                                <View style={styles.weekBarThick} />
+                                                        />
+                                                    )}
+                                                </View>
+                                                <Text style={styles.weeklyLabel}>{week.weekLabel}</Text>
+                                            </View>
+                                        );
+                                    })}
+                                </View>
+                            </ScrollView>
+                        </Card>
+
+                        {/* 구토 주간 차트 */}
+                        <Card style={styles.card}>
+                            <Text style={styles.sectionTitle}>구토 횟수 (주간)</Text>
+                            <ScrollView
+                                ref={scrollViewRef3m3}
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                            >
+                                <View style={styles.weeklyChart}>
+                                    {weeklyChartData.map((week, index) => {
+                                        const maxWeeklyValue = Math.max(...weeklyChartData.map(w => w.vomit), 5);
+                                        const hasData = week.vomit > 0;
+                                        return (
+                                            <View key={index} style={styles.weeklyColumn}>
+                                                <Text style={[styles.weeklyBarLabel, styles.weeklyBarLabelError]}>
+                                                    {hasData ? `${week.vomit}회` : ''}
+                                                </Text>
+                                                <View style={styles.weeklyBarArea}>
+                                                    {hasData && (
+                                                        <View
+                                                            style={[
+                                                                styles.weeklyBar,
+                                                                styles.weeklyBarError,
+                                                                { height: Math.max((week.vomit / maxWeeklyValue) * 60, 4) }
+                                                            ]}
+                                                        />
+                                                    )}
+                                                </View>
+                                                <Text style={styles.weeklyLabel}>{week.weekLabel}</Text>
+                                            </View>
+                                        );
+                                    })}
+                                </View>
+                            </ScrollView>
+                        </Card>
+
+                        {/* 강수/수액 주간 차트 */}
+                        <Card style={styles.card}>
+                            <Text style={styles.sectionTitle}>강수 / 수액 (주간)</Text>
+                            <ScrollView
+                                ref={scrollViewRef3m4}
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                            >
+                                <View style={styles.weeklyChart}>
+                                    {weeklyHydrationData.map((week, index) => {
+                                        const total = week.force + week.fluid;
+                                        const maxWeeklyValue = Math.max(...weeklyHydrationData.map(w => w.force + w.fluid), 500);
+                                        const hasData = total > 0;
+                                        return (
+                                            <View key={index} style={styles.weeklyColumn}>
+                                                <Text style={styles.weeklyBarLabelHydration}>
+                                                    {hasData ? `${total}ml` : ''}
+                                                </Text>
+                                                <View style={styles.weeklyBarArea}>
+                                                    {hasData && (
+                                                        <View style={styles.weeklyBarStack}>
+                                                            {week.fluid > 0 && (
+                                                                <View
+                                                                    style={[
+                                                                        styles.weeklyBar,
+                                                                        styles.weeklyBarFluid,
+                                                                        { height: Math.max((week.fluid / maxWeeklyValue) * 60, 2) }
+                                                                    ]}
+                                                                />
                                                             )}
-                                                            {seg.type === 'thin' && (
-                                                                <View style={styles.weekBarThin} />
-                                                            )}
-                                                            {seg.type === 'dot' && (
-                                                                <View style={styles.weekDot} />
+                                                            {week.force > 0 && (
+                                                                <View
+                                                                    style={[
+                                                                        styles.weeklyBar,
+                                                                        styles.weeklyBarForce,
+                                                                        { height: Math.max((week.force / maxWeeklyValue) * 60, 2) }
+                                                                    ]}
+                                                                />
                                                             )}
                                                         </View>
-                                                    );
-                                                })}
+                                                    )}
+                                                </View>
+                                                <Text style={styles.weeklyLabel}>{week.weekLabel}</Text>
                                             </View>
+                                        );
+                                    })}
+                                </View>
+                            </ScrollView>
+                            <View style={styles.legend}>
+                                <View style={styles.legendItem}>
+                                    <Text style={styles.legendEmoji}>💧</Text>
+                                    <View style={[styles.legendColor, styles.barForce]} />
+                                    <Text style={styles.legendText}>강수</Text>
+                                </View>
+                                <View style={styles.legendItem}>
+                                    <Text style={styles.legendEmoji}>💉</Text>
+                                    <View style={[styles.legendColor, styles.barFluid]} />
+                                    <Text style={styles.legendText}>수액</Text>
+                                </View>
+                            </View>
+                        </Card>
+
+                        <View style={styles.bottomPadding} />
+                    </>
+                ) : (
+                    <>
+                        {/* 배변 횟수 차트 */}
+                        <Card style={styles.card}>
+                            <Text style={styles.sectionTitle}>배변 횟수</Text>
+
+                            <ScrollView
+                                ref={scrollViewRef}
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                                contentContainerStyle={{ paddingRight: 20 }}
+                            >
+                                <View style={[styles.dotChart, { width: Math.max(chartData.length * 36, 300) }]}>
+                                    {chartData.length === 0 ? (
+                                        <View style={styles.emptyContainer}>
+                                            <Text style={styles.emptyText}>기록이 없습니다.</Text>
                                         </View>
-                                    ))}
-                                </>
-                            )}
+                                    ) : (
+                                        chartData.map((day, index) => {
+                                            const maxDisplayValue = Math.max(maxValue, 5);
+                                            const hasData = day.poop > 0;
+                                            return (
+                                                <View key={index} style={styles.dotColumn}>
+                                                    <View style={styles.dotArea}>
+                                                        {hasData && (
+                                                            <>
+                                                                <Text style={styles.dotLabel}>{day.poop}회</Text>
+                                                                <View
+                                                                    style={[
+                                                                        styles.dot,
+                                                                        styles.dotPoop,
+                                                                        { bottom: (day.poop / maxDisplayValue) * 60 }
+                                                                    ]}
+                                                                />
+                                                            </>
+                                                        )}
+                                                    </View>
+                                                    <Text style={styles.dotDateLabel}>{day.date}</Text>
+                                                </View>
+                                            );
+                                        })
+                                    )}
+                                </View>
+                            </ScrollView>
+                        </Card>
 
-                            {period === 'all' && (
-                                <View>
-                                    {medicineRows.map((row, rowIndex) => (
-                                        <View key={rowIndex} style={styles.medSummaryCard}>
-                                            <View style={styles.medNameContainer}>
-                                                <Text style={[styles.medNameText, { fontSize: 13, fontWeight: '600' }]}>
-                                                    💊 {row.name}
-                                                </Text>
-                                                {row.isDeleted && <Text style={styles.textDeletedSmall}>(삭제)</Text>}
+                        {/* 설사 횟수 차트 */}
+                        <Card style={styles.card}>
+                            <Text style={styles.sectionTitle}>설사 횟수</Text>
+
+                            <ScrollView
+                                ref={scrollViewRef2}
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                                contentContainerStyle={{ paddingRight: 20 }}
+                            >
+                                <View style={[styles.dotChart, { width: Math.max(chartData.length * 36, 300) }]}>
+                                    {chartData.length === 0 ? (
+                                        <View style={styles.emptyContainer}>
+                                            <Text style={styles.emptyText}>기록이 없습니다.</Text>
+                                        </View>
+                                    ) : (
+                                        chartData.map((day, index) => {
+                                            const maxDisplayValue = Math.max(maxValue, 5);
+                                            const hasData = day.diarrhea > 0;
+                                            return (
+                                                <View key={index} style={styles.dotColumn}>
+                                                    <View style={styles.dotArea}>
+                                                        {hasData && (
+                                                            <>
+                                                                <Text style={[styles.dotLabel, styles.dotLabelWarning]}>{day.diarrhea}회</Text>
+                                                                <View
+                                                                    style={[
+                                                                        styles.dot,
+                                                                        styles.dotDiarrhea,
+                                                                        { bottom: (day.diarrhea / maxDisplayValue) * 60 }
+                                                                    ]}
+                                                                />
+                                                            </>
+                                                        )}
+                                                    </View>
+                                                    <Text style={styles.dotDateLabel}>{day.date}</Text>
+                                                </View>
+                                            );
+                                        })
+                                    )}
+                                </View>
+                            </ScrollView>
+                        </Card>
+
+                        {/* 구토 횟수 차트 */}
+                        <Card style={styles.card}>
+                            <Text style={styles.sectionTitle}>구토 횟수</Text>
+
+                            <ScrollView
+                                ref={scrollViewRef3}
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                                contentContainerStyle={{ paddingRight: 20 }}
+                            >
+                                <View style={[styles.dotChart, { width: Math.max(chartData.length * 36, 300) }]}>
+                                    {chartData.length === 0 ? (
+                                        <View style={styles.emptyContainer}>
+                                            <Text style={styles.emptyText}>기록이 없습니다.</Text>
+                                        </View>
+                                    ) : (
+                                        chartData.map((day, index) => {
+                                            const maxDisplayValue = Math.max(maxValue, 5);
+                                            const hasData = day.vomit > 0;
+                                            return (
+                                                <View key={index} style={styles.dotColumn}>
+                                                    <View style={styles.dotArea}>
+                                                        {hasData && (
+                                                            <>
+                                                                <Text style={[styles.dotLabel, styles.dotLabelError]}>{day.vomit}회</Text>
+                                                                <View
+                                                                    style={[
+                                                                        styles.dot,
+                                                                        styles.dotVomit,
+                                                                        { bottom: (day.vomit / maxDisplayValue) * 60 }
+                                                                    ]}
+                                                                />
+                                                            </>
+                                                        )}
+                                                    </View>
+                                                    <Text style={styles.dotDateLabel}>{day.date}</Text>
+                                                </View>
+                                            );
+                                        })
+                                    )}
+                                </View>
+                            </ScrollView>
+                        </Card>
+
+                        {/* 강수/수액 차트 */}
+                        <Card style={styles.card}>
+                            <Text style={styles.sectionTitle}>강수 / 수액</Text>
+
+                            <ScrollView ref={scrollViewRef4} horizontal showsHorizontalScrollIndicator={false}>
+                                <View style={[styles.hydrationChart, { width: Math.max(hydrationData.length * 44, 300) }]}>
+                                    {hydrationData.length === 0 ? (
+                                        <View style={styles.emptyContainer}>
+                                            <Text style={styles.emptyText}>기록이 없습니다.</Text>
+                                        </View>
+                                    ) : (
+                                        hydrationData.map((day, index) => {
+                                            const total = day.force + day.fluid;
+                                            const hasData = total > 0;
+                                            const maxDisplayValue = Math.max(maxVolValue, 100);
+
+                                            return (
+                                                <View key={index} style={styles.hydrationColumn}>
+                                                    {/* ml Label on top */}
+                                                    <Text style={styles.hydrationMlLabel}>
+                                                        {hasData ? `${total}ml` : ''}
+                                                    </Text>
+
+                                                    {/* Bar Area */}
+                                                    <View style={styles.hydrationBarArea}>
+                                                        {hasData && (
+                                                            <View style={styles.hydrationBarStack}>
+                                                                {day.fluid > 0 && (
+                                                                    <View
+                                                                        style={[
+                                                                            styles.hydrationBar,
+                                                                            styles.barFluid,
+                                                                            { height: (day.fluid / maxDisplayValue) * 70 },
+                                                                        ]}
+                                                                    />
+                                                                )}
+                                                                {day.force > 0 && (
+                                                                    <View
+                                                                        style={[
+                                                                            styles.hydrationBar,
+                                                                            styles.barForce,
+                                                                            { height: (day.force / maxDisplayValue) * 70 },
+                                                                        ]}
+                                                                    />
+                                                                )}
+                                                            </View>
+                                                        )}
+                                                    </View>
+
+                                                    {/* Date Label */}
+                                                    <Text style={styles.dotDateLabel}>{day.date}</Text>
+                                                </View>
+                                            );
+                                        })
+                                    )}
+                                </View>
+                            </ScrollView>
+
+                            <View style={styles.legend}>
+                                <View style={styles.legendItem}>
+                                    <Text style={styles.legendEmoji}>💧</Text>
+                                    <View style={[styles.legendColor, styles.barForce]} />
+                                    <Text style={styles.legendText}>강수</Text>
+                                </View>
+                                <View style={styles.legendItem}>
+                                    <Text style={styles.legendEmoji}>💉</Text>
+                                    <View style={[styles.legendColor, styles.barFluid]} />
+                                    <Text style={styles.legendText}>수액</Text>
+                                </View>
+                            </View>
+                        </Card>
+
+                        <Card style={styles.card}>
+                            <Text style={styles.sectionTitle}>
+                                {period === '15d' ? '최근 15일' :
+                                    period === '1m' ? '최근 1개월' :
+                                        period === '3m' ? '최근 3개월' : '전체 기간'} 약/영양제 복용
+                            </Text>
+
+                            {medicineRows.length === 0 ? (
+                                <View style={styles.emptyContainer}>
+                                    <Text style={styles.emptyText}>복용 기록이 없습니다.</Text>
+                                </View>
+                            ) : (
+                                <View style={styles.medicineChartContainer}>
+
+                                    {/* Fixed Layout Medicine Chart - All periods share same container width */}
+
+                                    {/* Render Logic: Timeline (15d/1m) vs Week (3m) vs Summary (All) */}
+                                    {(period === '15d' || period === '1m') && (
+                                        <>
+                                            {/* Date Header Row - Fixed 3-point anchor system */}
+                                            <View style={styles.medHeaderRow}>
+                                                <View style={styles.medNameHeader} />
+                                                <View style={styles.medGridFixed}>
+                                                    {/* Fixed anchor points: Start, Middle, End */}
+                                                    <Text style={styles.medDateLabelStart}>
+                                                        {chartDates[0]}
+                                                    </Text>
+                                                    <Text style={styles.medDateLabelCenter}>
+                                                        {chartDates[Math.floor(chartDates.length / 2)]}
+                                                    </Text>
+                                                    <Text style={styles.medDateLabelEnd}>
+                                                        {chartDates[chartDates.length - 1]}
+                                                    </Text>
+                                                </View>
                                             </View>
 
-                                            {row.summary ? (
-                                                <View style={styles.medSummaryContent}>
-                                                    <Text style={styles.medSummaryText}>
-                                                        기간: {row.summary.startDate} ~ {row.summary.endDate}
-                                                    </Text>
-                                                    <View style={styles.medSummaryRow}>
-                                                        <Text style={styles.medSummaryHighlight}>
-                                                            총 {row.summary.totalDays}일 복용
+                                            {/* Medicine Rows with Fixed Grid */}
+                                            {medicineRows.map((row, rowIndex) => (
+                                                <View key={rowIndex} style={styles.medRow}>
+                                                    <View style={styles.medNameCol}>
+                                                        <Text
+                                                            style={[styles.medNameText, row.isDeleted && styles.textDeleted]}
+                                                            numberOfLines={1}
+                                                            ellipsizeMode="tail"
+                                                        >
+                                                            {row.name}
                                                         </Text>
-                                                        <Text style={styles.medSummaryHighlight}>
-                                                            평균: {row.summary.avgFreq}
-                                                        </Text>
+                                                        {row.isDeleted && <Text style={styles.textDeletedSmall}>(삭제)</Text>}
+                                                    </View>
+
+                                                    <View style={styles.medGridFixed}>
+                                                        {/* Fixed Grid Background - 3 vertical lines for anchor points */}
+                                                        <View style={styles.gridLineStart} />
+                                                        <View style={styles.gridLineCenter} />
+                                                        <View style={styles.gridLineEnd} />
+
+                                                        {/* Segments (Bars and Dots) - positioned within fixed grid */}
+                                                        {row.segments.map((seg, segIndex) => {
+                                                            const columns = period === '1m' ? 30 : 15;
+                                                            const cellWidthPercent = 100 / columns;
+                                                            const leftPercent = seg.startIndex * cellWidthPercent;
+                                                            const widthPercent = seg.length * cellWidthPercent;
+
+                                                            if (seg.type === 'bar') {
+                                                                return (
+                                                                    <View
+                                                                        key={segIndex}
+                                                                        style={[
+                                                                            styles.medBarFixed,
+                                                                            {
+                                                                                left: `${leftPercent}%` as DimensionValue,
+                                                                                width: `${widthPercent}%` as DimensionValue
+                                                                            },
+                                                                            row.isDeleted && styles.medBarDeleted,
+                                                                        ]}
+                                                                    />
+                                                                );
+                                                            } else {
+                                                                // Single dot - center it within its cell
+                                                                const dotCenterPercent = leftPercent + (cellWidthPercent / 2);
+                                                                return (
+                                                                    <View
+                                                                        key={segIndex}
+                                                                        style={[
+                                                                            styles.medDotFixed,
+                                                                            { left: `${dotCenterPercent}%` as DimensionValue },
+                                                                            period === '1m' && styles.medDotSmall,
+                                                                            row.isDeleted && styles.medDotDeleted,
+                                                                        ]}
+                                                                    />
+                                                                );
+                                                            }
+                                                        })}
                                                     </View>
                                                 </View>
-                                            ) : (
-                                                <Text style={styles.medSummaryText}>데이터 없음</Text>
-                                            )}
-                                        </View>
-                                    ))}
+                                            ))}
+                                        </>
+                                    )}
                                 </View>
                             )}
+                        </Card>
 
-                        </View>
-                    )}
-                </Card>
+                        <Text style={styles.hint}>
+                            💡 이 화면을 병원에서 보여주세요. {"\n"}
+                            약/영양제 차트는 {period === '15d' ? '최근 15일' : period === '1m' ? '최근 1개월' : period === '3m' ? '최근 3개월' : '전체 기간'} 기준이며, {"\n"}
+                            연속된 날짜는 막대(Bar), 하루 복용은 점(Dot)으로 표시됩니다.
+                        </Text>
 
-                <Text style={styles.hint}>
-                    💡 이 화면을 병원에서 보여주세요. {"\n"}
-                    약/영양제 차트는 {period === '15d' ? '최근 15일' : period === '1m' ? '최근 1개월' : period === '3m' ? '최근 3개월' : '전체 기간'} 기준이며, {"\n"}
-                    연속된 날짜는 막대(Bar), 하루 복용은 점(Dot)으로 표시됩니다.
-                </Text>
-
-                <View style={styles.bottomPadding} />
+                        <View style={styles.bottomPadding} />
+                    </>
+                )
+                }
             </ScrollView >
         </SafeAreaView >
     );
@@ -860,7 +1264,174 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: '600',
         color: COLORS.textPrimary,
-        marginBottom: 16,
+        marginBottom: 8,
+    },
+    // Summary Card Styles (for 'all' period)
+    summaryCardHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    summaryCardIcon: {
+        fontSize: 22,
+        marginRight: 10,
+    },
+    summaryCardTitle: {
+        fontSize: 17,
+        fontWeight: '700',
+        color: COLORS.textPrimary,
+    },
+    summaryDateRange: {
+        fontSize: 18,
+        fontWeight: '600',
+        color: COLORS.textPrimary,
+        textAlign: 'center',
+        marginBottom: 4,
+    },
+    summarySubtext: {
+        fontSize: 13,
+        color: COLORS.textSecondary,
+        textAlign: 'center',
+    },
+    summaryStatRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F0F0F0',
+    },
+    summaryStatRowHighlight: {
+        backgroundColor: `${COLORS.primary}10`,
+        borderRadius: 8,
+        paddingHorizontal: 8,
+        marginTop: 8,
+        borderBottomWidth: 0,
+    },
+    summaryStatEmoji: {
+        fontSize: 16,
+        marginRight: 10,
+        width: 24,
+    },
+    summaryStatLabel: {
+        fontSize: 14,
+        color: COLORS.textSecondary,
+        flex: 1,
+    },
+    summaryStatValue: {
+        fontSize: 15,
+        fontWeight: '600',
+        color: COLORS.textPrimary,
+    },
+    summaryStatValueLarge: {
+        fontSize: 17,
+        fontWeight: '700',
+        color: COLORS.primary,
+    },
+    summaryStatValueGood: {
+        color: COLORS.primary,
+    },
+    summaryStatValueWarning: {
+        color: COLORS.warning,
+    },
+    // Dot Chart Styles
+    chartHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    chartEmoji: {
+        fontSize: 20,
+        marginRight: 8,
+    },
+    dotChart: {
+        flexDirection: 'row',
+        alignItems: 'flex-end',
+        height: 110,
+        paddingTop: 10,
+    },
+    dotColumn: {
+        alignItems: 'center',
+        width: 36,
+    },
+    dotArea: {
+        height: 80,
+        width: '100%',
+        justifyContent: 'flex-end',
+        alignItems: 'center',
+        position: 'relative',
+    },
+    dot: {
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+        position: 'absolute',
+    },
+    dotPoop: {
+        backgroundColor: COLORS.primary,
+    },
+    dotDiarrhea: {
+        backgroundColor: COLORS.warning,
+    },
+    dotVomit: {
+        backgroundColor: COLORS.error,
+    },
+    dotLabel: {
+        fontSize: 10,
+        fontWeight: '600',
+        color: COLORS.primary,
+        position: 'absolute',
+        top: 0,
+        textAlign: 'center',
+    },
+    dotLabelWarning: {
+        color: COLORS.warning,
+    },
+    dotLabelError: {
+        color: COLORS.error,
+    },
+    dotDateLabel: {
+        fontSize: 9,
+        color: COLORS.textSecondary,
+        marginTop: 4,
+        textAlign: 'center',
+    },
+    // Hydration Chart Styles
+    hydrationChart: {
+        flexDirection: 'row',
+        alignItems: 'flex-end',
+        height: 120,
+        paddingTop: 10,
+    },
+    hydrationColumn: {
+        alignItems: 'center',
+        width: 44,
+    },
+    hydrationMlLabel: {
+        fontSize: 9,
+        fontWeight: '600',
+        color: '#34D399',
+        height: 14,
+        textAlign: 'center',
+        marginBottom: 2,
+    },
+    hydrationBarArea: {
+        height: 80,
+        width: '100%',
+        justifyContent: 'flex-end',
+        alignItems: 'center',
+    },
+    hydrationBarStack: {
+        flexDirection: 'column',
+        alignItems: 'center',
+    },
+    hydrationBar: {
+        width: 20,
+        borderRadius: 4,
+        marginBottom: 1,
+    },
+    legendEmoji: {
+        fontSize: 12,
+        marginRight: 4,
     },
     chart: {
         flexDirection: 'row',
@@ -941,7 +1512,7 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
     bottomPadding: {
-        height: 32,
+        height: 100,
     },
     emptyContainer: {
         flex: 1,
@@ -1243,5 +1814,72 @@ const styles = StyleSheet.create({
         height: 6,
         borderRadius: 3,
         backgroundColor: COLORS.primary,
+    },
+    // Weekly Chart Styles (3-month period)
+    weeklyChart: {
+        flexDirection: 'row',
+        alignItems: 'flex-end',
+        height: 120,
+        paddingTop: 10,
+        paddingHorizontal: 8,
+    },
+    weeklyColumn: {
+        alignItems: 'center',
+        width: 48,
+        marginHorizontal: 4,
+    },
+    weeklyBarArea: {
+        height: 70,
+        width: '100%',
+        justifyContent: 'flex-end',
+        alignItems: 'center',
+    },
+    weeklyBar: {
+        width: 24,
+        borderRadius: 4,
+    },
+    weeklyBarPoop: {
+        backgroundColor: COLORS.primary,
+    },
+    weeklyBarWarning: {
+        backgroundColor: COLORS.warning,
+    },
+    weeklyBarError: {
+        backgroundColor: COLORS.error,
+    },
+    weeklyBarForce: {
+        backgroundColor: '#4F46E5',
+    },
+    weeklyBarFluid: {
+        backgroundColor: '#059669',
+    },
+    weeklyBarStack: {
+        flexDirection: 'column',
+        alignItems: 'center',
+    },
+    weeklyBarLabel: {
+        fontSize: 11,
+        fontWeight: '600',
+        color: COLORS.primary,
+        marginBottom: 4,
+        height: 16,
+    },
+    weeklyBarLabelWarning: {
+        color: COLORS.warning,
+    },
+    weeklyBarLabelError: {
+        color: COLORS.error,
+    },
+    weeklyBarLabelHydration: {
+        fontSize: 10,
+        fontWeight: '600',
+        color: '#4F46E5',
+        marginBottom: 4,
+        height: 16,
+    },
+    weeklyLabel: {
+        fontSize: 11,
+        color: COLORS.textSecondary,
+        marginTop: 6,
     },
 });

@@ -106,6 +106,17 @@ async function initializeTables(db: SQLite.SQLiteDatabase) {
       deletedAt TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS food_preference_memos (
+      id TEXT PRIMARY KEY,
+      petId TEXT NOT NULL,
+      foodName TEXT NOT NULL,
+      foodType TEXT NOT NULL,
+      memo TEXT,
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL,
+      deletedAt TEXT
+    );
+
     CREATE TABLE IF NOT EXISTS subscription_state (
       id INTEGER PRIMARY KEY CHECK (id = 1),
       trialStartDate TEXT NOT NULL,

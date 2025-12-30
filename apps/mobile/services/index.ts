@@ -56,6 +56,14 @@ export {
 } from './medicationMemos';
 export type { MedicationMemo } from './medicationMemos';
 
+export {
+    getFoodPreferenceMemos,
+    addFoodPreferenceMemo,
+    updateFoodPreferenceMemo,
+    deleteFoodPreferenceMemo
+} from './foodPreferenceMemos';
+export type { FoodPreferenceMemo } from './foodPreferenceMemos';
+
 // Subscription service
 export {
     initializeSubscription,
@@ -67,3 +75,4 @@ export {
     resetSubscription,
 } from './subscription';
 export type { SubscriptionStatus, SubscriptionState } from './subscription';
+
