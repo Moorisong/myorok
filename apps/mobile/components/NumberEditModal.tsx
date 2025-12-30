@@ -87,7 +87,7 @@ export default function NumberEditModal({
                 <View style={styles.overlay}>
                     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
                         <KeyboardAvoidingView
-                            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                            behavior="height"
                             style={styles.keyboardView}
                         >
                             <View style={styles.contentContainer}>
