@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,6 +8,8 @@ import { COLORS, PIN_MESSAGES } from '../../../constants';
 import { Card, PinInputModal } from '../../../components';
 import { useSelectedPet } from '../../../hooks/use-selected-pet';
 import { usePinLock } from '../../../hooks/use-pin-lock';
+import { getSubscriptionStatus, getTrialCountdownText } from '../../../services';
+import type { SubscriptionState } from '../../../services';
 
 interface SettingItemProps {
     emoji: string;
@@ -55,12 +57,19 @@ export default function SettingsScreen() {
     const { isPinSet, isLocked, unlock, refreshPinStatus, resetInactivityTimer } = usePinLock();
 
     const [showPinModal, setShowPinModal] = useState(false);
+    const [subscriptionState, setSubscriptionState] = useState<SubscriptionState | null>(null);
 
     useFocusEffect(
         useCallback(() => {
             refreshPinStatus();
+            loadSubscriptionStatus();
         }, [refreshPinStatus])
     );
+
+    const loadSubscriptionStatus = async () => {
+        const status = await getSubscriptionStatus();
+        setSubscriptionState(status);
+    };
 
     // 사용자 활동 시 무활동 타이머 리셋
     const handleUserActivity = useCallback(() => {
@@ -109,6 +118,18 @@ export default function SettingsScreen() {
             return isLocked ? '잠김' : '설정됨';
         }
         return '앱 접근 보호';
+    };
+
+    const getSubscriptionDescription = () => {
+        if (!subscriptionState) return '로딩 중...';
+
+        if (subscriptionState.status === 'trial') {
+            return `${getTrialCountdownText(subscriptionState.daysRemaining || 0)}`;
+        } else if (subscriptionState.status === 'active') {
+            return '구독 중';
+        } else {
+            return '무료 체험 종료';
+        }
     };
 
     return (
@@ -166,8 +187,8 @@ export default function SettingsScreen() {
                 <Card style={styles.card}>
                     <SettingItem
                         emoji="⭐"
-                        title="Pro 업그레이드"
-                        description="모든 기록을 무제한으로"
+                        title="구독 관리"
+                        description={getSubscriptionDescription()}
                         onPress={() => handleNavigate('/settings/pro')}
                     />
                 </Card>
