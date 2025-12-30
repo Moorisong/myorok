@@ -149,7 +149,11 @@ export default function SummaryChartScreen() {
 
             // Process Chart Data (Daily Records - Fill empty dates)
             const recordMap = new Map<string, typeof records[0]>();
-            records.forEach(r => recordMap.set(r.date, r));
+            records.forEach(r => {
+                console.log('[ChartDebug] DB Record:', r.date, r);
+                recordMap.set(r.date, r);
+            });
+            console.log('[ChartDebug] Period:', currentPeriod, 'DateObjs:', dateObjs);
 
             const processedData: ChartData[] = [];
 
