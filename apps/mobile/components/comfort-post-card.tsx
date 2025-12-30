@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, StyleSheet, Pressable, Alert, TextInput, Keyboard } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Alert, TextInput, Keyboard, Platform, ActionSheetIOS } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 
 import { COLORS, COMFORT_MESSAGES } from '../constants';
@@ -64,15 +64,13 @@ export function ComfortPostCard({
     const handleSubmitComment = async () => {
         if (!commentText.trim() || isSubmitting) return;
 
-        const textToSubmit = commentText.trim();
+        Keyboard.dismiss();
         setIsSubmitting(true);
-
         try {
-            const response = await createComment(post.id, textToSubmit);
+            const response = await createComment(post.id, commentText.trim());
             if (response.success && response.data) {
                 setComments(prev => [...prev, response.data!.comment]);
                 setCommentText('');
-                Keyboard.dismiss();
             } else if (response.error) {
                 Alert.alert('알림', response.error.message || '댓글 작성에 실패했습니다.');
             }
@@ -104,28 +102,56 @@ export function ComfortPostCard({
     };
 
     const handleShowMenu = () => {
-        if (post.isOwner) {
-            Alert.alert(
-                '게시글 관리',
-                undefined,
-                [
-                    { text: COMFORT_MESSAGES.EDIT, onPress: onUpdate },
-                    { text: COMFORT_MESSAGES.DELETE, onPress: onDelete, style: 'destructive' },
-                    { text: '취소', style: 'cancel' },
-                ],
-                { cancelable: true }
-            );
+        if (Platform.OS === 'ios') {
+            if (post.isOwner) {
+                ActionSheetIOS.showActionSheetWithOptions(
+                    {
+                        options: ['수정', '삭제', '취소'],
+                        destructiveButtonIndex: 1,
+                        cancelButtonIndex: 2,
+                    },
+                    (buttonIndex) => {
+                        if (buttonIndex === 0) onUpdate?.();
+                        if (buttonIndex === 1) onDelete();
+                    }
+                );
+            } else {
+                ActionSheetIOS.showActionSheetWithOptions(
+                    {
+                        options: ['신고', '차단', '취소'],
+                        destructiveButtonIndex: 1,
+                        cancelButtonIndex: 2,
+                    },
+                    (buttonIndex) => {
+                        if (buttonIndex === 0) onReport();
+                        if (buttonIndex === 1) onBlock();
+                    }
+                );
+            }
         } else {
-            Alert.alert(
-                '게시글 관리',
-                undefined,
-                [
-                    { text: COMFORT_MESSAGES.REPORT, onPress: onReport },
-                    { text: COMFORT_MESSAGES.BLOCK, onPress: onBlock, style: 'destructive' },
-                    { text: '취소', style: 'cancel' },
-                ],
-                { cancelable: true }
-            );
+            if (post.isOwner) {
+                Alert.alert(
+                    '게시글 관리',
+                    undefined,
+                    [
+                        { text: COMFORT_MESSAGES.EDIT, onPress: onUpdate },
+                        { text: COMFORT_MESSAGES.DELETE, onPress: onDelete, style: 'destructive' },
+                        { text: '취소', style: 'cancel' },
+                    ],
+                    { cancelable: true }
+                );
+            } else {
+                Alert.alert(
+                    '게시글 관리',
+                    undefined,
+                    [
+                        { text: COMFORT_MESSAGES.REPORT, onPress: onReport },
+                        { text: COMFORT_MESSAGES.BLOCK, onPress: onBlock, style: 'destructive' },
+                        { text: '취소', style: 'cancel' },
+                    ],
+                    { cancelable: true }
+                );
+            }
         }
     };
 
