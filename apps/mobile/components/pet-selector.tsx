@@ -177,7 +177,7 @@ const styles = StyleSheet.create({
         width: 32,
         height: 32,
         borderRadius: 16,
-        backgroundColor: '#FEF3C7',
+        backgroundColor: COLORS.yellow,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -279,12 +279,12 @@ const styles = StyleSheet.create({
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: '#FEF3C7',
+        backgroundColor: COLORS.yellow,
         justifyContent: 'center',
         alignItems: 'center',
     },
     petAvatarSelected: {
-        backgroundColor: '#FDE68A',
+        backgroundColor: COLORS.yellowDark,
     },
     petAvatarEmoji: {
         fontSize: 22,

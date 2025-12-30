@@ -79,7 +79,7 @@ const styles = StyleSheet.create({
         paddingTop: 16,
         alignItems: 'center',
         width: '100%',
-        backgroundColor: '#FAFAFA',
+        backgroundColor: COLORS.lightBg,
     },
     editIconContainer: {
         position: 'absolute',
@@ -94,7 +94,7 @@ const styles = StyleSheet.create({
         width: '100%',
     },
     counterBtnWarning: {
-        backgroundColor: '#FFF8E1',
+        backgroundColor: COLORS.warningBg,
     },
     counterEmoji: {
         fontSize: 24,

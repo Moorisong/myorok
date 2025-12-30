@@ -157,8 +157,8 @@ export default function ComfortPostCard({
                     <Feather
                         name="heart"
                         size={18}
-                        color={post.isLiked ? '#E91E63' : COLORS.textSecondary}
-                        fill={post.isLiked ? '#E91E63' : 'transparent'}
+                        color={post.isLiked ? COLORS.pink : COLORS.textSecondary}
+                        fill={post.isLiked ? COLORS.pink : 'transparent'}
                     />
                     <Text style={[styles.actionText, post.isLiked && styles.actionTextActive]}>
                         {post.likeCount > 0 ? post.likeCount : COMFORT_MESSAGES.LIKE}
@@ -258,7 +258,7 @@ const styles = StyleSheet.create({
         width: 36,
         height: 36,
         borderRadius: 18,
-        backgroundColor: '#FFF3E0',
+        backgroundColor: COLORS.avatarBg,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -304,7 +304,7 @@ const styles = StyleSheet.create({
         color: COLORS.textSecondary,
     },
     actionTextActive: {
-        color: '#E91E63',
+        color: COLORS.pink,
     },
     commentsSection: {
         marginTop: 12,

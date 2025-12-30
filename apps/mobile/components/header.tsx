@@ -69,7 +69,7 @@ const styles = StyleSheet.create({
     petIndicator: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#FEF3C7',
+        backgroundColor: COLORS.yellow,
         paddingHorizontal: 10,
         paddingVertical: 5,
         borderRadius: 14,
