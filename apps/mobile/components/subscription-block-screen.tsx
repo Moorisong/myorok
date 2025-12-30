@@ -7,9 +7,10 @@ import { COLORS } from '../constants';
 
 interface SubscriptionBlockScreenProps {
     visible: boolean;
+    onDismiss?: () => void; // Optional: Only for preview/dev mode
 }
 
-export default function SubscriptionBlockScreen({ visible }: SubscriptionBlockScreenProps) {
+export default function SubscriptionBlockScreen({ visible, onDismiss }: SubscriptionBlockScreenProps) {
     const router = useRouter();
 
     if (!visible) return null;
@@ -21,6 +22,12 @@ export default function SubscriptionBlockScreen({ visible }: SubscriptionBlockSc
     return (
         <View style={styles.overlay}>
             <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+                {onDismiss && (
+                    <Pressable style={styles.closeButton} onPress={onDismiss} hitSlop={20}>
+                        <Feather name="x" size={24} color={COLORS.textSecondary} />
+                    </Pressable>
+                )}
+
                 <ScrollView contentContainerStyle={styles.content}>
                     <View style={styles.iconContainer}>
                         <Feather name="lock" size={64} color={COLORS.primary} />
@@ -143,5 +150,12 @@ const styles = StyleSheet.create({
         fontSize: 13,
         color: COLORS.textSecondary,
         textAlign: 'center',
+    },
+    closeButton: {
+        position: 'absolute',
+        top: 16,
+        right: 16,
+        zIndex: 10,
+        padding: 8,
     },
 });

@@ -203,32 +203,30 @@ export default function SettingsScreen() {
                     />
                 </Card>
 
-                {__DEV__ && (
-                    <Card style={styles.card}>
-                        <SettingItem
-                            emoji="🧪"
-                            title="알림 테스트 (Dev)"
-                            description="푸시 알림 로직 검증"
-                            onPress={() => handleNavigate('/settings/notification-test')}
-                        />
-                        <SettingItem
-                            emoji="🔄"
-                            title="구독 상태 리셋 (Dev)"
-                            description={`현재: ${subscriptionState?.status || '로딩 중'}`}
-                            onPress={async () => {
-                                const { resetSubscription } = await import('../../../services');
-                                await resetSubscription();
-                                Alert.alert('완료', '구독 상태가 리셋되었습니다. 앱을 다시 시작하세요.');
-                            }}
-                        />
-                        <SettingItem
-                            emoji="👁️"
-                            title="차단 화면 미리보기 (Dev)"
-                            description="체험 만료 시 보이는 화면"
-                            onPress={() => setShowBlockPreview(true)}
-                        />
-                    </Card>
-                )}
+                <Card style={styles.card}>
+                    <SettingItem
+                        emoji="🧪"
+                        title="알림 테스트 (Dev)"
+                        description="푸시 알림 로직 검증"
+                        onPress={() => handleNavigate('/settings/notification-test')}
+                    />
+                    <SettingItem
+                        emoji="🔄"
+                        title="구독 상태 리셋 (Dev)"
+                        description={`현재: ${subscriptionState?.status || '로딩 중'}`}
+                        onPress={async () => {
+                            const { resetSubscription } = await import('../../../services');
+                            await resetSubscription();
+                            Alert.alert('완료', '구독 상태가 리셋되었습니다. 앱을 다시 시작하세요.');
+                        }}
+                    />
+                    <SettingItem
+                        emoji="👁️"
+                        title="차단 화면 미리보기 (Dev)"
+                        description="체험 만료 시 보이는 화면"
+                        onPress={() => setShowBlockPreview(true)}
+                    />
+                </Card>
 
                 <Card style={styles.card}>
                     <SettingItem
@@ -272,7 +270,10 @@ export default function SettingsScreen() {
             />
 
             {/* Subscription Block Screen Preview */}
-            <SubscriptionBlockScreen visible={showBlockPreview} />
+            <SubscriptionBlockScreen
+                visible={showBlockPreview}
+                onDismiss={() => setShowBlockPreview(false)}
+            />
         </SafeAreaView>
     );
 }
