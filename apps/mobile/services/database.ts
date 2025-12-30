@@ -107,6 +107,27 @@ async function initializeTables(db: SQLite.SQLiteDatabase) {
       memo TEXT,
       createdAt TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS food_preference_memos (
+      id TEXT PRIMARY KEY,
+      petId TEXT NOT NULL,
+      foodName TEXT NOT NULL,
+      foodType TEXT NOT NULL,
+      memo TEXT,
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL,
+      deletedAt TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS medication_memos (
+      id TEXT PRIMARY KEY,
+      petId TEXT NOT NULL,
+      medicationName TEXT NOT NULL,
+      memo TEXT,
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL,
+      deletedAt TEXT
+    );
   `);
 }
 

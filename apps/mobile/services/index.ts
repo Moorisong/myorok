@@ -48,4 +48,21 @@ export {
 } from './comfort';
 export type { ComfortPost, ComfortComment } from './comfort';
 
+// Reference Memos
+export {
+    getFoodPreferenceMemos,
+    addFoodPreferenceMemo,
+    updateFoodPreferenceMemo,
+    deleteFoodPreferenceMemo
+} from './foodPreferenceMemos';
+export type { FoodPreferenceMemo } from './foodPreferenceMemos';
+
+export {
+    getMedicationMemos,
+    addMedicationMemo,
+    updateMedicationMemo,
+    deleteMedicationMemo
+} from './medicationMemos';
+export type { MedicationMemo } from './medicationMemos';
+
 
