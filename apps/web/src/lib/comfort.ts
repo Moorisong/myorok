@@ -81,14 +81,18 @@ export async function cleanupOldPosts(): Promise<void> {
     await dbConnect();
     const { PostModel } = getModels();
 
-    // Create Date set to midnight in local time (or server time)
-    // The original logic was: today 00:00:00.
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayIso = today.toISOString();
+    // Get current time in Korea (UTC+9)
+    const now = new Date();
+    const koreaTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
 
-    // String comparison works for ISO dates: delete if createdAt < todayIso
-    await PostModel.deleteMany({ createdAt: { $lt: todayIso } });
+    // Set to midnight in Korea time
+    koreaTime.setHours(0, 0, 0, 0);
+
+    // Convert back to ISO string for comparison
+    const koreaMidnightIso = koreaTime.toISOString();
+
+    // Delete posts created before today's midnight (Korea time)
+    await PostModel.deleteMany({ createdAt: { $lt: koreaMidnightIso } });
 }
 
 export async function canPost(deviceId: string): Promise<{ canPost: boolean; waitMinutes?: number }> {
