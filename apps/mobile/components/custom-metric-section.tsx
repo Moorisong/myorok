@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, Alert, ScrollView } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, Alert, ScrollView, Keyboard } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import Card from './card';
 import { COLORS, ALERT_TITLES, ERROR_MESSAGES, SUCCESS_MESSAGES, VALIDATION_MESSAGES } from '../constants';
@@ -8,10 +8,15 @@ import {
     addCustomMetric,
     addMetricRecord,
     getCustomMetrics,
-    deleteCustomMetric
+    deleteCustomMetric,
+    getMetricRecordByDate,
+    updateMetricRecord
 } from '../services/customMetrics';
+import { getTodayDateString } from '../services/database';
+import { useToast } from './ToastContext';
 
 export function CustomMetricInputSection() {
+    const { showToast } = useToast();
     const [metrics, setMetrics] = useState<CustomMetric[]>([]);
     const [selectedMetricId, setSelectedMetricId] = useState<string | null>(null);
     const [isCreatingNew, setIsCreatingNew] = useState(false);
@@ -69,6 +74,38 @@ export function CustomMetricInputSection() {
             }
 
             if (targetMetricId) {
+                const todayDate = getTodayDateString();
+                const existingRecord = await getMetricRecordByDate(targetMetricId, todayDate);
+
+                if (existingRecord) {
+                    Alert.alert(
+                        ALERT_TITLES.ALERT,
+                        '이미 오늘 기록된 값이 있습니다. 덮어쓰시겠습니까?',
+                        [
+                            { text: '취소', style: 'cancel' },
+                            {
+                                text: '덮어쓰기',
+                                onPress: async () => {
+                                    try {
+                                        Keyboard.dismiss();
+                                        await updateMetricRecord(existingRecord.id, numValue);
+                                        showToast('수정되었습니다.');
+                                        // Reset form
+                                        setValue('');
+                                        setNewMetricName('');
+                                        setNewMetricUnit('');
+                                        setIsCreatingNew(false);
+                                        setSelectedMetricId(null);
+                                    } catch (e) {
+                                        Alert.alert(ALERT_TITLES.ERROR, ERROR_MESSAGES.SAVE_FAILED);
+                                    }
+                                }
+                            }
+                        ]
+                    );
+                    return;
+                }
+
                 await addMetricRecord(targetMetricId, numValue);
                 Alert.alert(ALERT_TITLES.COMPLETE, SUCCESS_MESSAGES.METRIC_SAVED);
 

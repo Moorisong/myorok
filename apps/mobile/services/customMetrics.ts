@@ -100,6 +100,23 @@ export async function getMetricRecords(metricId: string, limit = 30): Promise<Cu
     return records;
 }
 
+export async function getMetricRecordByDate(metricId: string, date: string): Promise<CustomMetricRecord | null> {
+    const db = await getDatabase();
+    const records = await db.getAllAsync<CustomMetricRecord>(
+        `SELECT * FROM custom_metric_records WHERE metricId = ? AND date = ?`,
+        [metricId, date]
+    );
+    return records.length > 0 ? records[0] : null;
+}
+
+export async function updateMetricRecord(id: string, value: number, memo?: string): Promise<void> {
+    const db = await getDatabase();
+    await db.runAsync(
+        `UPDATE custom_metric_records SET value = ?, memo = ? WHERE id = ?`,
+        [value, memo || null, id]
+    );
+}
+
 export async function getAllMetricRecords(limit = 100): Promise<(CustomMetricRecord & { metricName: string; metricUnit: string | null })[]> {
     const db = await getDatabase();
     const petId = await getSelectedPetId();
