@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 
 import { COLORS, PIN_MESSAGES } from '../../../constants';
-import { Card, PinInputModal } from '../../../components';
+import { Card, PinInputModal, SubscriptionBlockScreen } from '../../../components';
 import { useSelectedPet } from '../../../hooks/use-selected-pet';
 import { usePinLock } from '../../../hooks/use-pin-lock';
 import { getSubscriptionStatus, getTrialCountdownText } from '../../../services';
@@ -58,6 +58,7 @@ export default function SettingsScreen() {
 
     const [showPinModal, setShowPinModal] = useState(false);
     const [subscriptionState, setSubscriptionState] = useState<SubscriptionState | null>(null);
+    const [showBlockPreview, setShowBlockPreview] = useState(false);
 
     useFocusEffect(
         useCallback(() => {
@@ -224,10 +225,7 @@ export default function SettingsScreen() {
                             emoji="👁️"
                             title="차단 화면 미리보기 (Dev)"
                             description="체험 만료 시 보이는 화면"
-                            onPress={() => {
-                                // Navigate to a preview route or use router.push with modal
-                                router.push('/settings/subscription-preview' as any);
-                            }}
+                            onPress={() => setShowBlockPreview(true)}
                         />
                     </Card>
                 )}
@@ -272,6 +270,9 @@ export default function SettingsScreen() {
                 onSubmit={handlePinSubmit}
                 onCancel={() => setShowPinModal(false)}
             />
+
+            {/* Subscription Block Screen Preview */}
+            <SubscriptionBlockScreen visible={showBlockPreview} />
         </SafeAreaView>
     );
 }
