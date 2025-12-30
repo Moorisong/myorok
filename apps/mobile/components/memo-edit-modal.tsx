@@ -15,7 +15,7 @@ interface MemoEditModalProps {
     onSave: (name: string, memo: string, type?: 'dry' | 'wet') => void;
 }
 
-export function MemoEditModal({
+export default function MemoEditModal({
     visible,
     title,
     name: initialName,

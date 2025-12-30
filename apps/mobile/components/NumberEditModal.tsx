@@ -5,7 +5,6 @@ import {
     Text,
     TextInput,
     StyleSheet,
-    TouchableOpacity,
     KeyboardAvoidingView,
     Platform,
     TouchableWithoutFeedback,
@@ -134,18 +133,18 @@ export default function NumberEditModal({
                                 )}
 
                                 <View style={styles.buttonContainer}>
-                                    <TouchableOpacity
+                                    <Pressable
                                         style={[styles.button, styles.cancelButton]}
                                         onPress={onCancel}
                                     >
                                         <Text style={styles.cancelText}>취소</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
+                                    </Pressable>
+                                    <Pressable
                                         style={[styles.button, styles.saveButton]}
                                         onPress={handleSave}
                                     >
                                         <Text style={styles.saveText}>확인</Text>
-                                    </TouchableOpacity>
+                                    </Pressable>
                                 </View>
                             </View>
                         </KeyboardAvoidingView>

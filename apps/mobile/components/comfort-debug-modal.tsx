@@ -19,7 +19,7 @@ interface ComfortDebugModalProps {
     onReload: () => void;
 }
 
-export function ComfortDebugModal({
+export default function ComfortDebugModal({
     visible,
     onClose,
     onResetCooldown,

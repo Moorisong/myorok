@@ -15,7 +15,7 @@ import {
 import { getTodayDateString } from '../services/database';
 import { useToast } from './ToastContext';
 
-export function CustomMetricInputSection() {
+export default function CustomMetricInputSection() {
     const { showToast } = useToast();
     const [metrics, setMetrics] = useState<CustomMetric[]>([]);
     const [selectedMetricId, setSelectedMetricId] = useState<string | null>(null);

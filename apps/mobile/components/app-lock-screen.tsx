@@ -3,7 +3,7 @@ import {
     View,
     Text,
     StyleSheet,
-    TouchableOpacity,
+    Pressable,
     Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -94,13 +94,13 @@ export default function AppLockScreen() {
                                 {row.map((item) => {
                                     if (item === 'delete') {
                                         return (
-                                            <TouchableOpacity
+                                            <Pressable
                                                 key={item}
                                                 style={styles.keyButton}
                                                 onPress={handleDelete}
                                             >
                                                 <Feather name="delete" size={24} color={COLORS.textPrimary} />
-                                            </TouchableOpacity>
+                                            </Pressable>
                                         );
                                     }
                                     if (item === 'fingereprint') {
@@ -111,13 +111,13 @@ export default function AppLockScreen() {
                                         );
                                     }
                                     return (
-                                        <TouchableOpacity
+                                        <Pressable
                                             key={item}
                                             style={styles.keyButton}
                                             onPress={() => handleNumberPress(item)}
                                         >
                                             <Text style={styles.keyText}>{item}</Text>
-                                        </TouchableOpacity>
+                                        </Pressable>
                                     );
                                 })}
                             </View>

@@ -20,7 +20,7 @@ interface PinInputModalProps {
     showCancel?: boolean;
 }
 
-export function PinInputModal({
+export default function PinInputModal({
     visible,
     title,
     description,

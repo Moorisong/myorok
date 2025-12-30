@@ -5,7 +5,6 @@ import {
     Modal,
     StyleSheet,
     Pressable,
-    TouchableOpacity,
     TouchableWithoutFeedback,
     ActivityIndicator,
     Alert,
@@ -21,7 +20,7 @@ interface ComfortReportModalProps {
     onClose: () => void;
 }
 
-export function ComfortReportModal({
+export default function ComfortReportModal({
     visible,
     postId,
     onClose,
@@ -66,7 +65,7 @@ export function ComfortReportModal({
 
                             <View style={styles.reasonsContainer}>
                                 {COMFORT_MESSAGES.REPORT_REASONS.map((reason, index) => (
-                                    <TouchableOpacity
+                                    <Pressable
                                         key={index}
                                         style={styles.reasonItem}
                                         onPress={() => handleReport(reason)}
@@ -74,7 +73,7 @@ export function ComfortReportModal({
                                     >
                                         <Text style={styles.reasonText}>{reason}</Text>
                                         <Feather name="chevron-right" size={20} color={COLORS.textSecondary} />
-                                    </TouchableOpacity>
+                                    </Pressable>
                                 ))}
                             </View>
 

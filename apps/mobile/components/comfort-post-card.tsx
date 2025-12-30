@@ -14,7 +14,7 @@ interface ComfortPostCardProps {
     onUpdate?: () => void;
 }
 
-export function ComfortPostCard({
+export default function ComfortPostCard({
     post,
     onLike,
     onDelete,

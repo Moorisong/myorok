@@ -3,7 +3,7 @@ import {
     View,
     Text,
     StyleSheet,
-    TouchableOpacity,
+    Pressable,
     Animated,
     Platform,
 } from 'react-native';
@@ -69,15 +69,17 @@ export default function Toast({ visible, message, onUndo }: ToastProps) {
             pointerEvents={visible ? 'auto' : 'none'} // Control touch events visibility
         >
             <Text style={styles.message}>{message}</Text>
-            <TouchableOpacity
-                onPress={onUndo} // Keep onPress but add delayPressIn=0
+            <Pressable
+                onPress={onUndo}
                 delayPressIn={0}
-                style={styles.undoButton}
-                hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }} // Larger hitSlop
-                activeOpacity={0.6}
+                style={({ pressed }) => [
+                    styles.undoButton,
+                    pressed && { opacity: 0.6 }
+                ]}
+                hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
             >
                 <Text style={styles.undoText}>실행 취소</Text>
-            </TouchableOpacity>
+            </Pressable>
         </Animated.View>
     );
 }

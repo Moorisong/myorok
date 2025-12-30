@@ -29,7 +29,7 @@ interface ComfortComposeModalProps {
 
 const MAX_LENGTH = 500;
 
-export function ComfortComposeModal({
+export default function ComfortComposeModal({
     visible,
     onClose,
     onSubmit,
