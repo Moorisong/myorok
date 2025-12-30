@@ -48,15 +48,7 @@ async function initializeTables(db: SQLite.SQLiteDatabase) {
       UNIQUE(petId, date)
     );
 
-    CREATE TABLE IF NOT EXISTS food_records (
-      id TEXT PRIMARY KEY,
-      petId TEXT NOT NULL,
-      date TEXT NOT NULL,
-      foodType TEXT NOT NULL,
-      preference TEXT NOT NULL,
-      comment TEXT,
-      createdAt TEXT NOT NULL
-    );
+
 
     CREATE TABLE IF NOT EXISTS supplements (
       id TEXT PRIMARY KEY,
@@ -73,13 +65,7 @@ async function initializeTables(db: SQLite.SQLiteDatabase) {
       taken INTEGER NOT NULL DEFAULT 0
     );
 
-    CREATE TABLE IF NOT EXISTS hospital_records (
-      id TEXT PRIMARY KEY,
-      petId TEXT NOT NULL,
-      date TEXT NOT NULL,
-      memo TEXT,
-      createdAt TEXT NOT NULL
-    );
+
 
     CREATE TABLE IF NOT EXISTS custom_metrics (
       id TEXT PRIMARY KEY,
@@ -108,16 +94,7 @@ async function initializeTables(db: SQLite.SQLiteDatabase) {
       createdAt TEXT NOT NULL
     );
 
-    CREATE TABLE IF NOT EXISTS food_preference_memos (
-      id TEXT PRIMARY KEY,
-      petId TEXT NOT NULL,
-      foodName TEXT NOT NULL,
-      foodType TEXT NOT NULL,
-      memo TEXT,
-      createdAt TEXT NOT NULL,
-      updatedAt TEXT NOT NULL,
-      deletedAt TEXT
-    );
+
 
     CREATE TABLE IF NOT EXISTS medication_memos (
       id TEXT PRIMARY KEY,
@@ -159,30 +136,7 @@ async function runMigrations(db: SQLite.SQLiteDatabase) {
       console.log('waterIntake column added successfully');
     }
 
-    // Check if supplementName column exists in supplement_records
-    const supplementRecordsInfo = await db.getAllAsync<{ name: string }>(
-      `PRAGMA table_info(supplement_records)`
-    );
 
-    const hasSupplementName = supplementRecordsInfo.some(col => col.name === 'supplementName');
-
-    if (!hasSupplementName) {
-      console.log('Adding supplementName column to supplement_records table...');
-      await db.execAsync(`
-        ALTER TABLE supplement_records ADD COLUMN supplementName TEXT;
-      `);
-
-      // Populate existing records with current supplement names
-      await db.execAsync(`
-        UPDATE supplement_records
-        SET supplementName = (
-          SELECT name FROM supplements WHERE supplements.id = supplement_records.supplementId
-        )
-        WHERE supplementName IS NULL;
-      `);
-
-      console.log('supplementName column added and populated successfully');
-    }
 
     // Check if deletedAt column exists in supplements
     const supplementsInfo = await db.getAllAsync<{ name: string }>(

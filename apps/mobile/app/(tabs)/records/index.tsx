@@ -38,24 +38,14 @@ export default function RecordsScreen() {
             </View>
 
             <Card style={styles.card}>
-                <MenuItem
-                    emoji="🍽️"
-                    title="사료 기호성"
-                    description="사료 종류별 반응 기록"
-                    onPress={() => router.push('/(tabs)/records/food')}
-                />
+
                 <MenuItem
                     emoji="💊"
                     title="약 / 영양제"
                     description="복용 기록 관리"
                     onPress={() => router.push('/(tabs)/records/medicine')}
                 />
-                <MenuItem
-                    emoji="🏥"
-                    title="병원 기록"
-                    description="진료 및 처방 내역"
-                    onPress={() => router.push('/(tabs)/records/hospital')}
-                />
+
                 <MenuItem
                     emoji="💉"
                     title="수액 기록"
