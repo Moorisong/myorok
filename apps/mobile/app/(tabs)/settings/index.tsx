@@ -210,6 +210,16 @@ export default function SettingsScreen() {
                             description="푸시 알림 로직 검증"
                             onPress={() => handleNavigate('/settings/notification-test')}
                         />
+                        <SettingItem
+                            emoji="🔄"
+                            title="구독 상태 리셋 (Dev)"
+                            description={`현재: ${subscriptionState?.status || '로딩 중'}`}
+                            onPress={async () => {
+                                const { resetSubscription } = await import('../../../services');
+                                await resetSubscription();
+                                Alert.alert('완료', '구독 상태가 리셋되었습니다. 앱을 다시 시작하세요.');
+                            }}
+                        />
                     </Card>
                 )}
 
