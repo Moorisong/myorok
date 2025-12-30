@@ -72,7 +72,6 @@ export default function SummaryChartScreen() {
 
     // v1.2 State
     const [period, setPeriod] = useState<Period>('15d');
-    const [isPro, setIsPro] = useState(false); // Mock Pro Status
     const [isLoading, setIsLoading] = useState(false);
 
     useFocusEffect(
@@ -342,12 +341,6 @@ export default function SummaryChartScreen() {
     };
 
     const handlePeriodChange = (newPeriod: Period) => {
-        if (!isPro && newPeriod !== '15d') {
-            alert('전체 기간 조회는 Pro 버전에서 가능합니다.\n(임시: Pro 모드가 활성화됩니다)');
-            setIsPro(true);
-            setPeriod(newPeriod);
-            return;
-        }
         setPeriod(newPeriod);
     };
 

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -6,9 +6,12 @@ import { Feather } from '@expo/vector-icons';
 
 import { COLORS } from '../../../constants';
 import { Card, Button } from '../../../components';
+import { getSubscriptionStatus, getTrialCountdownText, activateSubscription } from '../../../services';
+import type { SubscriptionState } from '../../../services';
 
 const FEATURES = [
-    { emoji: '📊', title: '전체 기간 차트', description: '과거 기록까지 모두 확인' },
+    { emoji: '📝', title: '모든 기록 기능', description: '배변/구토/사료/약/병원 기록' },
+    { emoji: '📊', title: '전체 기간 차트', description: '과거부터 현재까지 모든 데이터' },
     { emoji: '🏥', title: '병원용 차트', description: '진료 시 보여줄 수 있는 전문 차트' },
     { emoji: '📈', title: '무제한 커스텀 수치', description: '혈액검사 수치를 무제한으로 추적' },
     { emoji: '☁️', title: '클라우드 백업', description: '안전한 데이터 보관' },
@@ -16,10 +19,43 @@ const FEATURES = [
 
 export default function ProScreen() {
     const router = useRouter();
+    const [subscriptionState, setSubscriptionState] = useState<SubscriptionState | null>(null);
 
-    const handlePurchase = () => {
-        // TODO: In-App Purchase
+    useEffect(() => {
+        loadSubscriptionStatus();
+    }, []);
+
+    const loadSubscriptionStatus = async () => {
+        const status = await getSubscriptionStatus();
+        setSubscriptionState(status);
     };
+
+    const handlePurchase = async () => {
+        // TODO: Implement actual In-App Purchase
+        // For now, mock activation
+        try {
+            await activateSubscription();
+            await loadSubscriptionStatus();
+            alert('구독이 활성화되었습니다!');
+            router.back();
+        } catch (error) {
+            console.error('Purchase failed:', error);
+        }
+    };
+
+    const getStatusMessage = () => {
+        if (!subscriptionState) return '';
+
+        if (subscriptionState.status === 'trial') {
+            return `${getTrialCountdownText(subscriptionState.daysRemaining || 0)}`;
+        } else if (subscriptionState.status === 'active') {
+            return '구독 중';
+        } else {
+            return '무료 체험 종료';
+        }
+    };
+
+    const isSubscribed = subscriptionState?.status === 'active';
 
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
@@ -31,29 +67,38 @@ export default function ProScreen() {
                 >
                     <Feather name="arrow-left" size={24} color={COLORS.textPrimary} />
                 </Pressable>
-                <Text style={styles.headerTitle}>Pro 업그레이드</Text>
+                <Text style={styles.headerTitle}>구독 관리</Text>
                 <View style={styles.placeholder} />
             </View>
 
             <ScrollView style={styles.content}>
+                {/* Status Badge */}
+                {subscriptionState && (
+                    <View style={styles.statusBadge}>
+                        <Text style={styles.statusText}>{getStatusMessage()}</Text>
+                    </View>
+                )}
+
                 <View style={styles.hero}>
                     <Text style={styles.heroEmoji}>⭐</Text>
-                    <Text style={styles.heroTitle}>묘록 Pro</Text>
+                    <Text style={styles.heroTitle}>묘록 구독</Text>
                     <Text style={styles.heroSubtitle}>
-                        아이의 소중한 기록을{'\n'}완벽하게 관리하세요
+                        반려묘의 소중한 기록을{'\n'}완벽하게 관리하세요
                     </Text>
                 </View>
 
-                <Card style={styles.card}>
-                    <Text style={styles.infoTitle}>📦 이미 데이터는 저장되어 있습니다</Text>
-                    <Text style={styles.infoText}>
-                        무료 플랜에서 기록한 모든 데이터는 15일이 지나도 삭제되지 않습니다.
-                        Pro를 구매하시면 과거 데이터를 바로 확인하실 수 있습니다.
-                    </Text>
-                </Card>
+                {!isSubscribed && (
+                    <Card style={styles.card}>
+                        <Text style={styles.infoTitle}>📦 데이터는 안전하게 보관됩니다</Text>
+                        <Text style={styles.infoText}>
+                            무료 체험 중 기록한 모든 데이터는 삭제되지 않습니다.
+                            구독하시면 언제든지 다시 확인하실 수 있습니다.
+                        </Text>
+                    </Card>
+                )}
 
                 <Card style={styles.card}>
-                    <Text style={styles.featuresTitle}>Pro 기능</Text>
+                    <Text style={styles.featuresTitle}>이용 가능한 모든 기능</Text>
                     {FEATURES.map((feature, index) => (
                         <View key={index} style={styles.featureItem}>
                             <Text style={styles.featureEmoji}>{feature.emoji}</Text>
@@ -65,21 +110,35 @@ export default function ProScreen() {
                     ))}
                 </Card>
 
-                <View style={styles.priceBox}>
-                    <Text style={styles.priceLabel}>평생 이용</Text>
-                    <Text style={styles.price}>₩9,900</Text>
-                    <Text style={styles.priceNote}>1회 결제, 구독 아님</Text>
-                </View>
+                {!isSubscribed && (
+                    <>
+                        <View style={styles.priceBox}>
+                            <Text style={styles.priceLabel}>월 구독료</Text>
+                            <Text style={styles.price}>₩3,500</Text>
+                            <Text style={styles.priceNote}>하루 100원도 안 되는 반려동물 기록</Text>
+                        </View>
 
-                <Button
-                    title="Pro 구매하기"
-                    onPress={handlePurchase}
-                    style={styles.purchaseButton}
-                />
+                        <Button
+                            title="구독하기"
+                            onPress={handlePurchase}
+                            style={styles.purchaseButton}
+                        />
 
-                <Text style={styles.disclaimer}>
-                    구매 시 Google Play 계정으로 결제됩니다.
-                </Text>
+                        <Text style={styles.disclaimer}>
+                            구매 시 Google Play 계정으로 결제됩니다.{'\n'}
+                            언제든지 해지 가능합니다.
+                        </Text>
+                    </>
+                )}
+
+                {isSubscribed && (
+                    <Card style={styles.card}>
+                        <Text style={styles.subscribedTitle}>✅ 구독 활성화</Text>
+                        <Text style={styles.subscribedText}>
+                            모든 기능을 무제한으로 사용하실 수 있습니다.
+                        </Text>
+                    </Card>
+                )}
 
                 <View style={styles.bottomPadding} />
             </ScrollView>
@@ -115,6 +174,19 @@ const styles = StyleSheet.create({
     },
     content: {
         flex: 1,
+    },
+    statusBadge: {
+        alignSelf: 'center',
+        backgroundColor: COLORS.primary + '20',
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 20,
+        marginTop: 16,
+    },
+    statusText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: COLORS.primary,
     },
     hero: {
         alignItems: 'center',
@@ -210,8 +282,20 @@ const styles = StyleSheet.create({
         color: COLORS.textSecondary,
         textAlign: 'center',
         marginTop: 12,
+        lineHeight: 18,
+    },
+    subscribedTitle: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: COLORS.primary,
+        marginBottom: 8,
+    },
+    subscribedText: {
+        fontSize: 14,
+        color: COLORS.textSecondary,
     },
     bottomPadding: {
         height: 40,
     },
 });
+

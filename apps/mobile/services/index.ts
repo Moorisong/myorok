@@ -65,4 +65,14 @@ export {
 } from './medicationMemos';
 export type { MedicationMemo } from './medicationMemos';
 
-
+// Subscription service
+export {
+    initializeSubscription,
+    getSubscriptionStatus,
+    isAppAccessAllowed,
+    activateSubscription,
+    shouldShowTrialWarning,
+    getTrialCountdownText,
+    resetSubscription,
+} from './subscription';
+export type { SubscriptionStatus, SubscriptionState } from './subscription';

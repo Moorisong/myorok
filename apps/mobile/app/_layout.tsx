@@ -7,18 +7,28 @@ import { COLORS } from '../constants';
 import { PetProvider } from '../hooks/use-selected-pet';
 import { PinLockProvider } from '../hooks/use-pin-lock';
 import { ToastProvider } from '../components/ToastContext';
-import { AppLockScreen } from '../components';
-import { useEffect } from 'react';
+import { AppLockScreen, SubscriptionBlockScreen } from '../components';
+import { useEffect, useState } from 'react';
 import { registerForPushNotificationsAsync, sendTokenToBackend, scheduleInactivityNotification } from '../services/NotificationService';
 import { getDeviceId } from '../services/pin';
+import { initializeSubscription, isAppAccessAllowed } from '../services';
 import Constants from 'expo-constants';
 
 export default function RootLayout() {
+  const [subscriptionBlocked, setSubscriptionBlocked] = useState(false);
+
   useEffect(() => {
     let subscription: any;
 
     (async () => {
       try {
+        // Initialize subscription on first launch
+        await initializeSubscription();
+
+        // Check if app access is allowed
+        const accessAllowed = await isAppAccessAllowed();
+        setSubscriptionBlocked(!accessAllowed);
+
         await scheduleInactivityNotification();
         const token = await registerForPushNotificationsAsync();
         if (token) {
@@ -61,6 +71,7 @@ export default function RootLayout() {
                 <Stack.Screen name="(tabs)" />
               </Stack>
               <AppLockScreen />
+              <SubscriptionBlockScreen visible={subscriptionBlocked} />
             </ToastProvider>
           </PinLockProvider>
         </PetProvider>

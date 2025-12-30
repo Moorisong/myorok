@@ -12,6 +12,8 @@ export { default as FluidInputSection } from './fluid-input-section';
 export { CustomMetricInputSection } from './custom-metric-section';
 export { PinInputModal } from './pin-input-modal';
 export { default as AppLockScreen } from './app-lock-screen';
+export { default as TrialBanner } from './trial-banner';
+export { default as SubscriptionBlockScreen } from './subscription-block-screen';
 export { ComfortPostCard } from './comfort-post-card';
 export { ComfortComposeModal } from './comfort-compose-modal';
 export { ComfortDebugModal } from './comfort-debug-modal';

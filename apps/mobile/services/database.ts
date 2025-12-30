@@ -128,6 +128,16 @@ async function initializeTables(db: SQLite.SQLiteDatabase) {
       updatedAt TEXT NOT NULL,
       deletedAt TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS subscription_state (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      trialStartDate TEXT NOT NULL,
+      subscriptionStatus TEXT NOT NULL,
+      subscriptionStartDate TEXT,
+      subscriptionExpiryDate TEXT,
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL
+    );
   `);
 }
 

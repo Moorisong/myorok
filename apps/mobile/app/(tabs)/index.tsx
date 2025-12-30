@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     View,
     Text,
@@ -10,6 +10,7 @@ import {
     Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 
 import {
     COLORS,
@@ -25,11 +26,15 @@ import {
     SupplementChecklist,
     FluidInputSection,
     CustomMetricInputSection,
+    TrialBanner,
 } from '../../components';
 import PetSelector from '../../components/pet-selector';
 import { useTodayScreen } from '../../hooks/use-today-screen';
+import { getSubscriptionStatus } from '../../services';
 
 export default function TodayScreen() {
+    const router = useRouter();
+    const [trialDaysRemaining, setTrialDaysRemaining] = useState<number | null>(null);
     const {
         // States
         peeCount,
@@ -78,6 +83,21 @@ export default function TodayScreen() {
     const dateString = `${today.getMonth() + 1}월 ${today.getDate()}일`;
     const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
 
+    // Fetch subscription status
+    useEffect(() => {
+        (async () => {
+            const status = await getSubscriptionStatus();
+            if (status.status === 'trial' && status.daysRemaining !== undefined) {
+                setTrialDaysRemaining(status.daysRemaining);
+            }
+        })();
+    }, []);
+
+    const handleTrialBannerPress = () => {
+        router.push('/(tabs)/settings/pro');
+    };
+
+
 
 
     if (loading) {
@@ -107,6 +127,16 @@ export default function TodayScreen() {
                     showsVerticalScrollIndicator={false}
                     keyboardShouldPersistTaps="handled"
                 >
+                    {/* Trial Banner */}
+                    {trialDaysRemaining !== null && trialDaysRemaining > 0 && (
+                        <View style={styles.trialBannerContainer}>
+                            <TrialBanner
+                                daysRemaining={trialDaysRemaining}
+                                onPress={handleTrialBannerPress}
+                            />
+                        </View>
+                    )}
+
                     {/* Header */}
                     <View style={styles.header}>
                         <Text style={styles.dateText}>{dateString}</Text>
@@ -285,6 +315,9 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.background,
         borderBottomWidth: 1,
         borderBottomColor: COLORS.border,
+    },
+    trialBannerContainer: {
+        marginTop: 12,
     },
     section: {
         backgroundColor: COLORS.surface,
