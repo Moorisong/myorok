@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../../constants';
 import { Header, Card } from '../../../components';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useRef, useEffect } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { getRecentDailyRecords } from '../../../services/dailyRecords';
 import { getRecentSupplementHistory } from '../../../services/supplements';
@@ -425,6 +425,17 @@ export default function SummaryChartScreen() {
     };
 
 
+    const scrollViewRef = useRef<ScrollView>(null);
+
+    // Scroll to end when data loads
+    useEffect(() => {
+        if (chartData.length > 0 && scrollViewRef.current) {
+            setTimeout(() => {
+                scrollViewRef.current?.scrollToEnd({ animated: false });
+            }, 100);
+        }
+    }, [chartData]);
+
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
             <Header title="병원용 요약 차트" showBack />
@@ -459,7 +470,12 @@ export default function SummaryChartScreen() {
                     </Text>
 
                     {/* Basic Bar Chart */}
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    <ScrollView
+                        ref={scrollViewRef}
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={{ paddingRight: 20 }}
+                    >
                         <View style={[styles.chart, { width: Math.max(chartData.length * 40, 300) }]}>
                             {chartData.length === 0 ? (
                                 <View style={styles.emptyContainer}>
