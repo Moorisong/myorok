@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { dbConnect, getModels, generateNickname, generateId, filterBadWords } from '@/lib/comfort';
 import { Post } from '@/lib/comfort';
 
+import NotificationState from '@/models/NotificationState';
+import Device from '@/models/Device';
+import { sendPushNotification } from '@/lib/notification';
+// ... (keep existing code)
+
+
 // 욕설 샘플 목록
 const BAD_WORDS_SAMPLES = [
     '씨발', '개새끼', '존나', '미친', '병신',
@@ -32,7 +38,10 @@ function generateSampleContent() {
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { action, deviceId, hours } = body;
+        let { action } = body;
+        const { deviceId, hours } = body;
+        action = action?.trim();
+        console.log(`[DebugAPI] Received action: '${action}'`, body);
 
         await dbConnect();
         const { PostModel } = getModels();
@@ -114,6 +123,63 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ success: true, message: '작성 시간이 현재로 리셋되었습니다. (쿨타임 적용)' });
             }
             return NextResponse.json({ success: false, error: '작성한 게시글이 없습니다.' }, { status: 404 });
+        }
+
+        if (action === 'get-notification-state') {
+            const { type } = body;
+            const state = await NotificationState.findOne({ deviceId, type });
+            return NextResponse.json({ success: true, state });
+        }
+
+        if (action === 'set-notification-state') {
+            const { type, lastSentAt, unreadCount } = body;
+            const updateData: any = {};
+            if (lastSentAt !== undefined) updateData.lastSentAt = lastSentAt;
+            if (unreadCount !== undefined) updateData.unreadCount = unreadCount;
+
+            const state = await NotificationState.findOneAndUpdate(
+                { deviceId, type },
+                { $set: updateData },
+                { upsert: true, new: true }
+            );
+            return NextResponse.json({ success: true, state });
+        }
+
+        if (action === 'register-dummy-device') {
+            const { deviceId } = body;
+            if (!deviceId) {
+                return NextResponse.json({ success: false, error: 'Device ID is missing' }, { status: 400 });
+            }
+
+            try {
+                const dummyToken = `ExponentPushToken[dummy-${deviceId}]`;
+
+                await Device.findOneAndUpdate(
+                    { deviceId },
+                    {
+                        $set: {
+                            pushToken: dummyToken,
+                            updatedAt: new Date()
+                        },
+                        $setOnInsert: { createdAt: new Date() }
+                    },
+                    { upsert: true, new: true }
+                );
+
+                console.log(`[DebugAPI] Registered dummy device: ${deviceId} -> ${dummyToken}`);
+                return NextResponse.json({ success: true, message: '가짜 기기가 등록되었습니다.', token: dummyToken });
+            } catch (err) {
+                console.error('[DebugAPI] Registration error:', err);
+                return NextResponse.json({ success: false, error: `DB Error: ${(err as any).message}` }, { status: 500 });
+            }
+        }
+
+        if (action === 'simulate-push') {
+            const { type, title, body: pushBody, options } = body;
+            const result = await sendPushNotification(deviceId, title, pushBody, { type }, options);
+            // Fetch updated state to return
+            const state = await NotificationState.findOne({ deviceId, type });
+            return NextResponse.json({ success: true, state, pushResult: result });
         }
 
         return NextResponse.json({ success: false, error: '알 수 없는 액션입니다.' }, { status: 400 });

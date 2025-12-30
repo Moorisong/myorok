@@ -14,6 +14,7 @@ import { Gesture, GestureDetector, Directions } from 'react-native-gesture-handl
 import { Feather } from '@expo/vector-icons';
 import { COLORS } from '../../constants';
 import { CalendarGrid, DaySummaryCard } from '../../components';
+import { useToast } from '../../components/ToastContext';
 import { getMonthRecords, getDayDetail, CalendarDayData, getTodayDateString } from '../../services';
 import { useSelectedPet } from '../../hooks/use-selected-pet';
 
@@ -24,6 +25,7 @@ const FREE_DAYS_LIMIT = 15;
 
 export default function CalendarScreen() {
     const router = useRouter();
+    const { showToast } = useToast();
     const { selectedPetId, selectedPet } = useSelectedPet();
     const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
     const [currentMonth, setCurrentMonth] = useState(new Date().getMonth() + 1);
@@ -154,6 +156,11 @@ export default function CalendarScreen() {
 
     const handleDateSelect = async (dateStr: string) => {
         setSelectedDate(dateStr);
+
+        if (!isPremium && !isWithinFreeLimit(dateStr)) {
+            showToast('프리미엄에서 전체 기록을 확인할 수 있어요.');
+        }
+
         try {
             const detail = await getDayDetail(dateStr);
             setSelectedDayData(detail);

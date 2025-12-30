@@ -63,6 +63,36 @@
 }
 ```
 
+### 4.2 notifications (v1 추가)
+
+```json
+{
+  "_id": "ObjectId",
+  "deviceId": "string",
+  "type": "string", // 'COMMENT' | 'SYSTEM'
+  "title": "string",
+  "body": "string",
+  "isRead": "boolean",
+  "createdAt": "ISODate"
+}
+```
+
+### 4.3 devices (v1 추가)
+
+```json
+{
+  "_id": "ObjectId",
+  "deviceId": "string",
+  "pushToken": "string", // Expo Push Token
+  "updatedAt": "ISODate"
+}
+```
+
+| 규칙 | 설명 |
+|------|------|
+| deviceId 당 | 1개 문서 |
+| 백업 시 | overwrite |
+
 | 규칙 | 설명 |
 |------|------|
 | deviceId 당 | 1개 문서 |

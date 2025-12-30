@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPostById, savePost, generateId, filterBadWords, getModelsAsync, canComment, generateNickname } from '@/lib/comfort';
+import { sendPushNotification } from '@/lib/notification';
 
 interface RouteParams {
     params: Promise<{ id: string }>;
@@ -126,6 +127,17 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         // Mongoose document array push
         post.comments.push(newComment);
         await savePost(post);
+
+        // 푸시 알림 전송 (본인 글이 아닐 경우)
+        if (post.deviceId !== deviceId) {
+            sendPushNotification(
+                post.deviceId,
+                '새 댓글이 달렸어요 💬',
+                '작성하신 글에 새로운 댓글이 등록되었습니다.',
+                { type: 'COMMENT', postId: id, commentId: newComment.id },
+                { cooldownMs: 3 * 60 * 60 * 1000, type: 'COMFORT_COMMENT' }
+            ).catch(err => console.error('Push Error:', err));
+        }
 
         return NextResponse.json({
             success: true,

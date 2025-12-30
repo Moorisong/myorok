@@ -193,6 +193,15 @@ export default function SettingsScreen() {
 
                 <Card style={styles.card}>
                     <SettingItem
+                        emoji="🧪"
+                        title="알림 테스트 (Dev)"
+                        description="푸시 알림 로직 검증"
+                        onPress={() => handleNavigate('/settings/notification-test')}
+                    />
+                </Card>
+
+                <Card style={styles.card}>
+                    <SettingItem
                         emoji="🗑️"
                         title="데이터 초기화"
                         description="모든 기록을 삭제합니다"
