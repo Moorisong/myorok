@@ -87,15 +87,11 @@ export default function TodayScreen() {
     useFocusEffect(
         useCallback(() => {
             (async () => {
-                console.log('[Home] Fetching subscription status...');
                 const status = await getSubscriptionStatus();
-                console.log('[Home] Got status:', status);
 
                 if (status.status === 'trial' && status.daysRemaining !== undefined) {
-                    console.log('[Home] Setting trial days:', status.daysRemaining);
                     setTrialDaysRemaining(status.daysRemaining);
                 } else {
-                    console.log('[Home] Not trial or no days remaining, hiding banner');
                     setTrialDaysRemaining(null);
                 }
             })();
