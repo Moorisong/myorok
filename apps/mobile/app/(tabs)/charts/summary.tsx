@@ -147,25 +147,99 @@ export default function SummaryChartScreen() {
             const medicines = await getRecentSupplementHistory(Math.max(days, daysToFetch));
             const fluids = await getRecentFluidHistory(days);
 
-            // Process Chart Data (Daily Records - remains same logic but more days)
-            const processedData = records.map(r => ({
-                date: r.date.substring(5).replace('-', '/'),
-                poop: r.poopCount,
-                diarrhea: r.diarrheaCount,
-                vomit: r.vomitCount
-            }));
+            // Process Chart Data (Daily Records - Fill empty dates)
+            const recordMap = new Map<string, typeof records[0]>();
+            records.forEach(r => recordMap.set(r.date, r));
 
-            // Process Hydration Data
-            const hydrationMap = new Map<string, { water: number, force: number, fluid: number }>();
-            records.forEach(r => {
-                hydrationMap.set(r.date, {
-                    water: 0,
-                    force: 0,
-                    fluid: 0
+            const processedData: ChartData[] = [];
+
+            // 날짜 배열(chartDates)을 기준으로 데이터 매핑 (없으면 0)
+            if (currentPeriod === '15d' || currentPeriod === '1m') {
+                for (let i = 0; i < dateObjs.length; i++) {
+                    const dateStr = dateObjs[i];
+                    const record = recordMap.get(dateStr);
+
+                    processedData.push({
+                        date: dates[i], // "MM/DD"
+                        poop: record?.poopCount || 0,
+                        diarrhea: record?.diarrheaCount || 0,
+                        vomit: record?.vomitCount || 0
+                    });
+                }
+            } else if (currentPeriod === '3m') {
+                // 3개월은 주(Week) 단위 집계가 필요할 수 있으나, 일단은 기존 records를 모두 표시하거나
+                // 날짜를 모두 채우면 너무 많으니(90개), 기존 방식을 유지하되 데이터가 있는 날만 표시?
+                // 아니면 3개월도 일별로 보여주되 스크롤하게 할까?
+                // 기획상 3개월은 'Week' 단위가 아님 (약은 Week지만, 배변/수분은 일별 로그일 수 있음)
+                // 일단 90일치를 다 생성해서 스크롤되게 합니다.
+
+                // 3m일 때 dateObjs를 생성하지 않았으므로 여기서 생성
+                const todayDate = new Date();
+                for (let i = days - 1; i >= 0; i--) {
+                    const d = new Date();
+                    d.setDate(todayDate.getDate() - i);
+
+                    const yyyy = d.getFullYear();
+                    const mm = String(d.getMonth() + 1).padStart(2, '0');
+                    const dd = String(d.getDate()).padStart(2, '0');
+                    const dateStr = `${yyyy}-${mm}-${dd}`;
+                    const displayDate = `${Number(mm)}/${Number(dd)}`;
+
+                    const record = recordMap.get(dateStr);
+                    processedData.push({
+                        date: displayDate,
+                        poop: record?.poopCount || 0,
+                        diarrhea: record?.diarrheaCount || 0,
+                        vomit: record?.vomitCount || 0
+                    });
+                }
+            } else {
+                // All: 데이터가 너무 많으므로 있는 데이터만 표시 (기존 유지)
+                records.forEach(r => {
+                    processedData.push({
+                        date: r.date.substring(5).replace('-', '/'),
+                        poop: r.poopCount,
+                        diarrhea: r.diarrheaCount,
+                        vomit: r.vomitCount
+                    });
                 });
+            }
+
+            // Process Hydration Data (Fill empty dates)
+            const hydrationMap = new Map<string, { water: number, force: number, fluid: number }>();
+
+            // Initialize map with all dates first (for 15d/1m/3m)
+            if (currentPeriod !== 'all') {
+                // Recalculate date range if needed (reusing logic above is better)
+                const todayDate = new Date();
+                for (let i = days - 1; i >= 0; i--) {
+                    const d = new Date();
+                    d.setDate(todayDate.getDate() - i);
+                    const yyyy = d.getFullYear();
+                    const mm = String(d.getMonth() + 1).padStart(2, '0');
+                    const dd = String(d.getDate()).padStart(2, '0');
+                    const dateStr = `${yyyy}-${mm}-${dd}`;
+
+                    hydrationMap.set(dateStr, { water: 0, force: 0, fluid: 0 });
+                }
+            }
+
+            // Fill actual data
+            records.forEach(r => {
+                // If 'all', we create entry. If not, we update existing (or create if missing)
+                if (!hydrationMap.has(r.date)) {
+                    hydrationMap.set(r.date, { water: 0, force: 0, fluid: 0 });
+                }
+                const current = hydrationMap.get(r.date)!;
+                // Water from daily record (if we track it there)
+                // current.water += r.waterIntake || 0; // dailyRecord doesn't have waterIntake in ChartData interface but interface has it.
             });
 
             fluids.forEach(f => {
+                if (!hydrationMap.has(f.date) && currentPeriod === 'all') {
+                    hydrationMap.set(f.date, { water: 0, force: 0, fluid: 0 });
+                }
+
                 if (hydrationMap.has(f.date)) {
                     const current = hydrationMap.get(f.date)!;
                     if (f.fluidType === 'force') {
@@ -176,10 +250,12 @@ export default function SummaryChartScreen() {
                 }
             });
 
-            const processedHydration = Array.from(hydrationMap.entries()).map(([date, data]) => ({
-                date: date.substring(5).replace('-', '/'),
-                ...data
-            })).sort((a, b) => a.date.localeCompare(b.date));
+            const processedHydration = Array.from(hydrationMap.entries())
+                .sort((a, b) => a[0].localeCompare(b[0])) // Sort by date key
+                .map(([date, data]) => ({
+                    date: date.substring(5).replace('-', '/'),
+                    ...data
+                }));
 
             // Calculate Max Values
             const maxVal = Math.max(...processedData.map(d => d.poop + d.diarrhea + d.vomit), 5);
