@@ -25,9 +25,14 @@ export default function RootLayout() {
         // Initialize subscription on first launch
         await initializeSubscription();
 
-        // Check if app access is allowed
-        const accessAllowed = await isAppAccessAllowed();
-        setSubscriptionBlocked(!accessAllowed);
+        // Check if app access is allowed (skip blocking in dev mode)
+        if (!__DEV__) {
+          const accessAllowed = await isAppAccessAllowed();
+          setSubscriptionBlocked(!accessAllowed);
+        } else {
+          // In dev mode, always allow access
+          setSubscriptionBlocked(false);
+        }
 
         await scheduleInactivityNotification();
         const token = await registerForPushNotificationsAsync();
