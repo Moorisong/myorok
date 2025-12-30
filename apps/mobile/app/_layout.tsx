@@ -24,18 +24,6 @@ export default function RootLayout() {
                 }}
               >
                 <Stack.Screen name="(tabs)" />
-                <Stack.Screen
-                  name="pro"
-                  options={{
-                    presentation: 'modal',
-                  }}
-                />
-                <Stack.Screen
-                  name="about"
-                  options={{
-                    presentation: 'modal',
-                  }}
-                />
               </Stack>
               <AppLockScreen />
             </ToastProvider>

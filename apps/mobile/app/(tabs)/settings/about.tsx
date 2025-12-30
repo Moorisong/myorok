@@ -1,19 +1,27 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Feather } from '@expo/vector-icons';
 
-import { COLORS } from '../constants';
-import { Card } from '../components';
+import { COLORS } from '../../../constants';
+import { Card } from '../../../components';
 
 export default function AboutScreen() {
     const router = useRouter();
 
     return (
-        <View style={styles.container}>
+        <SafeAreaView style={styles.container} edges={['top']}>
             <View style={styles.header}>
-                <Pressable style={styles.closeButton} onPress={() => router.back()}>
-                    <Text style={styles.closeText}>✕</Text>
+                <Pressable
+                    style={styles.backButton}
+                    onPress={() => router.back()}
+                    hitSlop={8}
+                >
+                    <Feather name="arrow-left" size={24} color={COLORS.textPrimary} />
                 </Pressable>
+                <Text style={styles.headerTitle}>앱 정보</Text>
+                <View style={styles.placeholder} />
             </View>
 
             <ScrollView style={styles.content}>
@@ -70,7 +78,7 @@ export default function AboutScreen() {
 
                 <View style={styles.bottomPadding} />
             </ScrollView>
-        </View>
+        </SafeAreaView>
     );
 }
 
@@ -81,21 +89,24 @@ const styles = StyleSheet.create({
     },
     header: {
         flexDirection: 'row',
-        justifyContent: 'flex-end',
-        padding: 16,
-        paddingTop: 50,
-    },
-    closeButton: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        backgroundColor: COLORS.surface,
         alignItems: 'center',
-        justifyContent: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        backgroundColor: COLORS.surface,
+        borderBottomWidth: 1,
+        borderBottomColor: COLORS.border,
     },
-    closeText: {
+    backButton: {
+        padding: 4,
+    },
+    headerTitle: {
         fontSize: 18,
-        color: COLORS.textSecondary,
+        fontWeight: '600',
+        color: COLORS.textPrimary,
+    },
+    placeholder: {
+        width: 32,
     },
     content: {
         flex: 1,

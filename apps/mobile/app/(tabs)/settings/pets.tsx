@@ -1,4 +1,4 @@
-import { View, Text, TextInput, Pressable, StyleSheet, Alert, FlatList, Modal } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, Alert, ScrollView, Modal } from 'react-native';
 import { useState, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -9,6 +9,7 @@ import { getAllPets, addPet, updatePet, deletePet, restorePet, permanentDeletePe
 import type { Pet } from '../../../services';
 import { useSelectedPet } from '../../../hooks/use-selected-pet';
 import { useToast } from '../../../components/ToastContext';
+import { Card } from '../../../components';
 
 export default function PetsManagementScreen() {
     const router = useRouter();
@@ -43,7 +44,6 @@ export default function PetsManagementScreen() {
             return;
         }
 
-        // Check for duplicate name among active pets
         const trimmedName = newPetName.trim();
         const isDuplicate = pets.some(pet => pet.name.toLowerCase() === trimmedName.toLowerCase());
 
@@ -71,7 +71,6 @@ export default function PetsManagementScreen() {
             return;
         }
 
-        // Check for duplicate name among active pets (excluding itself)
         const trimmedName = editedName.trim();
         const isDuplicate = pets.some(
             pet => pet.id !== editingPet.id && pet.name.toLowerCase() === trimmedName.toLowerCase()
@@ -97,7 +96,6 @@ export default function PetsManagementScreen() {
     };
 
     const handleDeletePet = (pet: Pet) => {
-        // Check if this is the last pet
         if (pets.length === 1) {
             Alert.alert(ALERT_TITLES.ALERT, PET_MESSAGES.DELETE_LAST_PET_WARNING);
             return;
@@ -113,14 +111,9 @@ export default function PetsManagementScreen() {
                     style: 'destructive',
                     onPress: async () => {
                         try {
-                            const isSelectedPet = selectedPetId === pet.id;
-
                             await deletePet(pet.id);
                             await loadPets();
-
-                            // If deleted pet was selected, refresh will auto-switch to first available pet
                             await refreshGlobalPets();
-
                             showToast(SUCCESS_MESSAGES.PET_DELETED);
                         } catch (error) {
                             console.error('Error deleting pet:', error);
@@ -133,7 +126,6 @@ export default function PetsManagementScreen() {
     };
 
     const handleRestorePet = (pet: Pet) => {
-        // Check for duplicate name among active pets
         const isDuplicate = pets.some(
             activePet => activePet.name.toLowerCase() === pet.name.toLowerCase()
         );
@@ -204,75 +196,74 @@ export default function PetsManagementScreen() {
         <SafeAreaView style={styles.container} edges={['top']}>
             <View style={styles.header}>
                 <Pressable
+                    style={styles.backButton}
                     onPress={() => router.back()}
-                    accessible={true}
-                    accessibilityRole="button"
-                    accessibilityLabel="뒤로가기"
+                    hitSlop={8}
                 >
-                    <Feather name="chevron-left" size={24} color={COLORS.textPrimary} />
+                    <Feather name="arrow-left" size={24} color={COLORS.textPrimary} />
                 </Pressable>
                 <Text style={styles.headerTitle}>고양이 관리</Text>
-                <View style={{ width: 24 }} />
+                <View style={styles.placeholder} />
             </View>
 
-            <FlatList
-                data={pets}
-                keyExtractor={item => item.id}
-                ListHeaderComponent={
-                    <Text style={styles.sectionTitle}>활성 고양이 ({pets.length})</Text>
-                }
-                renderItem={({ item }) => (
-                    <PetItem
-                        pet={item}
-                        onEdit={() => openEditModal(item)}
-                        onDelete={() => handleDeletePet(item)}
-                    />
-                )}
-                ListEmptyComponent={
-                    <Text style={styles.emptyText}>등록된 고양이가 없습니다.</Text>
-                }
-                ListFooterComponent={
-                    deletedPets.length > 0 ? (
-                        <View style={styles.deletedSection}>
-                            <Pressable
-                                style={styles.deletedHeader}
-                                onPress={() => setShowDeleted(!showDeleted)}
-                                accessible={true}
-                                accessibilityRole="button"
-                            >
-                                <Text style={styles.deletedHeaderText}>
-                                    삭제된 고양이 ({deletedPets.length})
-                                </Text>
-                                <Feather
-                                    name={showDeleted ? 'chevron-up' : 'chevron-down'}
-                                    size={20}
-                                    color={COLORS.textSecondary}
-                                />
-                            </Pressable>
-                            {showDeleted &&
-                                deletedPets.map(pet => (
-                                    <DeletedPetItem
-                                        key={pet.id}
-                                        pet={pet}
-                                        onRestore={() => handleRestorePet(pet)}
-                                        onPermanentDelete={() => handlePermanentDelete(pet)}
-                                    />
-                                ))}
-                        </View>
-                    ) : null
-                }
-            />
+            <ScrollView style={styles.scrollView}>
+                <Card style={styles.card}>
+                    <Text style={styles.sectionTitle}>활성 고양이</Text>
+                    {pets.map((pet, index) => (
+                        <PetItem
+                            key={pet.id}
+                            pet={pet}
+                            onEdit={() => openEditModal(pet)}
+                            onDelete={() => handleDeletePet(pet)}
+                            isLast={index === pets.length - 1}
+                        />
+                    ))}
 
-            <Pressable
-                style={styles.addButton}
-                onPress={() => setAddModalVisible(true)}
-                accessible={true}
-                accessibilityRole="button"
-                accessibilityLabel="고양이 추가"
-            >
-                <Feather name="plus" size={24} color={COLORS.surface} />
-                <Text style={styles.addButtonText}>고양이 추가</Text>
-            </Pressable>
+                    <Pressable
+                        style={({ pressed }) => [
+                            styles.addItem,
+                            pressed && styles.itemPressed,
+                        ]}
+                        onPress={() => setAddModalVisible(true)}
+                    >
+                        <Feather name="plus" size={20} color={COLORS.primary} />
+                        <Text style={styles.addItemText}>고양이 추가</Text>
+                    </Pressable>
+                </Card>
+
+                {deletedPets.length > 0 && (
+                    <Card style={styles.card}>
+                        <Pressable
+                            style={({ pressed }) => [
+                                styles.deletedHeader,
+                                pressed && styles.itemPressed,
+                            ]}
+                            onPress={() => setShowDeleted(!showDeleted)}
+                        >
+                            <Text style={styles.sectionTitle}>
+                                삭제된 고양이 ({deletedPets.length})
+                            </Text>
+                            <Feather
+                                name={showDeleted ? 'chevron-up' : 'chevron-down'}
+                                size={20}
+                                color={COLORS.textSecondary}
+                            />
+                        </Pressable>
+
+                        {showDeleted && deletedPets.map((pet, index) => (
+                            <DeletedPetItem
+                                key={pet.id}
+                                pet={pet}
+                                onRestore={() => handleRestorePet(pet)}
+                                onPermanentDelete={() => handlePermanentDelete(pet)}
+                                isLast={index === deletedPets.length - 1}
+                            />
+                        ))}
+                    </Card>
+                )}
+
+                <View style={styles.bottomPadding} />
+            </ScrollView>
 
             {/* Add Pet Modal */}
             <Modal
@@ -290,8 +281,6 @@ export default function PetsManagementScreen() {
                             onChangeText={setNewPetName}
                             placeholder="고양이 이름"
                             autoFocus={true}
-                            accessible={true}
-                            accessibilityLabel="고양이 이름 입력"
                         />
                         <View style={styles.modalButtons}>
                             <Pressable
@@ -300,16 +289,12 @@ export default function PetsManagementScreen() {
                                     setAddModalVisible(false);
                                     setNewPetName('');
                                 }}
-                                accessible={true}
-                                accessibilityRole="button"
                             >
                                 <Text style={styles.cancelButtonText}>취소</Text>
                             </Pressable>
                             <Pressable
                                 style={[styles.modalButton, styles.confirmButton]}
                                 onPress={handleAddPet}
-                                accessible={true}
-                                accessibilityRole="button"
                             >
                                 <Text style={styles.confirmButtonText}>추가</Text>
                             </Pressable>
@@ -334,8 +319,6 @@ export default function PetsManagementScreen() {
                             onChangeText={setEditedName}
                             placeholder="고양이 이름"
                             autoFocus={true}
-                            accessible={true}
-                            accessibilityLabel="고양이 이름 입력"
                         />
                         <View style={styles.modalButtons}>
                             <Pressable
@@ -345,16 +328,12 @@ export default function PetsManagementScreen() {
                                     setEditingPet(null);
                                     setEditedName('');
                                 }}
-                                accessible={true}
-                                accessibilityRole="button"
                             >
                                 <Text style={styles.cancelButtonText}>취소</Text>
                             </Pressable>
                             <Pressable
                                 style={[styles.modalButton, styles.confirmButton]}
                                 onPress={handleEditPet}
-                                accessible={true}
-                                accessibilityRole="button"
                             >
                                 <Text style={styles.confirmButtonText}>저장</Text>
                             </Pressable>
@@ -370,30 +349,25 @@ interface PetItemProps {
     pet: Pet;
     onEdit: () => void;
     onDelete: () => void;
+    isLast: boolean;
 }
 
-function PetItem({ pet, onEdit, onDelete }: PetItemProps) {
+function PetItem({ pet, onEdit, onDelete, isLast }: PetItemProps) {
     return (
-        <View style={styles.petItem}>
+        <View style={[styles.itemRow, !isLast && styles.itemBorder]}>
             <Text style={styles.petName}>{pet.name}</Text>
-            <View style={styles.petActions}>
+            <View style={styles.itemActions}>
                 <Pressable
                     onPress={onEdit}
-                    style={styles.actionButton}
-                    accessible={true}
-                    accessibilityRole="button"
-                    accessibilityLabel="이름 수정"
+                    style={({ pressed }) => [styles.actionButton, pressed && styles.itemPressed]}
                 >
-                    <Feather name="edit-2" size={20} color={COLORS.textSecondary} />
+                    <Feather name="edit-2" size={18} color={COLORS.textSecondary} />
                 </Pressable>
                 <Pressable
                     onPress={onDelete}
-                    style={styles.actionButton}
-                    accessible={true}
-                    accessibilityRole="button"
-                    accessibilityLabel="삭제"
+                    style={({ pressed }) => [styles.actionButton, pressed && styles.itemPressed]}
                 >
-                    <Feather name="trash-2" size={20} color={COLORS.error} />
+                    <Feather name="trash-2" size={18} color={COLORS.error} />
                 </Pressable>
             </View>
         </View>
@@ -404,28 +378,23 @@ interface DeletedPetItemProps {
     pet: Pet;
     onRestore: () => void;
     onPermanentDelete: () => void;
+    isLast: boolean;
 }
 
-function DeletedPetItem({ pet, onRestore, onPermanentDelete }: DeletedPetItemProps) {
+function DeletedPetItem({ pet, onRestore, onPermanentDelete, isLast }: DeletedPetItemProps) {
     return (
-        <View style={styles.deletedPetItem}>
+        <View style={[styles.itemRow, !isLast && styles.itemBorder]}>
             <Text style={styles.deletedPetName}>{pet.name}</Text>
-            <View style={styles.deletedPetActions}>
+            <View style={styles.itemActions}>
                 <Pressable
                     onPress={onRestore}
-                    accessible={true}
-                    accessibilityRole="button"
-                    accessibilityLabel="복원"
-                    style={styles.deletedActionButton}
+                    style={({ pressed }) => [styles.textActionButton, pressed && styles.itemPressed]}
                 >
                     <Text style={styles.restoreText}>복원</Text>
                 </Pressable>
                 <Pressable
                     onPress={onPermanentDelete}
-                    accessible={true}
-                    accessibilityRole="button"
-                    accessibilityLabel="완전삭제"
-                    style={styles.deletedActionButton}
+                    style={({ pressed }) => [styles.textActionButton, pressed && styles.itemPressed]}
                 >
                     <Text style={styles.permanentDeleteText}>완전삭제</Text>
                 </Pressable>
@@ -444,111 +413,100 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 16,
-        paddingVertical: 16,
+        paddingVertical: 12,
         backgroundColor: COLORS.surface,
         borderBottomWidth: 1,
         borderBottomColor: COLORS.border,
+    },
+    backButton: {
+        padding: 4,
     },
     headerTitle: {
         fontSize: 18,
         fontWeight: '600',
         color: COLORS.textPrimary,
     },
+    placeholder: {
+        width: 32,
+    },
+    scrollView: {
+        flex: 1,
+    },
+    card: {
+        marginHorizontal: 16,
+        marginTop: 16,
+    },
     sectionTitle: {
         fontSize: 14,
         fontWeight: '600',
-        color: COLORS.textSecondary,
-        paddingHorizontal: 16,
-        paddingTop: 16,
-        paddingBottom: 8,
+        color: COLORS.textPrimary,
+        marginBottom: 12,
     },
-    petItem: {
+    itemRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        padding: 16,
-        backgroundColor: COLORS.surface,
+        paddingVertical: 14,
+    },
+    itemBorder: {
         borderBottomWidth: 1,
         borderBottomColor: COLORS.border,
     },
+    itemPressed: {
+        opacity: 0.7,
+    },
     petName: {
         fontSize: 16,
-        fontWeight: '500',
         color: COLORS.textPrimary,
     },
-    petActions: {
+    itemActions: {
         flexDirection: 'row',
+        alignItems: 'center',
         gap: 16,
     },
     actionButton: {
         padding: 4,
     },
-    emptyText: {
-        textAlign: 'center',
-        color: COLORS.textSecondary,
-        paddingVertical: 32,
-    },
-    deletedSection: {
-        marginTop: 16,
-    },
     deletedHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        padding: 16,
-        backgroundColor: COLORS.surface,
-    },
-    deletedHeaderText: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: COLORS.textSecondary,
-    },
-    deletedPetItem: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: 16,
-        paddingLeft: 32,
-        backgroundColor: COLORS.surface,
-        borderBottomWidth: 1,
-        borderBottomColor: COLORS.border,
-        opacity: 0.6,
+        paddingVertical: 4,
     },
     deletedPetName: {
         fontSize: 16,
         color: COLORS.textSecondary,
+    },
+    textActionButton: {
+        paddingVertical: 4,
+        paddingHorizontal: 8,
     },
     restoreText: {
         fontSize: 14,
         fontWeight: '500',
         color: COLORS.primary,
     },
-    deletedPetActions: {
-        flexDirection: 'row',
-        gap: 12,
-    },
-    deletedActionButton: {
-        padding: 4,
-    },
     permanentDeleteText: {
         fontSize: 14,
         fontWeight: '500',
         color: COLORS.error,
     },
-    addButton: {
+    addItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: COLORS.primary,
-        padding: 16,
-        margin: 16,
-        borderRadius: 12,
-        gap: 8,
+        paddingVertical: 14,
+        borderTopWidth: 1,
+        borderTopColor: COLORS.border,
+        marginTop: 4,
     },
-    addButtonText: {
+    addItemText: {
         fontSize: 16,
-        fontWeight: '600',
-        color: COLORS.surface,
+        color: COLORS.primary,
+        marginLeft: 12,
+        fontWeight: '500',
+    },
+    bottomPadding: {
+        height: 32,
     },
     modalOverlay: {
         flex: 1,

@@ -3,7 +3,7 @@ import {
     View,
     Text,
     StyleSheet,
-    FlatList,
+    ScrollView,
     Alert,
     Pressable,
     ActivityIndicator,
@@ -14,7 +14,7 @@ import { Feather } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 
 import { COLORS, COMFORT_MESSAGES, UI_LABELS } from '../../../constants';
-import { Header } from '../../../components';
+import { Card } from '../../../components';
 import { useToast } from '../../../components/ToastContext';
 import { getBlockedUsers, unblockUser } from '../../../services';
 
@@ -91,35 +91,20 @@ export default function BlockListScreen() {
         return `${date.getFullYear()}.${date.getMonth() + 1}.${date.getDate()}`;
     };
 
-    const renderItem = ({ item }: { item: BlockedUser }) => (
-        <View style={styles.itemContainer}>
-            <View style={styles.itemContent}>
-                <Text style={styles.itemTitle}>{item.displayId}</Text>
-                <Text style={styles.itemDate}>차단일: {formatDate(item.createdAt)}</Text>
-            </View>
-            <Pressable
-                style={({ pressed }) => [
-                    styles.unblockButton,
-                    pressed && styles.unblockButtonPressed
-                ]}
-                onPress={() => handleUnblock(item)}
-            >
-                <Text style={styles.unblockButtonText}>해제</Text>
-            </Pressable>
-        </View>
-    );
-
-    const renderEmpty = () => (
-        <View style={styles.emptyContainer}>
-            <Feather name="shield" size={48} color={COLORS.textSecondary} />
-            <Text style={styles.emptyText}>차단한 사용자가 없습니다</Text>
-        </View>
-    );
-
     if (isLoading) {
         return (
             <SafeAreaView style={styles.container} edges={['top']}>
-                <Header title="차단 목록 관리" showBack />
+                <View style={styles.header}>
+                    <Pressable
+                        style={styles.backButton}
+                        onPress={() => router.back()}
+                        hitSlop={8}
+                    >
+                        <Feather name="arrow-left" size={24} color={COLORS.textPrimary} />
+                    </Pressable>
+                    <Text style={styles.headerTitle}>차단 목록 관리</Text>
+                    <View style={styles.placeholder} />
+                </View>
                 <View style={styles.loadingContainer}>
                     <ActivityIndicator size="large" color={COLORS.primary} />
                 </View>
@@ -129,16 +114,20 @@ export default function BlockListScreen() {
 
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
-            <Header title="차단 목록 관리" showBack />
-            <FlatList
-                data={blockedUsers}
-                renderItem={renderItem}
-                keyExtractor={item => item.blockedDeviceId}
-                contentContainerStyle={[
-                    styles.listContent,
-                    blockedUsers.length === 0 && styles.listContentEmpty
-                ]}
-                ListEmptyComponent={renderEmpty}
+            <View style={styles.header}>
+                <Pressable
+                    style={styles.backButton}
+                    onPress={() => router.back()}
+                    hitSlop={8}
+                >
+                    <Feather name="arrow-left" size={24} color={COLORS.textPrimary} />
+                </Pressable>
+                <Text style={styles.headerTitle}>차단 목록 관리</Text>
+                <View style={styles.placeholder} />
+            </View>
+
+            <ScrollView
+                style={styles.scrollView}
                 refreshControl={
                     <RefreshControl
                         refreshing={isRefreshing}
@@ -146,7 +135,37 @@ export default function BlockListScreen() {
                         tintColor={COLORS.primary}
                     />
                 }
-            />
+            >
+                {blockedUsers.length > 0 ? (
+                    <Card style={styles.card}>
+                        <Text style={styles.sectionTitle}>차단된 사용자 ({blockedUsers.length})</Text>
+                        {blockedUsers.map((item, index) => (
+                            <View key={item.blockedDeviceId} style={[styles.itemRow, index !== blockedUsers.length - 1 && styles.itemBorder]}>
+                                <View style={styles.itemContent}>
+                                    <Text style={styles.itemTitle}>{item.displayId}</Text>
+                                    <Text style={styles.itemDate}>{formatDate(item.createdAt)}</Text>
+                                </View>
+                                <Pressable
+                                    style={({ pressed }) => [
+                                        styles.unblockButton,
+                                        pressed && styles.unblockButtonPressed
+                                    ]}
+                                    onPress={() => handleUnblock(item)}
+                                >
+                                    <Text style={styles.unblockButtonText}>해제</Text>
+                                </Pressable>
+                            </View>
+                        ))}
+                    </Card>
+                ) : (
+                    <View style={styles.emptyContainer}>
+                        <Feather name="shield" size={48} color={COLORS.textSecondary} />
+                        <Text style={styles.emptyText}>차단한 사용자가 없습니다</Text>
+                    </View>
+                )}
+
+                <View style={styles.bottomPadding} />
+            </ScrollView>
         </SafeAreaView>
     );
 }
@@ -156,29 +175,54 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: COLORS.background,
     },
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        backgroundColor: COLORS.surface,
+        borderBottomWidth: 1,
+        borderBottomColor: COLORS.border,
+    },
+    backButton: {
+        padding: 4,
+    },
+    headerTitle: {
+        fontSize: 18,
+        fontWeight: '600',
+        color: COLORS.textPrimary,
+    },
+    placeholder: {
+        width: 32,
+    },
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    listContent: {
-        padding: 16,
-    },
-    listContentEmpty: {
+    scrollView: {
         flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
     },
-    itemContainer: {
+    card: {
+        marginHorizontal: 16,
+        marginTop: 16,
+    },
+    sectionTitle: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: COLORS.textPrimary,
+        marginBottom: 8,
+    },
+    itemRow: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        backgroundColor: COLORS.surface,
-        padding: 16,
-        borderRadius: 12,
-        marginBottom: 12,
-        borderWidth: 1,
-        borderColor: COLORS.border,
+        paddingVertical: 14,
+    },
+    itemBorder: {
+        borderBottomWidth: 1,
+        borderBottomColor: COLORS.border,
     },
     itemContent: {
         flex: 1,
@@ -186,9 +230,8 @@ const styles = StyleSheet.create({
     },
     itemTitle: {
         fontSize: 16,
-        fontWeight: '600',
         color: COLORS.textPrimary,
-        marginBottom: 4,
+        marginBottom: 2,
     },
     itemDate: {
         fontSize: 12,
@@ -214,9 +257,13 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         gap: 12,
+        marginTop: 64,
     },
     emptyText: {
         fontSize: 16,
         color: COLORS.textSecondary,
+    },
+    bottomPadding: {
+        height: 32,
     },
 });

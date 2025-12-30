@@ -64,12 +64,13 @@ export default function TabLayout() {
                 }}
             />
             <Tabs.Screen
-                name="settingsIndex"
+                name="settings"
                 options={{
                     title: '설정',
                     tabBarIcon: ({ focused }) => <TabIcon name="settings" focused={focused} />,
                 }}
             />
+            {/* Hidden screens */}
             <Tabs.Screen
                 name="today"
                 options={{
@@ -78,12 +79,6 @@ export default function TabLayout() {
             />
             <Tabs.Screen
                 name="records"
-                options={{
-                    href: null,
-                }}
-            />
-            <Tabs.Screen
-                name="settings"
                 options={{
                     href: null,
                 }}

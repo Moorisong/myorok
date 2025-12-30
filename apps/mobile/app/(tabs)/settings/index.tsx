@@ -4,10 +4,10 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 
-import { COLORS, PIN_MESSAGES } from '../../constants';
-import { Card, PinInputModal } from '../../components';
-import { useSelectedPet } from '../../hooks/use-selected-pet';
-import { usePinLock } from '../../hooks/use-pin-lock';
+import { COLORS, PIN_MESSAGES } from '../../../constants';
+import { Card, PinInputModal } from '../../../components';
+import { useSelectedPet } from '../../../hooks/use-selected-pet';
+import { usePinLock } from '../../../hooks/use-pin-lock';
 
 interface SettingItemProps {
     emoji: string;
@@ -101,7 +101,7 @@ export default function SettingsScreen() {
 
     const handleNavigate = (path: string) => {
         handleUserActivity();
-        router.push(path as any);
+        router.navigate(path as any);
     };
 
     const getPinDescription = () => {
@@ -168,7 +168,7 @@ export default function SettingsScreen() {
                         emoji="⭐"
                         title="Pro 업그레이드"
                         description="모든 기록을 무제한으로"
-                        onPress={() => handleNavigate('/pro')}
+                        onPress={() => handleNavigate('/settings/pro')}
                     />
                 </Card>
 
@@ -177,7 +177,7 @@ export default function SettingsScreen() {
                         emoji="ℹ️"
                         title="앱 정보"
                         description="묘록 v1.0.0"
-                        onPress={() => handleNavigate('/about')}
+                        onPress={() => handleNavigate('/settings/about')}
                     />
                     <SettingItem
                         emoji="📄"
