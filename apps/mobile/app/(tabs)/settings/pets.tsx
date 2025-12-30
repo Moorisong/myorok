@@ -8,9 +8,11 @@ import { COLORS, ALERT_TITLES, SUCCESS_MESSAGES, VALIDATION_MESSAGES, PET_MESSAG
 import { getAllPets, addPet, updatePet, deletePet, restorePet, permanentDeletePet } from '../../../services';
 import type { Pet } from '../../../services';
 import { useSelectedPet } from '../../../hooks/use-selected-pet';
+import { useToast } from '../../../components/ToastContext';
 
 export default function PetsManagementScreen() {
     const router = useRouter();
+    const { showToast } = useToast();
     const { refreshPets: refreshGlobalPets, selectedPetId } = useSelectedPet();
     const [pets, setPets] = useState<Pet[]>([]);
     const [deletedPets, setDeletedPets] = useState<Pet[]>([]);
@@ -56,7 +58,7 @@ export default function PetsManagementScreen() {
             setAddModalVisible(false);
             await loadPets();
             await refreshGlobalPets();
-            Alert.alert(ALERT_TITLES.COMPLETE, SUCCESS_MESSAGES.PET_ADDED);
+            showToast(SUCCESS_MESSAGES.PET_ADDED);
         } catch (error) {
             console.error('Error adding pet:', error);
             Alert.alert(ALERT_TITLES.ERROR, '고양이 추가 중 문제가 발생했습니다.');
@@ -87,7 +89,7 @@ export default function PetsManagementScreen() {
             setEditedName('');
             await loadPets();
             await refreshGlobalPets();
-            Alert.alert(ALERT_TITLES.COMPLETE, SUCCESS_MESSAGES.PET_UPDATED);
+            showToast(SUCCESS_MESSAGES.PET_UPDATED);
         } catch (error) {
             console.error('Error updating pet:', error);
             Alert.alert(ALERT_TITLES.ERROR, '고양이 수정 중 문제가 발생했습니다.');
@@ -119,7 +121,7 @@ export default function PetsManagementScreen() {
                             // If deleted pet was selected, refresh will auto-switch to first available pet
                             await refreshGlobalPets();
 
-                            Alert.alert(ALERT_TITLES.COMPLETE, SUCCESS_MESSAGES.PET_DELETED);
+                            showToast(SUCCESS_MESSAGES.PET_DELETED);
                         } catch (error) {
                             console.error('Error deleting pet:', error);
                             Alert.alert(ALERT_TITLES.ERROR, '삭제 중 문제가 발생했습니다.');
@@ -156,7 +158,7 @@ export default function PetsManagementScreen() {
                             await restorePet(pet.id);
                             await loadPets();
                             await refreshGlobalPets();
-                            Alert.alert(ALERT_TITLES.COMPLETE, SUCCESS_MESSAGES.PET_RESTORED);
+                            showToast(SUCCESS_MESSAGES.PET_RESTORED);
                         } catch (error) {
                             console.error('Error restoring pet:', error);
                             Alert.alert(ALERT_TITLES.ERROR, '복원 중 문제가 발생했습니다.');
@@ -181,7 +183,7 @@ export default function PetsManagementScreen() {
                             await permanentDeletePet(pet.id);
                             await loadPets();
                             await refreshGlobalPets();
-                            Alert.alert(ALERT_TITLES.COMPLETE, '고양이 계정이 완전히 삭제되었습니다.');
+                            showToast('고양이 계정이 완전히 삭제되었습니다.');
                         } catch (error) {
                             console.error('Error permanently deleting pet:', error);
                             Alert.alert(ALERT_TITLES.ERROR, '완전 삭제 중 문제가 발생했습니다.');

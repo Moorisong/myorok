@@ -6,6 +6,7 @@ import { Feather } from '@expo/vector-icons';
 
 import { COLORS, PIN_MESSAGES, CONFIG } from '../../../constants';
 import { Card, PinInputModal } from '../../../components';
+import { useToast } from '../../../components/ToastContext';
 import { usePinLock } from '../../../hooks/use-pin-lock';
 import { setPin as setPinApi, removePin as removePinApi, verifyPin } from '../../../services/pin';
 
@@ -14,6 +15,7 @@ type PinStep = 'idle' | 'enter' | 'confirm' | 'verify' | 'remove';
 export default function PinSettingsScreen() {
     const router = useRouter();
     const { isPinSet, isLocked, refreshPinStatus, serverAvailable } = usePinLock();
+    const { showToast } = useToast();
 
     const [step, setStep] = useState<PinStep>('idle');
     const [newPin, setNewPin] = useState<string>('');
@@ -91,7 +93,7 @@ export default function PinSettingsScreen() {
                 setStep('idle');
                 setNewPin('');
                 await refreshPinStatus({ forceUnlock: true });
-                Alert.alert('완료', PIN_MESSAGES.PIN_SET_SUCCESS);
+                showToast(PIN_MESSAGES.PIN_SET_SUCCESS);
                 return { success: true };
             } else {
                 return {
@@ -154,7 +156,7 @@ export default function PinSettingsScreen() {
             if (removeResponse.success) {
                 setStep('idle');
                 await refreshPinStatus();
-                Alert.alert('완료', PIN_MESSAGES.PIN_REMOVE_SUCCESS);
+                showToast(PIN_MESSAGES.PIN_REMOVE_SUCCESS);
                 return { success: true };
             } else {
                 return {
@@ -299,7 +301,8 @@ export default function PinSettingsScreen() {
                     <Text style={styles.infoTitle}>📌 안내</Text>
                     <Text style={styles.infoText}>
                         • PIN은 4자리 숫자입니다{'\n'}
-                        • PIN을 설정하면 앱 실행 시 입력이 필요합니다{'\n'}
+                        • PIN을 설정하면 설정 변경 시 입력이 필요합니다{'\n'}
+                        • 10분 동안 활동이 없으면 자동으로 잠깁니다{'\n'}
                         • 5회 연속 실패 시 5분간 잠깁니다
                     </Text>
                 </View>

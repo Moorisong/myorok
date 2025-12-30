@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
     View,
     Text,
@@ -8,8 +8,6 @@ import {
     RefreshControl,
     ActivityIndicator,
     Alert,
-    KeyboardAvoidingView,
-    Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
@@ -18,6 +16,7 @@ import { Feather } from '@expo/vector-icons';
 import { COLORS, COMFORT_MESSAGES } from '../../constants';
 import { ComfortPost, getPosts, createPost, updatePost, toggleLike, deletePost, blockUser, reportPost } from '../../services';
 import { ComfortPostCard, ComfortComposeModal, ComfortDebugModal, ComfortReportModal } from '../../components';
+import { useToast } from '../../components/ToastContext';
 
 export default function ComfortScreen() {
     const [posts, setPosts] = useState<ComfortPost[]>([]);
@@ -32,24 +31,9 @@ export default function ComfortScreen() {
     const [showDebugModal, setShowDebugModal] = useState(false);
     const [reportModalVisible, setReportModalVisible] = useState(false);
     const [reportingPostId, setReportingPostId] = useState<string | null>(null);
-    const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+    const { showToast } = useToast();
 
     const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-    // 키보드 상태 감지
-    useEffect(() => {
-        const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
-            setIsKeyboardVisible(true);
-        });
-        const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
-            setIsKeyboardVisible(false);
-        });
-
-        return () => {
-            showSubscription.remove();
-            hideSubscription.remove();
-        };
-    }, []);
 
     const loadPosts = useCallback(async (showLoading = true) => {
         if (showLoading) setIsLoading(true);
@@ -97,10 +81,7 @@ export default function ComfortScreen() {
 
     const handleComposePress = () => {
         if (!canPost && waitMinutes) {
-            Alert.alert(
-                COMFORT_MESSAGES.POST_LIMIT_TITLE,
-                COMFORT_MESSAGES.POST_LIMIT_MESSAGE(waitMinutes)
-            );
+            showToast(COMFORT_MESSAGES.POST_LIMIT_MESSAGE(waitMinutes), { variant: 'error', duration: 3000 });
             return;
         }
         setShowComposeModal(true);
@@ -182,7 +163,7 @@ export default function ComfortScreen() {
                         const response = await blockUser(deviceId);
                         if (response.success) {
                             setPosts(prev => prev.filter(post => post.deviceId !== deviceId));
-                            Alert.alert('완료', COMFORT_MESSAGES.BLOCK_SUCCESS);
+                            showToast(COMFORT_MESSAGES.BLOCK_SUCCESS);
                         }
                     },
                 },
@@ -216,124 +197,114 @@ export default function ComfortScreen() {
     };
 
     return (
-        <KeyboardAvoidingView
-            style={styles.keyboardAvoidingView}
-            behavior="height"
-            keyboardVerticalOffset={0}
-        >
-            <SafeAreaView style={styles.container} edges={['top']}>
-                {/* Spacer to match other tabs (petIndicatorRow height) */}
-                <View style={styles.topSpacer} />
+        <SafeAreaView style={styles.container} edges={['top']}>
+            {/* Spacer to match other tabs (petIndicatorRow height) */}
+            <View style={styles.topSpacer} />
 
-                <View style={styles.header}>
-                    <View style={styles.headerRow}>
-                        <Text style={styles.headerTitle}>{COMFORT_MESSAGES.TAB_TITLE}</Text>
-                        <Pressable
-                            style={styles.devButton}
-                            onPress={() => setShowDebugModal(true)}
-                        >
-                            <Text style={styles.devButtonText}>🧪 테스트</Text>
-                        </Pressable>
-                    </View>
-                    <Text style={styles.headerSubtitle}>{COMFORT_MESSAGES.TAB_SUBTITLE}</Text>
-                </View>
-
-                {/* 자정 삭제 안내 배너 */}
-                <View style={styles.noticeBanner}>
-                    <Text style={styles.noticeText}>{COMFORT_MESSAGES.MIDNIGHT_NOTICE}</Text>
-                </View>
-
-                {/* 신고 자동숨김 안내 */}
-                <Text style={styles.reportNotice}>신고 3회 이상 시 자동 숨김</Text>
-
-                {isLoading ? (
-                    <View style={styles.loadingContainer}>
-                        <ActivityIndicator size="large" color={COLORS.primary} />
-                    </View>
-                ) : (
-                    <ScrollView
-                        style={styles.scrollView}
-                        keyboardShouldPersistTaps="handled"
-                        refreshControl={
-                            <RefreshControl
-                                refreshing={isRefreshing}
-                                onRefresh={handleRefresh}
-                                tintColor={COLORS.primary}
-                            />
-                        }
-                    >
-                        {posts.length === 0 ? (
-                            renderEmptyState()
-                        ) : (
-                            posts.map(post => (
-                                <ComfortPostCard
-                                    key={post.id}
-                                    post={post}
-                                    onLike={() => handleLike(post.id)}
-                                    onDelete={() => handleDelete(post.id)}
-                                    onBlock={() => handleBlock(post.id, post.deviceId)}
-                                    onReport={() => handleReport(post.id)}
-                                    onUpdate={() => handleEdit(post)}
-                                />
-                            ))
-                        )}
-                        <View style={styles.bottomPadding} />
-                    </ScrollView>
-                )}
-
-                {/* FAB 글쓰기 버튼 - 키보드가 올라오면 숨김 */}
-                {serverAvailable && !isKeyboardVisible && (
+            <View style={styles.header}>
+                <View style={styles.headerRow}>
+                    <Text style={styles.headerTitle}>{COMFORT_MESSAGES.TAB_TITLE}</Text>
                     <Pressable
-                        style={({ pressed }) => [
-                            styles.fab,
-                            pressed && styles.fabPressed,
-                            !canPost && styles.fabDisabled,
-                        ]}
-                        onPress={handleComposePress}
+                        style={styles.devButton}
+                        onPress={() => setShowDebugModal(true)}
                     >
-                        <Feather name="edit-3" size={24} color="#FFF" />
+                        <Text style={styles.devButtonText}>🧪 테스트</Text>
                     </Pressable>
-                )}
+                </View>
+                <Text style={styles.headerSubtitle}>{COMFORT_MESSAGES.TAB_SUBTITLE}</Text>
+            </View>
 
-                <ComfortComposeModal
-                    visible={showComposeModal}
-                    onClose={() => {
-                        setShowComposeModal(false);
-                        setEditingPost(null);
-                        // 테스트 모드로 글쓰기 진입 후 취소 시 원래 상태로 복원
-                        if (skipCooldown) {
-                            setSkipCooldown(false);
-                            loadPosts(false); // 서버에서 실제 canPost 상태 다시 가져오기
-                        }
-                    }}
-                    onSubmit={handlePostSubmit}
-                    initialContent={editingPost?.content || ''}
-                    initialEmoji={editingPost?.emoji || '🐱'}
-                    isEdit={!!editingPost}
-                />
-                <ComfortDebugModal
-                    visible={showDebugModal}
-                    onClose={() => setShowDebugModal(false)}
-                    onResetCooldown={() => loadPosts(false)}
-                    onReload={() => loadPosts(false)}
-                />
-                <ComfortReportModal
-                    visible={reportModalVisible}
-                    postId={reportingPostId}
-                    onClose={() => {
-                        setReportModalVisible(false);
-                        setReportingPostId(null);
-                    }}
-                />
-            </SafeAreaView>
-        </KeyboardAvoidingView>
+            {/* 자정 삭제 안내 배너 */}
+            <View style={styles.noticeBanner}>
+                <Text style={styles.noticeText}>{COMFORT_MESSAGES.MIDNIGHT_NOTICE}</Text>
+            </View>
+
+            {/* 신고 자동숨김 안내 */}
+            <Text style={styles.reportNotice}>신고 3회 이상 시 자동 숨김</Text>
+
+            {isLoading ? (
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color={COLORS.primary} />
+                </View>
+            ) : (
+                <ScrollView
+                    style={styles.scrollView}
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={isRefreshing}
+                            onRefresh={handleRefresh}
+                            tintColor={COLORS.primary}
+                        />
+                    }
+                >
+                    {posts.length === 0 ? (
+                        renderEmptyState()
+                    ) : (
+                        posts.map(post => (
+                            <ComfortPostCard
+                                key={post.id}
+                                post={post}
+                                onLike={() => handleLike(post.id)}
+                                onDelete={() => handleDelete(post.id)}
+                                onBlock={() => handleBlock(post.id, post.deviceId)}
+                                onReport={() => handleReport(post.id)}
+                                onUpdate={() => handleEdit(post)}
+                            />
+                        ))
+                    )}
+                    <View style={styles.bottomPadding} />
+                </ScrollView>
+            )}
+
+            {/* FAB 글쓰기 버튼 */}
+            {serverAvailable && (
+                <Pressable
+                    style={({ pressed }) => [
+                        styles.fab,
+                        pressed && styles.fabPressed,
+                        !canPost && styles.fabDisabled,
+                    ]}
+                    onPress={handleComposePress}
+                >
+                    <Feather name="edit-3" size={24} color="#FFF" />
+                </Pressable>
+            )}
+
+            <ComfortComposeModal
+                visible={showComposeModal}
+                onClose={() => {
+                    setShowComposeModal(false);
+                    setEditingPost(null);
+                    // 테스트 모드로 글쓰기 진입 후 취소 시 원래 상태로 복원
+                    if (skipCooldown) {
+                        setSkipCooldown(false);
+                        loadPosts(false); // 서버에서 실제 canPost 상태 다시 가져오기
+                    }
+                }}
+                onSubmit={handlePostSubmit}
+                initialContent={editingPost?.content || ''}
+                initialEmoji={editingPost?.emoji || '🐱'}
+                isEdit={!!editingPost}
+            />
+            <ComfortDebugModal
+                visible={showDebugModal}
+                onClose={() => setShowDebugModal(false)}
+                onResetCooldown={() => loadPosts(false)}
+                onReload={() => loadPosts(false)}
+            />
+            <ComfortReportModal
+                visible={reportModalVisible}
+                postId={reportingPostId}
+                onClose={() => {
+                    setReportModalVisible(false);
+                    setReportingPostId(null);
+                }}
+            />
+        </SafeAreaView>
     );
 }
 
 const styles = StyleSheet.create({
-    keyboardAvoidingView: {
-        flex: 1,
-    },
     container: {
         flex: 1,
         backgroundColor: COLORS.background,

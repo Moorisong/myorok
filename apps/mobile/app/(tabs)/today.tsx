@@ -23,6 +23,7 @@ import {
 } from '../../constants';
 import type { VomitColor } from '../../constants';
 import { Button } from '../../components';
+import { useToast } from '../../components/ToastContext';
 import { getTodayRecord, updateDailyRecord, DailyRecord } from '../../services';
 
 
@@ -36,6 +37,7 @@ export default function TodayScreen() {
     const [memo, setMemo] = useState('');
     const [showVomitColors, setShowVomitColors] = useState(false);
     const [loading, setLoading] = useState(true);
+    const { showToast } = useToast();
 
     useFocusEffect(
         useCallback(() => {
@@ -104,7 +106,7 @@ export default function TodayScreen() {
     const handleSave = async () => {
         try {
             await updateDailyRecord({ memo: memo || null });
-            Alert.alert(ALERT_TITLES.SAVE_COMPLETE, SUCCESS_MESSAGES.TODAY_SAVED);
+            showToast(SUCCESS_MESSAGES.TODAY_SAVED);
         } catch (error) {
             Alert.alert(ALERT_TITLES.ERROR, ERROR_MESSAGES.SAVE_FAILED);
         }

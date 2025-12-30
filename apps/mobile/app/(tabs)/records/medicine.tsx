@@ -13,6 +13,7 @@ import { useFocusEffect } from 'expo-router';
 
 import { COLORS, ALERT_TITLES, ERROR_MESSAGES, VALIDATION_MESSAGES, UI_LABELS } from '../../../constants';
 import { Button, Header } from '../../../components';
+import { useToast } from '../../../components/ToastContext';
 import {
     addSupplement,
     getSupplements,
@@ -29,6 +30,7 @@ export default function MedicineScreen() {
     const [newName, setNewName] = useState('');
     const [newType, setNewType] = useState<'supplement' | 'medicine'>('medicine');
     const [loading, setLoading] = useState(true);
+    const { showToast } = useToast();
 
     useFocusEffect(
         useCallback(() => {
@@ -77,7 +79,7 @@ export default function MedicineScreen() {
                         try {
                             await deleteSupplement(supplement.id);
                             await loadData(); // Refresh list
-                            Alert.alert('삭제 완료', `${supplement.name}이(가) 삭제되었습니다.`);
+                            showToast(`${supplement.name}이(가) 삭제되었습니다.`);
                         } catch (error) {
                             Alert.alert(ALERT_TITLES.ERROR, '삭제에 실패했습니다.');
                         }
@@ -98,7 +100,7 @@ export default function MedicineScreen() {
             setSupplements(prev => [...prev, newSupplement]);
             setNewName('');
             setShowAddForm(false);
-            Alert.alert('추가 완료', `${newName}이(가) 추가되었습니다.`);
+            showToast(`${newName}이(가) 추가되었습니다.`);
         } catch (error) {
             Alert.alert(ALERT_TITLES.ERROR, ERROR_MESSAGES.ADD_FAILED);
         }

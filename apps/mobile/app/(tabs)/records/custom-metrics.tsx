@@ -13,6 +13,7 @@ import { useFocusEffect } from 'expo-router';
 
 import { COLORS, ALERT_TITLES, ERROR_MESSAGES, SUCCESS_MESSAGES, VALIDATION_MESSAGES, UI_LABELS } from '../../../constants';
 import { Button, Header } from '../../../components';
+import { useToast } from '../../../components/ToastContext';
 import {
     addCustomMetric,
     getCustomMetrics,
@@ -36,6 +37,7 @@ export default function CustomMetricsScreen() {
     const [newDate, setNewDate] = useState(getTodayDateString());
     const [newMemo, setNewMemo] = useState('');
     const [loading, setLoading] = useState(true);
+    const { showToast } = useToast();
 
     useFocusEffect(
         useCallback(() => {
@@ -69,8 +71,9 @@ export default function CustomMetricsScreen() {
             setMetrics(prev => [...prev, metric]);
             setNewMetricName('');
             setNewMetricUnit('');
+            setNewMetricUnit('');
             setShowAddMetric(false);
-            Alert.alert('추가 완료', `${metric.name} 항목이 추가되었습니다.`);
+            showToast(`${metric.name} 항목이 추가되었습니다.`);
         } catch (error) {
             Alert.alert(ALERT_TITLES.ERROR, ERROR_MESSAGES.ADD_FAILED);
         }
@@ -82,7 +85,7 @@ export default function CustomMetricsScreen() {
             return;
         }
         if (!newValue.trim()) {
-            Alert.alert(ALERT_TITLES.ALERT, VALIDATION_MESSAGES.ENTER_NUMBER);
+            showToast(VALIDATION_MESSAGES.ENTER_NUMBER, { variant: 'error' });
             return;
         }
 
@@ -96,11 +99,13 @@ export default function CustomMetricsScreen() {
             await loadData();
             setSelectedMetric(null);
             setNewValue('');
+            setNewValue('');
+            setNewValue('');
             setNewMemo('');
             setShowAddRecord(false);
-            Alert.alert(ALERT_TITLES.SAVE_COMPLETE, SUCCESS_MESSAGES.METRIC_SAVED);
+            showToast(SUCCESS_MESSAGES.METRIC_SAVED);
         } catch (error) {
-            Alert.alert(ALERT_TITLES.ERROR, ERROR_MESSAGES.SAVE_FAILED);
+            showToast(ERROR_MESSAGES.SAVE_FAILED, { variant: 'error' });
         }
     };
 
