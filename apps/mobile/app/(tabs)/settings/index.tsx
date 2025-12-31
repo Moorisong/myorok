@@ -250,15 +250,17 @@ export default function SettingsScreen() {
                     />
                 </Card>
 
-                {/* 로그아웃 버튼 (작고 눈에 안띄게) */}
-                {currentUser && (
-                    <Pressable
-                        style={styles.smallLogoutButton}
-                        onPress={handleLogout}
-                    >
-                        <Text style={styles.smallLogoutText}>로그아웃</Text>
-                    </Pressable>
-                )}
+                {/* 로그아웃 버튼 */}
+                {currentUser ? (
+                    <View style={styles.logoutContainer}>
+                        <Pressable
+                            style={styles.smallLogoutButton}
+                            onPress={handleLogout}
+                        >
+                            <Text style={styles.smallLogoutText}>로그아웃</Text>
+                        </Pressable>
+                    </View>
+                ) : null}
 
                 <View style={styles.bottomPadding} />
             </ScrollView>
@@ -380,15 +382,17 @@ const styles = StyleSheet.create({
         fontWeight: '500',
         color: COLORS.error,
     },
+    logoutContainer: {
+        alignItems: 'center',
+        paddingVertical: 16,
+    },
     smallLogoutButton: {
-        alignSelf: 'center',
-        paddingVertical: 12,
-        paddingHorizontal: 20,
-        marginVertical: 16,
+        paddingVertical: 8,
+        paddingHorizontal: 16,
     },
     smallLogoutText: {
-        fontSize: 12,
+        fontSize: 13,
         color: COLORS.textSecondary,
-        opacity: 0.6,
+        opacity: 0.5,
     },
 });
