@@ -2,6 +2,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import * as Linking from 'expo-linking';
 
 import { COLORS } from '../constants';
 import { PetProvider } from '../hooks/use-selected-pet';
@@ -15,6 +16,7 @@ import { useAuthRequest, ResponseType } from 'expo-auth-session';
 import { getCurrentUserId, loginWithKakao } from '../services/auth';
 import { KAKAO_CLIENT_ID, KAKAO_DISCOVERY, KAKAO_REDIRECT_URI } from '../services/auth/kakaoAuth';
 import Constants from 'expo-constants';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function RootLayout() {
   const [subscriptionBlocked, setSubscriptionBlocked] = useState(false);
@@ -36,6 +38,7 @@ export default function RootLayout() {
     console.log('redirectUri =', KAKAO_REDIRECT_URI);
     console.log('ClientId loaded check:', KAKAO_CLIENT_ID ? `Yes (${KAKAO_CLIENT_ID.slice(0, 4)}...)` : 'No');
     let subscription: any;
+    let linkingSubscription: Linking.Subscription | undefined;
 
     (async () => {
       try {
@@ -73,9 +76,56 @@ export default function RootLayout() {
       }
     })();
 
+    // Handle deep links for OAuth callback
+    const handleDeepLink = async (event: Linking.EventType) => {
+      const url = event.url;
+      console.log('[DeepLink] Received URL:', url);
+
+      // Parse myorok://login?token=xxx&user=xxx
+      if (url.startsWith('myorok://login')) {
+        const { queryParams } = Linking.parse(url);
+        const token = queryParams?.token as string;
+        const userString = queryParams?.user as string;
+
+        if (token && userString) {
+          console.log('[DeepLink] JWT token and user info received');
+          try {
+            // Parse user info
+            const user = JSON.parse(decodeURIComponent(userString));
+            console.log('[DeepLink] User info:', { id: user.id, nickname: user.nickname });
+
+            // Store JWT token and user info
+            await AsyncStorage.setItem('jwt_token', token);
+            await AsyncStorage.setItem('current_user_id', user.id);
+            await AsyncStorage.setItem('kakao_user_info', JSON.stringify(user));
+
+            setIsLoggedIn(true);
+            setIsLoggingIn(false);
+            console.log('[DeepLink] Login successful via deep link');
+          } catch (error) {
+            console.error('[DeepLink] Failed to save token:', error);
+            setIsLoggingIn(false);
+          }
+        }
+      }
+    };
+
+    // Listen for deep link events
+    linkingSubscription = Linking.addEventListener('url', handleDeepLink);
+
+    // Check if app was opened with a deep link
+    Linking.getInitialURL().then((url) => {
+      if (url) {
+        handleDeepLink({ url });
+      }
+    });
+
     return () => {
       if (subscription) {
         subscription.remove();
+      }
+      if (linkingSubscription) {
+        linkingSubscription.remove();
       }
     };
   }, []);
