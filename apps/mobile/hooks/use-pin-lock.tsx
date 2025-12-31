@@ -118,18 +118,34 @@ export function PinLockProvider({ children }: PinLockProviderProps) {
         }
     }, []);
 
-    // 앱 상태 변화 감지 (백그라운드로 가면 잠금)
+    // 앱 상태 변화 감지 (백그라운드로 가면 잠금, 단 짧은 외부 링크 방문은 예외)
+    const backgroundStartTimeRef = useRef<number | null>(null);
+    const BACKGROUND_GRACE_PERIOD = 10000; // 10초 유예 시간 (외부 링크 방문용)
+
     useEffect(() => {
         const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
             if (
                 appStateRef.current.match(/active/) &&
                 nextAppState.match(/inactive|background/)
             ) {
-                // 앱이 백그라운드로 갈 때 잠금
-                if (isPinSet) {
-                    setIsLocked(true);
-                    clearInactivityTimer();
+                // 앱이 백그라운드로 갈 때 - 시간 기록
+                if (isPinSet && !isLocked) {
+                    backgroundStartTimeRef.current = Date.now();
                 }
+            } else if (
+                appStateRef.current.match(/inactive|background/) &&
+                nextAppState === 'active'
+            ) {
+                // 앱이 다시 활성화될 때 - 경과 시간 체크
+                if (isPinSet && !isLocked && backgroundStartTimeRef.current) {
+                    const elapsed = Date.now() - backgroundStartTimeRef.current;
+                    if (elapsed >= BACKGROUND_GRACE_PERIOD) {
+                        // 유예 시간 초과 - 잠금
+                        setIsLocked(true);
+                        clearInactivityTimer();
+                    }
+                }
+                backgroundStartTimeRef.current = null;
             }
             appStateRef.current = nextAppState;
         });
@@ -137,7 +153,7 @@ export function PinLockProvider({ children }: PinLockProviderProps) {
         return () => {
             subscription.remove();
         };
-    }, [isPinSet, clearInactivityTimer]);
+    }, [isPinSet, isLocked, clearInactivityTimer]);
 
     // 초기 로드
     useEffect(() => {

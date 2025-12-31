@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert, Linking } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -238,12 +238,12 @@ export default function SettingsScreen() {
                     <SettingItem
                         emoji="📄"
                         title="개인정보 처리방침"
-                        onPress={() => { }}
+                        onPress={() => Linking.openURL('https://myorok.vercel.app/privacy')}
                     />
                     <SettingItem
                         emoji="📋"
                         title="이용약관"
-                        onPress={() => { }}
+                        onPress={() => Linking.openURL('https://myorok.vercel.app/terms')}
                     />
                 </Card>
 
