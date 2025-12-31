@@ -1,10 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
-import {
-    Text,
-    StyleSheet,
-    Animated,
-    Platform,
-} from 'react-native';
+import { View, Text, StyleSheet, Animated, Platform } from 'react-native';
 import { COLORS } from '../constants';
 
 type ToastVariant = 'default' | 'error';
@@ -116,7 +111,7 @@ export function ToastProvider({ children }: ToastProviderProps) {
 const styles = StyleSheet.create({
     container: {
         position: 'absolute',
-        bottom: Platform.OS === 'ios' ? 100 : 80,
+        bottom: 80,
         left: 20,
         right: 20,
         backgroundColor: 'rgba(46, 46, 46, 0.95)',

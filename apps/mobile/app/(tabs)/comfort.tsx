@@ -8,6 +8,7 @@ import {
     RefreshControl,
     ActivityIndicator,
     Alert,
+    KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
@@ -229,33 +230,40 @@ export default function ComfortScreen() {
                     <ActivityIndicator size="large" color={COLORS.primary} />
                 </View>
             ) : (
-                <ScrollView
-                    style={styles.scrollView}
-                    refreshControl={
-                        <RefreshControl
-                            refreshing={isRefreshing}
-                            onRefresh={handleRefresh}
-                            tintColor={COLORS.primary}
-                        />
-                    }
+                <KeyboardAvoidingView
+                    style={{ flex: 1 }}
+                    behavior="padding"
+                    keyboardVerticalOffset={0}
                 >
-                    {posts.length === 0 ? (
-                        renderEmptyState()
-                    ) : (
-                        posts.map(post => (
-                            <ComfortPostCard
-                                key={post.id}
-                                post={post}
-                                onLike={() => handleLike(post.id)}
-                                onDelete={() => handleDelete(post.id)}
-                                onBlock={() => handleBlock(post.id, post.deviceId)}
-                                onReport={() => handleReport(post.id)}
-                                onUpdate={() => handleEdit(post)}
+                    <ScrollView
+                        style={styles.scrollView}
+                        keyboardShouldPersistTaps="handled"
+                        refreshControl={
+                            <RefreshControl
+                                refreshing={isRefreshing}
+                                onRefresh={handleRefresh}
+                                tintColor={COLORS.primary}
                             />
-                        ))
-                    )}
-                    <View style={styles.bottomPadding} />
-                </ScrollView>
+                        }
+                    >
+                        {posts.length === 0 ? (
+                            renderEmptyState()
+                        ) : (
+                            posts.map(post => (
+                                <ComfortPostCard
+                                    key={post.id}
+                                    post={post}
+                                    onLike={() => handleLike(post.id)}
+                                    onDelete={() => handleDelete(post.id)}
+                                    onBlock={() => handleBlock(post.id, post.deviceId)}
+                                    onReport={() => handleReport(post.id)}
+                                    onUpdate={() => handleEdit(post)}
+                                />
+                            ))
+                        )}
+                        <View style={styles.bottomPadding} />
+                    </ScrollView>
+                </KeyboardAvoidingView>
             )}
 
             {/* FAB 글쓰기 버튼 */}

@@ -64,13 +64,13 @@ export default function ComfortPostCard({
     const handleSubmitComment = async () => {
         if (!commentText.trim() || isSubmitting) return;
 
-        Keyboard.dismiss();
         setIsSubmitting(true);
         try {
             const response = await createComment(post.id, commentText.trim());
             if (response.success && response.data) {
                 setComments(prev => [...prev, response.data!.comment]);
                 setCommentText('');
+                Keyboard.dismiss();
             } else if (response.error) {
                 Alert.alert('알림', response.error.message || '댓글 작성에 실패했습니다.');
             }
@@ -208,6 +208,9 @@ export default function ComfortPostCard({
                             placeholderTextColor={COLORS.textSecondary}
                             maxLength={300}
                             multiline
+                            blurOnSubmit={false}
+                            returnKeyType="send"
+                            onSubmitEditing={handleSubmitComment}
                         />
                         <Pressable
                             style={[
