@@ -1,5 +1,6 @@
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import path from 'path';
 import { config, validateConfig } from './config';
 import authRoutes from './routes/authRoutes';
 
@@ -17,6 +18,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Serve static views
+app.use('/views', express.static(path.join(__dirname, 'views')));
 
 // Request logging middleware
 app.use((req: Request, res: Response, next: NextFunction) => {
