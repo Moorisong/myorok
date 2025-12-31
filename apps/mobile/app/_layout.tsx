@@ -95,10 +95,41 @@ export default function RootLayout() {
             const user = JSON.parse(decodeURIComponent(userString));
             console.log('[DeepLink] User info:', { id: user.id, nickname: user.nickname });
 
-            // Store JWT token and user info
+            // Store JWT token and user info in AsyncStorage
             await AsyncStorage.setItem('jwt_token', token);
             await AsyncStorage.setItem('current_user_id', user.id);
             await AsyncStorage.setItem('kakao_user_info', JSON.stringify(user));
+
+            // Save user to database and handle trial
+            const { getUser } = await import('../services/auth/userService');
+            const { getDatabase } = await import('../services/database');
+            const { startTrialForUser } = await import('../services/subscription');
+            const { migrateLegacyDataToUser } = await import('../services/auth/migrateLegacyData');
+
+            const existingUser = await getUser(user.id);
+            const db = await getDatabase();
+            const now = new Date().toISOString();
+
+            if (!existingUser) {
+              // New user - create in DB and start trial
+              await db.runAsync(
+                `INSERT INTO users (id, nickname, profileImage, createdAt, lastLogin)
+                 VALUES (?, ?, ?, ?, ?)`,
+                [user.id, user.nickname, user.profileImage || null, now, now]
+              );
+              await startTrialForUser(user.id);
+              console.log('[DeepLink] New user created in DB');
+
+              // Migrate legacy data (data created before login)
+              await migrateLegacyDataToUser(user.id);
+            } else {
+              // Existing user - update last login
+              await db.runAsync(
+                'UPDATE users SET lastLogin = ? WHERE id = ?',
+                [now, user.id]
+              );
+              console.log('[DeepLink] Existing user updated');
+            }
 
             setIsLoggedIn(true);
             setIsLoggingIn(false);
