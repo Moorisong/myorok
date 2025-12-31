@@ -405,6 +405,121 @@ LoginScreen → loginWithKakao()
 
 ---
 
+## 🚪 로그아웃 기능 상세
+
+### 목표
+- 사용자가 로그아웃 시 **저장된 토큰을 삭제**
+- 로그인 화면으로 즉시 복귀
+- 앱 내 다른 데이터(예: 로컬 캐시, pet 데이터 등)는 유지
+
+### 저장 데이터 및 처리
+
+| 데이터 | 저장 위치 | 키 | 처리 방식 |
+|--------|-----------|-----|-----------|
+| JWT 토큰 | AsyncStorage | `jwt_token` | ✅ 삭제 |
+| Access Token (레거시) | AsyncStorage | `kakao_access_token` | ✅ 삭제 |
+| Refresh Token (레거시) | AsyncStorage | `kakao_refresh_token` | ✅ 삭제 |
+| 사용자 정보 | AsyncStorage | `kakao_user_info` | ✅ 삭제 |
+| 현재 사용자 ID | AsyncStorage | `current_user_id` | ✅ 삭제 |
+| Pet 데이터 | SQLite | - | ❌ 유지 |
+| 기록 데이터 | SQLite | - | ❌ 유지 |
+
+### 로그아웃 플로우
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant App
+    participant AsyncStorage
+    participant Server
+
+    User->>App: 로그아웃 버튼 클릭
+    App->>App: 확인 다이얼로그
+    User->>App: 확인
+    App->>Server: POST /auth/logout (JWT)
+    Server-->>App: { success: true }
+    App->>AsyncStorage: removeItem('jwt_token')
+    App->>AsyncStorage: removeItem('kakao_user_info')
+    App->>AsyncStorage: removeItem('current_user_id')
+    App->>App: 상태 초기화 (isLoggedIn = false)
+    App->>User: 로그인 화면 표시
+```
+
+### 구현 코드
+
+#### kakaoAuth.ts
+```typescript
+export async function logoutFromKakao(): Promise<void> {
+    try {
+        const jwtToken = await AsyncStorage.getItem(STORAGE_KEYS.JWT_TOKEN);
+
+        if (jwtToken) {
+            // Call server logout API (optional - JWT is stateless)
+            await fetch(`${SERVER_URL}/auth/logout`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${jwtToken}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+        }
+
+        // Clear all auth-related storage
+        await AsyncStorage.multiRemove([
+            STORAGE_KEYS.JWT_TOKEN,
+            STORAGE_KEYS.USER_INFO,
+            STORAGE_KEYS.ACCESS_TOKEN,
+            STORAGE_KEYS.REFRESH_TOKEN,
+        ]);
+
+        console.log('[KakaoAuth] Logout successful');
+    } catch (error) {
+        console.error('[KakaoAuth] Logout error:', error);
+        // Still clear local storage on error
+        await AsyncStorage.multiRemove([
+            STORAGE_KEYS.JWT_TOKEN,
+            STORAGE_KEYS.USER_INFO,
+            STORAGE_KEYS.ACCESS_TOKEN,
+            STORAGE_KEYS.REFRESH_TOKEN,
+        ]);
+    }
+}
+```
+
+#### userService.ts
+```typescript
+export async function logout(): Promise<void> {
+    try {
+        await logoutFromKakao();
+        await AsyncStorage.removeItem(STORAGE_KEYS.CURRENT_USER_ID);
+        console.log('[UserService] User logged out');
+    } catch (error) {
+        console.error('[UserService] Logout failed:', error);
+        throw error;
+    }
+}
+```
+
+### UI/UX
+
+- **버튼 위치**: 설정 화면 하단 (눈에 잘 안 띄게)
+- **스타일**: 회색 텍스트, 작은 폰트
+- **확인 다이얼로그**:
+  ```
+  [로그아웃]
+  "정말 로그아웃하시겠습니까?"
+  [취소] [로그아웃]
+  ```
+- **로그아웃 완료**: Alert 표시 후 로그인 화면으로 이동
+
+### 주의사항
+
+1. **토큰 삭제 후에도 로컬 데이터 유지**: Pet, 기록 등은 삭제하지 않음
+2. **앱 재시작 권장**: Development Build에서는 `expo-updates` 미지원
+3. **서버 로그아웃 실패 시에도 로컬 정리**: 네트워크 오류 시에도 로컬 토큰 삭제
+
+---
+
 ## 파일 구조 요약
 
 ```
