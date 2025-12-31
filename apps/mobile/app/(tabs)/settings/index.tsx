@@ -6,8 +6,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../../constants';
 import { Card, SubscriptionBlockScreen } from '../../../components';
 import { useSelectedPet } from '../../../hooks/use-selected-pet';
+import { useAuth } from '../../../hooks/useAuth';
 import { getSubscriptionStatus, getTrialCountdownText } from '../../../services';
-import { getCurrentUser, logout } from '../../../services/auth';
+import { getCurrentUser } from '../../../services/auth';
 import type { SubscriptionState } from '../../../services';
 import type { User } from '../../../services/auth';
 
@@ -50,6 +51,7 @@ function SettingItem({ emoji, title, description, onPress, danger }: SettingItem
 export default function SettingsScreen() {
     const router = useRouter();
     const { selectedPet } = useSelectedPet();
+    const { logout: authLogout } = useAuth();
 
     const [subscriptionState, setSubscriptionState] = useState<SubscriptionState | null>(null);
     const [showBlockPreview, setShowBlockPreview] = useState(false);
@@ -84,10 +86,9 @@ export default function SettingsScreen() {
                     style: 'destructive',
                     onPress: async () => {
                         try {
-                            await logout();
-                            console.log('[Settings] Logout successful');
-                            // Show success alert - user needs to restart app
-                            Alert.alert('로그아웃 완료', '앱을 다시 시작해 주세요.');
+                            await authLogout();
+                            console.log('[Settings] Logout successful, returning to login screen');
+                            // Auth context will update isLoggedIn, triggering login screen
                         } catch (error) {
                             console.error('[Settings] Logout error:', error);
                             Alert.alert('오류', '로그아웃에 실패했습니다.');

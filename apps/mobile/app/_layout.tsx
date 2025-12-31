@@ -6,22 +6,24 @@ import * as Linking from 'expo-linking';
 
 import { COLORS } from '../constants';
 import { PetProvider } from '../hooks/use-selected-pet';
+import { AuthProvider, useAuth } from '../hooks/useAuth';
 import { ToastProvider } from '../components/ToastContext';
 import { SubscriptionBlockScreen } from '../components';
 import { LoginScreen } from '../components/auth/LoginScreen';
 import { useEffect, useState } from 'react';
-import { registerForPushNotificationsAsync, sendTokenToBackend, scheduleInactivityNotification } from '../services/NotificationService';
+import { registerForPushNotificationsAsync, scheduleInactivityNotification } from '../services/NotificationService';
 import { initializeSubscription, isAppAccessAllowed } from '../services';
 import { useAuthRequest, ResponseType } from 'expo-auth-session';
-import { getCurrentUserId, loginWithKakao } from '../services/auth';
+import { loginWithKakao } from '../services/auth';
 import { KAKAO_CLIENT_ID, KAKAO_DISCOVERY, KAKAO_REDIRECT_URI } from '../services/auth/kakaoAuth';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getCurrentUserId } from '../services/auth';
 
-export default function RootLayout() {
+// Main app content that uses auth context
+function AppContent() {
+  const { isLoggedIn, setIsLoggedIn, isLoggingIn, setIsLoggingIn, checkAuthStatus } = useAuth();
   const [subscriptionBlocked, setSubscriptionBlocked] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null); // null = loading
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // Kakao Auth Request Hook
   const [request, response, promptAsync] = useAuthRequest(
@@ -43,9 +45,8 @@ export default function RootLayout() {
 
     (async () => {
       try {
-        // Check login status first
-        const userId = await getCurrentUserId();
-        setIsLoggedIn(!!userId);
+        // Check login status first using context
+        await checkAuthStatus();
 
         // Initialize subscription on first launch
         await initializeSubscription();
@@ -254,3 +255,11 @@ export default function RootLayout() {
   );
 }
 
+// Root layout with AuthProvider
+export default function RootLayout() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
+  );
+}
