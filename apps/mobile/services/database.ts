@@ -1,5 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { runMigrations as runMigrationSystem } from './migrations/migrationManager';
+import { migrations } from './migrations/migrations';
 
 const DB_NAME = 'myorok.db';
 const SELECTED_PET_KEY = 'selected_pet_id';
@@ -14,7 +16,16 @@ export function getDatabase(): Promise<SQLite.SQLiteDatabase> {
   dbPromise = (async () => {
     const db = await SQLite.openDatabaseAsync(DB_NAME);
     await initializeTables(db);
-    await runMigrations(db);
+    // Use new migration system
+    await runMigrationSystem(db, migrations, DB_NAME, {
+      createBackup: true,
+      useTransaction: true,
+      onProgress: (current, total, name) => {
+        console.log(`Running migration ${current}/${total}: ${name}`);
+      },
+    });
+    // Keep legacy migrations for backward compatibility
+    await runLegacyMigrations(db);
     await ensureDefaultPet(db);
     dbInstance = db;
     return db;
@@ -129,8 +140,12 @@ async function initializeTables(db: SQLite.SQLiteDatabase) {
   `);
 }
 
-async function runMigrations(db: SQLite.SQLiteDatabase) {
-
+/**
+ * Legacy migration function for backward compatibility
+ * These migrations were added before the migration system was implemented
+ * They are kept to ensure existing databases are updated correctly
+ */
+async function runLegacyMigrations(db: SQLite.SQLiteDatabase) {
   try {
     // Check if waterIntake column exists in daily_records
     const tableInfo = await db.getAllAsync<{ name: string }>(
@@ -146,8 +161,6 @@ async function runMigrations(db: SQLite.SQLiteDatabase) {
       `);
       console.log('waterIntake column added successfully');
     }
-
-
 
     // Check if deletedAt column exists in supplements
     const supplementsInfo = await db.getAllAsync<{ name: string }>(
@@ -179,7 +192,7 @@ async function runMigrations(db: SQLite.SQLiteDatabase) {
       console.log('deletedAt column added to pets successfully');
     }
   } catch (error) {
-    console.error('Migration error:', error);
+    console.error('Legacy migration error:', error);
   }
 }
 

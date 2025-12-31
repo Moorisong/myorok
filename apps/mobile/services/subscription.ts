@@ -201,3 +201,155 @@ export async function resetSubscription(): Promise<void> {
         throw error;
     }
 }
+
+// ============================================================
+// User-based subscription functions (for Kakao login)
+// ============================================================
+
+/**
+ * Get subscription status for a specific user
+ */
+export async function getSubscriptionStatusForUser(userId: string): Promise<SubscriptionState> {
+    try {
+        const db = await getDatabase();
+        const record = await db.getFirstAsync<{
+            trialStartDate: string;
+            subscriptionStatus: SubscriptionStatus;
+            subscriptionStartDate: string | null;
+            subscriptionExpiryDate: string | null;
+        }>(
+            'SELECT trialStartDate, subscriptionStatus, subscriptionStartDate, subscriptionExpiryDate FROM subscription_state WHERE userId = ?',
+            [userId]
+        );
+
+        if (!record) {
+            // No subscription record for this user
+            return {
+                status: 'expired',
+                daysRemaining: 0,
+            };
+        }
+
+        const { trialStartDate, subscriptionStatus, subscriptionStartDate, subscriptionExpiryDate } = record;
+
+        if (subscriptionStatus === 'trial' && trialStartDate) {
+            const daysRemaining = calculateDaysRemaining(trialStartDate);
+
+            if (daysRemaining <= 0) {
+                await expireSubscriptionForUser(userId);
+                return {
+                    status: 'expired',
+                    trialStartDate,
+                    daysRemaining: 0,
+                };
+            }
+
+            return {
+                status: 'trial',
+                trialStartDate,
+                daysRemaining,
+            };
+        }
+
+        if (subscriptionStatus === 'active') {
+            return {
+                status: 'active',
+                subscriptionStartDate: subscriptionStartDate || undefined,
+                subscriptionExpiryDate: subscriptionExpiryDate || undefined,
+            };
+        }
+
+        return {
+            status: 'expired',
+            trialStartDate: trialStartDate || undefined,
+            daysRemaining: 0,
+        };
+    } catch (error) {
+        console.error('[Subscription] Get status for user failed:', error);
+        throw error;
+    }
+}
+
+/**
+ * Start trial for a specific user
+ * Note: subscription_state has CHECK(id = 1) constraint, so we update the single row
+ */
+export async function startTrialForUser(userId: string): Promise<void> {
+    try {
+        const db = await getDatabase();
+        const now = new Date().toISOString();
+
+        // Check if subscription_state row exists
+        const existing = await db.getFirstAsync<{ id: number }>(
+            'SELECT id FROM subscription_state WHERE id = 1'
+        );
+
+        if (existing) {
+            // Update existing row with new userId
+            await db.runAsync(
+                `UPDATE subscription_state 
+                 SET userId = ?, trialStartDate = ?, subscriptionStatus = ?, updatedAt = ?
+                 WHERE id = 1`,
+                [userId, now, 'trial', now]
+            );
+        } else {
+            // Insert new row with id = 1
+            await db.runAsync(
+                `INSERT INTO subscription_state (id, userId, trialStartDate, subscriptionStatus, createdAt, updatedAt)
+                 VALUES (1, ?, ?, ?, ?, ?)`,
+                [userId, now, 'trial', now, now]
+            );
+        }
+
+        console.log('[Subscription] Trial started for user:', userId);
+    } catch (error) {
+        console.error('[Subscription] Start trial failed:', error);
+        throw error;
+    }
+}
+
+/**
+ * Activate subscription for a specific user
+ */
+export async function activateSubscriptionForUser(
+    userId: string,
+    startDate: string,
+    expiryDate: string
+): Promise<void> {
+    try {
+        const db = await getDatabase();
+        const now = new Date().toISOString();
+
+        await db.runAsync(
+            `UPDATE subscription_state 
+             SET subscriptionStatus = ?, subscriptionStartDate = ?, subscriptionExpiryDate = ?, updatedAt = ?
+             WHERE userId = ?`,
+            ['active', startDate, expiryDate, now, userId]
+        );
+
+        console.log('[Subscription] Subscription activated for user:', userId);
+    } catch (error) {
+        console.error('[Subscription] Activate subscription failed:', error);
+        throw error;
+    }
+}
+
+/**
+ * Expire subscription for a specific user
+ */
+export async function expireSubscriptionForUser(userId: string): Promise<void> {
+    try {
+        const db = await getDatabase();
+        const now = new Date().toISOString();
+
+        await db.runAsync(
+            `UPDATE subscription_state SET subscriptionStatus = ?, updatedAt = ? WHERE userId = ?`,
+            ['expired', now, userId]
+        );
+
+        console.log('[Subscription] Subscription expired for user:', userId);
+    } catch (error) {
+        console.error('[Subscription] Expire subscription failed:', error);
+        throw error;
+    }
+}

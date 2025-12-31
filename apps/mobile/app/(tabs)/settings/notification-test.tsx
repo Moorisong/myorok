@@ -8,7 +8,7 @@ import { Feather } from '@expo/vector-icons';
 import { COLORS } from '../../../constants';
 import { Card, Button } from '../../../components';
 import { useToast } from '../../../components/ToastContext';
-import { getDeviceId } from '../../../services/pin';
+import { getDeviceId } from '../../../services/device';
 import { scheduleTestNotification } from '../../../services/NotificationService';
 
 type TabType = 'quick' | 'state' | 'settings';
