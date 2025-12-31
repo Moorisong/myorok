@@ -1,10 +1,10 @@
-import React from 'react';
 import {
     View,
     Text,
     StyleSheet,
     TouchableOpacity,
     Dimensions,
+    Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants';
@@ -22,41 +22,55 @@ interface LoginScreenProps {
  * - 카카오 로그인 버튼 (노란색, 카카오 디자인 가이드 준수)
  * - 안내 문구: "월 구독 결제로 앱하루를 이용하려면 로그인하세요."
  */
-export function LoginScreen({ onLoginPress, isLoading = false }: LoginScreenProps) {
+export function LoginScreen({ onLoginSuccess, onLoginPress, isLoading = false }: LoginScreenProps) {
     return (
         <SafeAreaView style={styles.container}>
             <View style={styles.content}>
-                {/* Logo / App Name */}
-                <View style={styles.logoContainer}>
-                    <Text style={styles.logoEmoji}>🐾</Text>
-                    <Text style={styles.appName}>앱하루</Text>
-                    <Text style={styles.appSubtitle}>반려묘 병상일지</Text>
+                {/* Header Section */}
+                <View style={styles.header}>
+                    <View style={styles.logoContainer}>
+                        <Image
+                            source={require('../../assets/images/myorok_logo_big.png')}
+                            style={styles.logoImage}
+                            resizeMode="contain"
+                        />
+                    </View>
+                    <Text style={styles.appName}>묘록</Text>
+                    <Text style={styles.appSubtitle}>소중한 반려묘를 위한 병상일지</Text>
                 </View>
 
-                {/* Description */}
-                <View style={styles.descriptionContainer}>
-                    <Text style={styles.description}>
-                        월 구독 결제로 앱하루를 이용하려면{'\n'}로그인하세요.
+                {/* Illustration/Description Section */}
+                <View style={styles.centerSection}>
+                    <Text style={styles.descriptionTitle}>
+                        기록을 시작해보세요
+                    </Text>
+                    <Text style={styles.descriptionText}>
+                        아이의 건강 상태를 꼼꼼하게 기록하고{'\n'}
+                        변화를 한눈에 파악할 수 있어요.
                     </Text>
                 </View>
+// ... rest of the component matches perfectly up to line 104 in context
+                // I will only replace the top part and styles
 
-                {/* Kakao Login Button */}
-                <TouchableOpacity
-                    style={[styles.kakaoButton, isLoading && styles.kakaoButtonDisabled]}
-                    onPress={onLoginPress}
-                    disabled={isLoading}
-                    activeOpacity={0.8}
-                >
-                    <Text style={styles.kakaoLogo}>💬</Text>
-                    <Text style={styles.kakaoButtonText}>
-                        {isLoading ? '로그인 중...' : '카카오 로그인'}
+
+                {/* Actions Section */}
+                <View style={styles.footer}>
+                    <TouchableOpacity
+                        style={[styles.kakaoButton, isLoading && styles.kakaoButtonDisabled]}
+                        onPress={onLoginPress}
+                        disabled={isLoading}
+                        activeOpacity={0.8}
+                    >
+                        <Text style={styles.kakaoIcon}>💬</Text>
+                        <Text style={styles.kakaoButtonText}>
+                            {isLoading ? '카카오 로그인 중...' : '카카오로 3초 만에 시작하기'}
+                        </Text>
+                    </TouchableOpacity>
+
+                    <Text style={styles.termsText}>
+                        로그인 시 <Text style={styles.linkText}>이용약관</Text> 및 <Text style={styles.linkText}>개인정보처리방침</Text>에{'\n'}동의하게 됩니다.
                     </Text>
-                </TouchableOpacity>
-
-                {/* Terms */}
-                <Text style={styles.terms}>
-                    로그인 시 이용약관 및 개인정보처리방침에 동의하게 됩니다.
-                </Text>
+                </View>
             </View>
         </SafeAreaView>
     );
@@ -65,68 +79,100 @@ export function LoginScreen({ onLoginPress, isLoading = false }: LoginScreenProp
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: COLORS.background,
+        backgroundColor: '#FFFFFF',
     },
     content: {
         flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
+        justifyContent: 'space-between',
         paddingHorizontal: 24,
+        paddingBottom: 40,
+        paddingTop: 60,
+    },
+    header: {
+        alignItems: 'center',
+        marginTop: 40,
     },
     logoContainer: {
+        width: 120,
+        height: 120,
+        marginBottom: 24,
         alignItems: 'center',
-        marginBottom: 48,
+        justifyContent: 'center',
     },
-    logoEmoji: {
-        fontSize: 64,
-        marginBottom: 16,
+    logoImage: {
+        width: '100%',
+        height: '100%',
     },
     appName: {
         fontSize: 32,
-        fontWeight: '700',
-        color: COLORS.textPrimary,
+        fontWeight: '800',
+        color: COLORS.textPrimary, // Keep primary dark
         marginBottom: 8,
+        letterSpacing: -0.5,
     },
     appSubtitle: {
         fontSize: 16,
-        color: COLORS.textSecondary,
+        color: '#666666', // Darker than textSecondary
+        fontWeight: '500',
     },
-    descriptionContainer: {
-        marginBottom: 48,
+    centerSection: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
-    description: {
+    descriptionTitle: {
+        fontSize: 22,
+        fontWeight: '700',
+        color: COLORS.textPrimary,
+        marginBottom: 12,
+        textAlign: 'center',
+    },
+    descriptionText: {
         fontSize: 16,
-        color: COLORS.textSecondary,
+        color: '#4A4A4A', // Much darker for readability
         textAlign: 'center',
         lineHeight: 24,
+    },
+    footer: {
+        width: '100%',
+        alignItems: 'center',
     },
     kakaoButton: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: '#FEE500', // Kakao Yellow
-        width: width - 48,
-        height: 52,
-        borderRadius: 12,
-        marginBottom: 16,
+        width: '100%',
+        height: 56,
+        borderRadius: 16,
+        marginBottom: 20,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+        elevation: 2,
     },
     kakaoButtonDisabled: {
-        opacity: 0.6,
+        opacity: 0.7,
     },
-    kakaoLogo: {
+    kakaoIcon: {
         fontSize: 20,
-        marginRight: 8,
+        marginRight: 10,
     },
     kakaoButtonText: {
         fontSize: 16,
         fontWeight: '600',
-        color: '#000000',
+        color: '#000000', // Kakao Label Color
     },
-    terms: {
+    termsText: {
         fontSize: 12,
-        color: COLORS.textSecondary,
+        color: '#999999',
         textAlign: 'center',
-        marginTop: 16,
+        lineHeight: 18,
+    },
+    linkText: {
+        textDecorationLine: 'underline',
+        color: '#777777',
     },
 });
 

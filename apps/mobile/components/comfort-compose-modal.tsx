@@ -9,6 +9,7 @@ import {
     Alert,
     ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 
 import { COLORS, COMFORT_MESSAGES } from '../constants';
@@ -97,7 +98,7 @@ export default function ComfortComposeModal({
             presentationStyle="formSheet"
             onRequestClose={handleClose}
         >
-            <View style={styles.container}>
+            <SafeAreaView style={styles.container}>
                 {/* 헤더 */}
                 <View style={styles.header}>
                     <Pressable onPress={handleClose} hitSlop={8}>
@@ -176,7 +177,7 @@ export default function ComfortComposeModal({
                         {content.length}{COMFORT_MESSAGES.COMPOSE_LIMIT}
                     </Text>
                 </View>
-            </View>
+            </SafeAreaView>
         </Modal>
     );
 }
@@ -185,7 +186,7 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: COLORS.surface,
-        maxHeight: 400,
+        // maxHeight removed to allow full screen with safe area
     },
     header: {
         flexDirection: 'row',
@@ -222,6 +223,7 @@ const styles = StyleSheet.create({
         fontSize: 16,
         lineHeight: 24,
         color: COLORS.textPrimary,
+        textAlignVertical: 'top', // Android fix
     },
     footer: {
         flexDirection: 'row',
