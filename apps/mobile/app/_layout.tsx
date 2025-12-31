@@ -29,7 +29,8 @@ export default function RootLayout() {
       clientId: KAKAO_CLIENT_ID,
       scopes: ['profile_nickname', 'profile_image'],
       redirectUri: KAKAO_REDIRECT_URI,
-      responseType: ResponseType.Code, // Explicitly set responseType to 'code' as requested
+      responseType: ResponseType.Code,
+      usePKCE: false, // Disable PKCE since server handles token exchange
     },
     KAKAO_DISCOVERY
   );
