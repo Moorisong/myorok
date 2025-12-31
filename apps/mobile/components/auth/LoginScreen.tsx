@@ -5,6 +5,7 @@ import {
     TouchableOpacity,
     Dimensions,
     Image,
+    Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants';
@@ -23,6 +24,14 @@ interface LoginScreenProps {
  * - 안내 문구: "월 구독 결제로 앱하루를 이용하려면 로그인하세요."
  */
 export function LoginScreen({ onLoginSuccess, onLoginPress, isLoading = false }: LoginScreenProps) {
+    const handleOpenTerms = () => {
+        Linking.openURL('https://myorok.vercel.app/terms').catch(() => { });
+    };
+
+    const handleOpenPrivacy = () => {
+        Linking.openURL('https://myorok.vercel.app/privacy').catch(() => { });
+    };
+
     return (
         <SafeAreaView style={styles.container}>
             <View style={styles.content}>
@@ -36,17 +45,17 @@ export function LoginScreen({ onLoginSuccess, onLoginPress, isLoading = false }:
                         />
                     </View>
                     <Text style={styles.appName}>묘록</Text>
-                    <Text style={styles.appSubtitle}>소중한 반려묘를 위한 병상일지</Text>
+                    <Text style={styles.appSubtitle}>사랑으로 만든 환묘 상태 기록 앱 💓</Text>
                 </View>
 
                 {/* Illustration/Description Section */}
                 <View style={styles.centerSection}>
                     <Text style={styles.descriptionTitle}>
-                        기록을 시작해보세요
+                        그 여정을 시작해보세요
                     </Text>
                     <Text style={styles.descriptionText}>
                         아이의 건강 상태를 꼼꼼하게 기록하고{'\n'}
-                        변화를 한눈에 파악할 수 있어요.
+                        변화를 한눈에 파악할 수 있어요.{'\n'}
                     </Text>
                 </View>
 // ... rest of the component matches perfectly up to line 104 in context
@@ -68,7 +77,7 @@ export function LoginScreen({ onLoginSuccess, onLoginPress, isLoading = false }:
                     </TouchableOpacity>
 
                     <Text style={styles.termsText}>
-                        로그인 시 <Text style={styles.linkText}>이용약관</Text> 및 <Text style={styles.linkText}>개인정보처리방침</Text>에{'\n'}동의하게 됩니다.
+                        로그인 시 <Text style={styles.linkText} onPress={handleOpenTerms}>이용약관</Text> 및 <Text style={styles.linkText} onPress={handleOpenPrivacy}>개인정보처리방침</Text>에{'\n'}동의하게 됩니다.
                     </Text>
                 </View>
             </View>
