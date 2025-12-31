@@ -1,10 +1,13 @@
 import { Router } from 'express';
-import { kakaoLogin, logout } from '../controllers/authController';
+import { kakaoLogin, logout, kakaoCallback } from '../controllers/authController';
 import { verifyToken } from '../middleware/authMiddleware';
 
 const router = Router();
 
-// POST /auth/kakao - Kakao OAuth login
+// GET /auth/kakao - Kakao OAuth callback (browser redirect from Kakao)
+router.get('/kakao', kakaoCallback);
+
+// POST /auth/kakao - Kakao OAuth login (API call from app)
 router.post('/kakao', kakaoLogin);
 
 // POST /auth/logout - Logout (requires authentication)
