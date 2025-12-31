@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { savePost, filterBadWords, getModelsAsync } from '@/lib/comfort';
 
+export const dynamic = 'force-dynamic';
+
 interface RouteParams {
     params: Promise<{ id: string }>;
 }

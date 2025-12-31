@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getModelsAsync, generateNickname } from '@/lib/comfort';
 
+export const dynamic = 'force-dynamic';
+
 // GET /api/comfort/block - 차단 목록 조회
 export async function GET(request: NextRequest) {
     try {

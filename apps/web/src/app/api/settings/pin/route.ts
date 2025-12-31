@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { getDevicePinSettings, setDevicePinSettings, deleteDevicePinSettings } from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+
 const SALT_ROUNDS = 10;
 
 // POST /api/settings/pin - PIN 설정

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getPostById, savePost, generateId, filterBadWords, getModelsAsync, canComment, generateNickname } from '@/lib/comfort';
 import { sendPushNotification } from '@/lib/notification';
 
+export const dynamic = 'force-dynamic';
+
 interface RouteParams {
     params: Promise<{ id: string }>;
 }

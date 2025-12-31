@@ -10,6 +10,8 @@ import {
     type Post,
 } from '@/lib/comfort';
 
+export const dynamic = 'force-dynamic';
+
 // GET /api/comfort/posts - 게시글 목록 조회
 export async function GET(request: NextRequest) {
     try {

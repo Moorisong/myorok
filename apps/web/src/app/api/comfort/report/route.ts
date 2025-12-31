@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPostById, savePost } from '@/lib/comfort';
 
+export const dynamic = 'force-dynamic';
+
 const REPORT_THRESHOLD = 3; // 3회 이상 신고 시 자동 숨김
 
 // POST /api/comfort/report - 신고

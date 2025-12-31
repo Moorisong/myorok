@@ -5,6 +5,9 @@ import { Post } from '@/lib/comfort';
 import NotificationState from '@/models/NotificationState';
 import Device from '@/models/Device';
 import { sendPushNotification } from '@/lib/notification';
+
+export const dynamic = 'force-dynamic';
+
 // ... (keep existing code)
 
 
