@@ -414,7 +414,7 @@ const styles = StyleSheet.create({
     },
     logoutContainer: {
         alignItems: 'center',
-        paddingVertical: 16,
+        paddingTop: 25,
     },
     smallLogoutButton: {
         paddingVertical: 8,

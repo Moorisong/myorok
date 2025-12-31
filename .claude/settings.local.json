@@ -5,7 +5,9 @@
       "Bash(git commit:*)",
       "Bash(npm run build:*)",
       "Bash(cat:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx react-native:*)"
     ]
   }
 }
