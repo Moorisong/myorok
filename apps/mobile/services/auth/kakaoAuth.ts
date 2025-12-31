@@ -1,6 +1,7 @@
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { jwtDecode } from 'jwt-decode';
 
 // Complete auth session for web browser redirect
 WebBrowser.maybeCompleteAuthSession();
@@ -199,13 +200,8 @@ export async function getAuthSession(): Promise<KakaoUser | null> {
         }
 
         // Verify JWT token is still valid by checking expiration
-        // JWT format: header.payload.signature
         try {
-            const payload = jwtToken.split('.')[1];
-            // Use Buffer for base64 decoding in React Native
-            const decodedPayload = JSON.parse(
-                Buffer.from(payload, 'base64').toString('utf-8')
-            );
+            const decodedPayload: any = jwtDecode(jwtToken);
             const currentTime = Math.floor(Date.now() / 1000);
 
             if (decodedPayload.exp && decodedPayload.exp < currentTime) {
