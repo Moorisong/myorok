@@ -1,15 +1,15 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, Alert, Linking } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Feather } from '@expo/vector-icons';
 
-import { COLORS, PIN_MESSAGES } from '../../../constants';
-import { Card, PinInputModal, SubscriptionBlockScreen } from '../../../components';
+import { COLORS } from '../../../constants';
+import { Card, SubscriptionBlockScreen } from '../../../components';
 import { useSelectedPet } from '../../../hooks/use-selected-pet';
-import { usePinLock } from '../../../hooks/use-pin-lock';
 import { getSubscriptionStatus, getTrialCountdownText } from '../../../services';
+import { getCurrentUser, logout } from '../../../services/auth';
 import type { SubscriptionState } from '../../../services';
+import type { User } from '../../../services/auth';
 
 interface SettingItemProps {
     emoji: string;
@@ -17,31 +17,27 @@ interface SettingItemProps {
     description?: string;
     onPress: () => void;
     danger?: boolean;
-    disabled?: boolean;
 }
 
-function SettingItem({ emoji, title, description, onPress, danger, disabled }: SettingItemProps) {
+function SettingItem({ emoji, title, description, onPress, danger }: SettingItemProps) {
     return (
         <Pressable
             style={({ pressed }) => [
                 styles.settingItem,
-                pressed && !disabled && styles.settingItemPressed,
-                disabled && styles.settingItemDisabled,
+                pressed && styles.settingItemPressed,
             ]}
-            onPress={disabled ? undefined : onPress}
-            disabled={disabled}
+            onPress={onPress}
         >
             <Text style={styles.settingEmoji}>{emoji}</Text>
             <View style={styles.settingContent}>
                 <Text style={[
                     styles.settingTitle,
                     danger && styles.dangerText,
-                    disabled && styles.disabledText,
                 ]}>
                     {title}
                 </Text>
                 {description && (
-                    <Text style={[styles.settingDescription, disabled && styles.disabledText]}>
+                    <Text style={styles.settingDescription}>
                         {description}
                     </Text>
                 )}
@@ -54,17 +50,16 @@ function SettingItem({ emoji, title, description, onPress, danger, disabled }: S
 export default function SettingsScreen() {
     const router = useRouter();
     const { selectedPet } = useSelectedPet();
-    const { isPinSet, isLocked, unlock, refreshPinStatus, resetInactivityTimer } = usePinLock();
 
-    const [showPinModal, setShowPinModal] = useState(false);
     const [subscriptionState, setSubscriptionState] = useState<SubscriptionState | null>(null);
     const [showBlockPreview, setShowBlockPreview] = useState(false);
+    const [currentUser, setCurrentUser] = useState<User | null>(null);
 
     useFocusEffect(
         useCallback(() => {
-            refreshPinStatus();
             loadSubscriptionStatus();
-        }, [refreshPinStatus])
+            loadCurrentUser();
+        }, [])
     );
 
     const loadSubscriptionStatus = async () => {
@@ -72,33 +67,35 @@ export default function SettingsScreen() {
         setSubscriptionState(status);
     };
 
-    // 사용자 활동 시 무활동 타이머 리셋
-    const handleUserActivity = useCallback(() => {
-        if (!isLocked) {
-            resetInactivityTimer();
-        }
-    }, [isLocked, resetInactivityTimer]);
-
-    const handleUnlock = () => {
-        setShowPinModal(true);
+    const loadCurrentUser = async () => {
+        const user = await getCurrentUser();
+        setCurrentUser(user);
     };
 
-    const handlePinSubmit = async (pin: string): Promise<{ success: boolean; error?: string }> => {
-        const result = await unlock(pin);
-        if (result.success) {
-            setShowPinModal(false);
-        }
-        return result;
+    const handleLogout = async () => {
+        Alert.alert(
+            '로그아웃',
+            '정말 로그아웃하시겠습니까?',
+            [
+                { text: '취소', style: 'cancel' },
+                {
+                    text: '로그아웃',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            await logout();
+                            setCurrentUser(null);
+                            Alert.alert('완료', '로그아웃되었습니다.');
+                        } catch (error) {
+                            Alert.alert('오류', '로그아웃에 실패했습니다.');
+                        }
+                    },
+                },
+            ]
+        );
     };
 
     const handleReset = () => {
-        handleUserActivity();
-
-        if (isLocked) {
-            handleUnlock();
-            return;
-        }
-
         Alert.alert(
             '데이터 초기화',
             '모든 기록이 삭제됩니다. 이 작업은 되돌릴 수 없습니다.',
@@ -110,15 +107,7 @@ export default function SettingsScreen() {
     };
 
     const handleNavigate = (path: string) => {
-        handleUserActivity();
         router.navigate(path as any);
-    };
-
-    const getPinDescription = () => {
-        if (isPinSet) {
-            return isLocked ? '잠김' : '설정됨';
-        }
-        return '앱 접근 보호';
     };
 
     const getSubscriptionDescription = () => {
@@ -136,19 +125,6 @@ export default function SettingsScreen() {
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
             <ScrollView style={styles.scrollView}>
-                {/* Lock Banner */}
-                {isLocked && (
-                    <Pressable style={styles.lockBanner} onPress={handleUnlock}>
-                        <View style={styles.lockBannerContent}>
-                            <Text style={styles.lockBannerText}>{PIN_MESSAGES.LOCKED_BANNER}</Text>
-                            <View style={styles.unlockButton}>
-                                <Text style={styles.unlockButtonText}>{PIN_MESSAGES.UNLOCK_BUTTON}</Text>
-                                <Feather name="unlock" size={14} color={COLORS.primary} />
-                            </View>
-                        </View>
-                    </Pressable>
-                )}
-
                 {/* Pet Indicator */}
                 <View style={styles.petIndicatorRow}>
                     <View style={styles.petIndicator}>
@@ -160,28 +136,36 @@ export default function SettingsScreen() {
                     <Text style={styles.headerTitle}>설정</Text>
                 </View>
 
+                {/* 계정 섹션 */}
+                {currentUser && (
+                    <Card style={styles.card}>
+                        <View style={styles.accountSection}>
+                            <View style={styles.accountInfo}>
+                                <Text style={styles.accountLabel}>로그인 계정</Text>
+                                <Text style={styles.accountNickname}>{currentUser.nickname}</Text>
+                            </View>
+                            <Pressable
+                                style={styles.logoutButton}
+                                onPress={handleLogout}
+                            >
+                                <Text style={styles.logoutButtonText}>로그아웃</Text>
+                            </Pressable>
+                        </View>
+                    </Card>
+                )}
+
                 <Card style={styles.card}>
                     <SettingItem
                         emoji="🐱"
                         title="고양이 관리"
                         description="고양이 추가/편집/삭제"
                         onPress={() => handleNavigate('/settings/pets')}
-                        disabled={isLocked}
                     />
                     <SettingItem
                         emoji="🚫"
                         title="차단 목록 관리"
                         description="쉼터 차단 사용자 관리"
                         onPress={() => handleNavigate('/settings/block-list')}
-                    />
-                </Card>
-
-                <Card style={styles.card}>
-                    <SettingItem
-                        emoji="🔒"
-                        title="잠금(PIN) 설정"
-                        description={getPinDescription()}
-                        onPress={() => handleNavigate('/settings/pin')}
                     />
                 </Card>
 
@@ -226,6 +210,21 @@ export default function SettingsScreen() {
                         description="체험 만료 시 보이는 화면"
                         onPress={() => setShowBlockPreview(true)}
                     />
+                    <SettingItem
+                        emoji="🔐"
+                        title="카카오 로그인 테스트 (Dev)"
+                        description={currentUser ? `로그인됨: ${currentUser.nickname}` : '로그인 안됨'}
+                        onPress={async () => {
+                            try {
+                                const { loginWithKakao } = await import('../../../services/auth');
+                                const userId = await loginWithKakao();
+                                Alert.alert('로그인 성공', `userId: ${userId}`);
+                                loadCurrentUser();
+                            } catch (error: any) {
+                                Alert.alert('로그인 실패', error.message || '알 수 없는 오류');
+                            }
+                        }}
+                    />
                 </Card>
 
                 <Card style={styles.card}>
@@ -254,20 +253,11 @@ export default function SettingsScreen() {
                         description="모든 기록을 삭제합니다"
                         onPress={handleReset}
                         danger
-                        disabled={isLocked}
                     />
                 </Card>
 
                 <View style={styles.bottomPadding} />
             </ScrollView>
-
-            <PinInputModal
-                visible={showPinModal}
-                title={PIN_MESSAGES.PIN_VERIFY_TITLE}
-                description={PIN_MESSAGES.PIN_VERIFY_DESCRIPTION}
-                onSubmit={handlePinSubmit}
-                onCancel={() => setShowPinModal(false)}
-            />
 
             {/* Subscription Block Screen Preview */}
             <SubscriptionBlockScreen
@@ -285,39 +275,6 @@ const styles = StyleSheet.create({
     },
     scrollView: {
         flex: 1,
-    },
-    lockBanner: {
-        backgroundColor: '#FFF8E1',
-        borderBottomWidth: 1,
-        borderBottomColor: '#FFE082',
-    },
-    lockBannerContent: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-    },
-    lockBannerText: {
-        fontSize: 14,
-        fontWeight: '500',
-        color: '#F57C00',
-    },
-    unlockButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        backgroundColor: COLORS.surface,
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 16,
-        borderWidth: 1,
-        borderColor: COLORS.primary,
-    },
-    unlockButtonText: {
-        fontSize: 13,
-        fontWeight: '500',
-        color: COLORS.primary,
     },
     header: {
         paddingHorizontal: 20,
@@ -343,9 +300,6 @@ const styles = StyleSheet.create({
     settingItemPressed: {
         opacity: 0.7,
     },
-    settingItemDisabled: {
-        opacity: 0.5,
-    },
     settingEmoji: {
         fontSize: 22,
         marginRight: 14,
@@ -369,9 +323,6 @@ const styles = StyleSheet.create({
     dangerText: {
         color: COLORS.error,
     },
-    disabledText: {
-        color: COLORS.textSecondary,
-    },
     bottomPadding: {
         height: 32,
     },
@@ -390,13 +341,39 @@ const styles = StyleSheet.create({
         borderRadius: 14,
         maxWidth: 100,
     },
-    petEmoji: {
-        fontSize: 12,
-        marginRight: 4,
-    },
     petName: {
         fontSize: 12,
         fontWeight: '500',
         color: COLORS.textPrimary,
+    },
+    accountSection: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 14,
+    },
+    accountInfo: {
+        flex: 1,
+    },
+    accountLabel: {
+        fontSize: 13,
+        color: COLORS.textSecondary,
+        marginBottom: 4,
+    },
+    accountNickname: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: COLORS.textPrimary,
+    },
+    logoutButton: {
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 8,
+        backgroundColor: COLORS.lightGray,
+    },
+    logoutButtonText: {
+        fontSize: 14,
+        fontWeight: '500',
+        color: COLORS.error,
     },
 });

@@ -5,23 +5,29 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { COLORS } from '../constants';
 import { PetProvider } from '../hooks/use-selected-pet';
-import { PinLockProvider } from '../hooks/use-pin-lock';
 import { ToastProvider } from '../components/ToastContext';
-import { AppLockScreen, SubscriptionBlockScreen } from '../components';
+import { SubscriptionBlockScreen } from '../components';
+import { LoginScreen } from '../components/auth/LoginScreen';
 import { useEffect, useState } from 'react';
 import { registerForPushNotificationsAsync, sendTokenToBackend, scheduleInactivityNotification } from '../services/NotificationService';
-import { getDeviceId } from '../services/pin';
 import { initializeSubscription, isAppAccessAllowed } from '../services';
+import { getCurrentUserId, loginWithKakao } from '../services/auth';
 import Constants from 'expo-constants';
 
 export default function RootLayout() {
   const [subscriptionBlocked, setSubscriptionBlocked] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null); // null = loading
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   useEffect(() => {
     let subscription: any;
 
     (async () => {
       try {
+        // Check login status first
+        const userId = await getCurrentUserId();
+        setIsLoggedIn(!!userId);
+
         // Initialize subscription on first launch
         await initializeSubscription();
 
@@ -37,8 +43,7 @@ export default function RootLayout() {
         await scheduleInactivityNotification();
         const token = await registerForPushNotificationsAsync();
         if (token) {
-          const deviceId = await getDeviceId();
-          await sendTokenToBackend(deviceId, token);
+          // Device ID is now managed by auth service
         }
 
         // Foreground Notification Listener (Skip in Expo Go)
@@ -60,25 +65,51 @@ export default function RootLayout() {
     };
   }, []);
 
+  const handleLogin = async () => {
+    setIsLoggingIn(true);
+    try {
+      const userId = await loginWithKakao();
+      console.log('[RootLayout] Login successful:', userId);
+      setIsLoggedIn(true);
+    } catch (error) {
+      console.error('[RootLayout] Login failed:', error);
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  // Show loading or login screen if not logged in
+  if (isLoggedIn === false) {
+    return (
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <SafeAreaProvider>
+          <StatusBar style="dark" />
+          <LoginScreen
+            onLoginSuccess={(userId) => setIsLoggedIn(true)}
+            onLoginPress={handleLogin}
+            isLoading={isLoggingIn}
+          />
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    );
+  }
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <PetProvider>
-          <PinLockProvider>
-            <ToastProvider>
-              <StatusBar style="dark" />
-              <Stack
-                screenOptions={{
-                  headerShown: false,
-                  contentStyle: { backgroundColor: COLORS.background },
-                }}
-              >
-                <Stack.Screen name="(tabs)" />
-              </Stack>
-              <AppLockScreen />
-              <SubscriptionBlockScreen visible={subscriptionBlocked} />
-            </ToastProvider>
-          </PinLockProvider>
+          <ToastProvider>
+            <StatusBar style="dark" />
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                contentStyle: { backgroundColor: COLORS.background },
+              }}
+            >
+              <Stack.Screen name="(tabs)" />
+            </Stack>
+            <SubscriptionBlockScreen visible={subscriptionBlocked} />
+          </ToastProvider>
         </PetProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

@@ -1,5 +1,6 @@
 import * as SQLite from 'expo-sqlite';
 import { Migration } from './types';
+import { v5_add_users_table } from './v5_add_users_table';
 
 /**
  * All database migrations in order
@@ -214,4 +215,6 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  // v5: Add users table and userId columns
+  v5_add_users_table,
 ];

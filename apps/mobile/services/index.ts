@@ -23,8 +23,8 @@ export type { Pet } from './pets';
 
 export { getSelectedPetId, setSelectedPetId } from './database';
 
-// PIN 서비스
-export { getPinStatus, setPin, verifyPin, removePin, getDeviceId } from './pin';
+// Device ID 서비스
+export { getDeviceId } from './device';
 
 // Comfort 서비스
 export {
