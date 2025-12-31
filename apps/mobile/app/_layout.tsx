@@ -217,7 +217,19 @@ function AppContent() {
     }
   };
 
-  // Show loading or login screen if not logged in
+  // Show loading screen while checking auth status
+  if (isLoggedIn === null) {
+    return (
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <SafeAreaProvider>
+          <StatusBar style="dark" />
+          {/* Loading screen - can be replaced with a splash screen */}
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    );
+  }
+
+  // Show login screen if not logged in
   if (isLoggedIn === false) {
     return (
       <GestureHandlerRootView style={{ flex: 1 }}>
