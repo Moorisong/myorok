@@ -81,8 +81,8 @@ export default function RootLayout() {
       const url = event.url;
       console.log('[DeepLink] Received URL:', url);
 
-      // Parse myorok://login?token=xxx&user=xxx
-      if (url.startsWith('myorok://login')) {
+      // Parse myorok://?token=xxx&user=xxx (root path with query params)
+      if (url.includes('token=') && url.includes('user=')) {
         const { queryParams } = Linking.parse(url);
         const token = queryParams?.token as string;
         const userString = queryParams?.user as string;
