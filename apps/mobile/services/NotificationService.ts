@@ -22,62 +22,66 @@ export async function registerForPushNotificationsAsync() {
         return;
     }
 
-    // Dynamic require for native env
-    Notifications = require('expo-notifications');
+    try {
+        // Dynamic require for native env
+        Notifications = require('expo-notifications');
 
-    // Set Handler dynamically
-    Notifications.setNotificationHandler({
-        handleNotification: async () => ({
-            shouldShowAlert: true,
-            shouldPlaySound: true,
-            shouldSetBadge: false,
-            shouldShowBanner: true,
-            shouldShowList: true,
-        }),
-    });
-
-    if (Platform.OS === 'android') {
-        await Notifications.setNotificationChannelAsync('default', {
-            name: 'default',
-            importance: Notifications.AndroidImportance.MAX,
-            vibrationPattern: [0, 250, 250, 250],
-            lightColor: '#FF231F7C',
+        // Set Handler dynamically
+        Notifications.setNotificationHandler({
+            handleNotification: async () => ({
+                shouldShowAlert: true,
+                shouldPlaySound: true,
+                shouldSetBadge: false,
+                shouldShowBanner: true,
+                shouldShowList: true,
+            }),
         });
-    }
 
-    if (Device.isDevice) {
-        const { status: existingStatus } = await Notifications.getPermissionsAsync();
-        let finalStatus = existingStatus;
-        if (existingStatus !== 'granted') {
-            const { status } = await Notifications.requestPermissionsAsync();
-            finalStatus = status;
-        }
-        if (finalStatus !== 'granted') {
-            // alert('Failed to get push token for push notification!');
-            console.log('Permission not granted');
-            return;
+        if (Platform.OS === 'android') {
+            await Notifications.setNotificationChannelAsync('default', {
+                name: 'default',
+                importance: Notifications.AndroidImportance.MAX,
+                vibrationPattern: [0, 250, 250, 250],
+                lightColor: '#FF231F7C',
+            });
         }
 
-        try {
-            const projectId = Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId;
-            if (!projectId) {
-                console.log("Warning: No Project ID found in config. Attempting default fetch...");
-                token = (await Notifications.getExpoPushTokenAsync()).data;
-            } else {
-                token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+        if (Device.isDevice) {
+            const { status: existingStatus } = await Notifications.getPermissionsAsync();
+            let finalStatus = existingStatus;
+            if (existingStatus !== 'granted') {
+                const { status } = await Notifications.requestPermissionsAsync();
+                finalStatus = status;
             }
-            console.log("Expo Push Token:", token);
-        } catch (e: any) {
-            // Handle "No projectId found" specifically to be less alarming in Dev
-            if (e.message?.includes('No "projectId" found')) {
-                console.log("Dev Note: Expo Project ID is missing. Push Notifications will not work on physical device until EAS is configured.");
-                console.log("Run 'eas build:configure' to generate a Project ID.");
-            } else {
-                console.error("Error getting push token:", e);
+            if (finalStatus !== 'granted') {
+                console.log('Permission not granted');
+                return;
             }
+
+            try {
+                const projectId = Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId;
+                if (!projectId) {
+                    console.log("Warning: No Project ID found in config. Attempting default fetch...");
+                    token = (await Notifications.getExpoPushTokenAsync()).data;
+                } else {
+                    token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+                }
+                console.log("Expo Push Token:", token);
+            } catch (e: any) {
+                // Handle "No projectId found" specifically
+                if (e.message?.includes('No "projectId" found')) {
+                    console.log("Dev Note: Expo Project ID is missing.");
+                } else if (e.message?.includes('Default FirebaseApp is not initialized')) {
+                    console.warn("Firebase Warning: google-services.json is missing or not configured. Push notifications will not work.");
+                } else {
+                    console.error("Error getting push token:", e);
+                }
+            }
+        } else {
+            console.log('Must use physical device for Push Notifications');
         }
-    } else {
-        console.log('Must use physical device for Push Notifications');
+    } catch (e) {
+        console.error("Failed to initialize notifications module:", e);
     }
 
     return token;

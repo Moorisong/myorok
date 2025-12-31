@@ -6,17 +6,25 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 WebBrowser.maybeCompleteAuthSession();
 
 // Kakao OAuth configuration
-const KAKAO_REST_API_KEY = process.env.EXPO_PUBLIC_KAKAO_REST_API_KEY || '';
-const KAKAO_REDIRECT_URI = AuthSession.makeRedirectUri({
-    scheme: 'myorok',
-    path: 'auth/kakao',
-});
+export const KAKAO_CLIENT_ID = process.env.EXPO_PUBLIC_KAKAO_REST_API_KEY!;
+const KAKAO_REST_API_KEY = KAKAO_CLIENT_ID;
+
+// Server-based redirect URI
+export const KAKAO_REDIRECT_URI = 'https://myorok.haroo.site/auth/kakao';
+
+export const KAKAO_DISCOVERY = {
+    authorizationEndpoint: 'https://kauth.kakao.com/oauth/authorize',
+    tokenEndpoint: 'https://kauth.kakao.com/oauth/token',
+};
 
 const STORAGE_KEYS = {
     ACCESS_TOKEN: 'kakao_access_token',
     REFRESH_TOKEN: 'kakao_refresh_token',
     USER_INFO: 'kakao_user_info',
+    JWT_TOKEN: 'jwt_token',
 };
+
+const SERVER_URL = process.env.EXPO_PUBLIC_SERVER_URL || 'https://myorok.haroo.site';
 
 export interface KakaoUser {
     id: string;
@@ -43,83 +51,52 @@ interface KakaoUserResponse {
     };
 }
 
+export interface ServerAuthResponse {
+    success: boolean;
+    user: KakaoUser;
+    token: string;
+}
+
 /**
- * Kakao OAuth2 authentication
- * @returns Authenticated user information
+ * Exchange authorization code for tokens and get user info (Server-based)
  */
-export async function authenticateWithKakao(): Promise<KakaoUser> {
+export async function exchangeCodeForToken(code: string): Promise<KakaoUser> {
     try {
-        // Build authorization URL
-        const authUrl = `https://kauth.kakao.com/oauth/authorize?client_id=${KAKAO_REST_API_KEY}&redirect_uri=${encodeURIComponent(KAKAO_REDIRECT_URI)}&response_type=code`;
+        console.log('[KakaoAuth] Starting server-based authentication...');
+        console.log('[KakaoAuth] Server URL:', SERVER_URL);
+        console.log('[KakaoAuth] Code prefix:', code.slice(0, 10) + '...');
 
-        console.log('[KakaoAuth] Starting authentication...');
-        console.log('[KakaoAuth] Redirect URI:', KAKAO_REDIRECT_URI);
-
-        // Open browser for authentication
-        const result = await WebBrowser.openAuthSessionAsync(authUrl, KAKAO_REDIRECT_URI);
-
-        if (result.type !== 'success') {
-            throw new Error('카카오 로그인이 취소되었습니다.');
-        }
-
-        // Extract authorization code from URL
-        const url = new URL(result.url);
-        const code = url.searchParams.get('code');
-
-        if (!code) {
-            throw new Error('인증 코드를 받지 못했습니다.');
-        }
-
-        // Exchange code for tokens
-        const tokenResponse = await fetch('https://kauth.kakao.com/oauth/token', {
+        // Call server to exchange code for user info and JWT token
+        const response = await fetch(`${SERVER_URL}/auth/kakao`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
+                'Content-Type': 'application/json',
             },
-            body: new URLSearchParams({
-                grant_type: 'authorization_code',
-                client_id: KAKAO_REST_API_KEY,
-                redirect_uri: KAKAO_REDIRECT_URI,
-                code,
-            }).toString(),
+            body: JSON.stringify({ code }),
         });
 
-        if (!tokenResponse.ok) {
-            const error = await tokenResponse.text();
-            console.error('[KakaoAuth] Token error:', error);
-            throw new Error('토큰 발급에 실패했습니다.');
+        console.log('[KakaoAuth] Server Response Status:', response.status, response.ok ? 'OK' : 'FAILED');
+
+        if (!response.ok) {
+            const error = await response.text();
+            console.error('[KakaoAuth] Server error response:', error);
+            throw new Error('서버 인증에 실패했습니다.');
         }
 
-        const tokens: KakaoTokenResponse = await tokenResponse.json();
+        const authResponse: ServerAuthResponse = await response.json();
 
-        // Store tokens
-        await AsyncStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, tokens.access_token);
-        await AsyncStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, tokens.refresh_token);
-
-        // Get user info
-        const userResponse = await fetch('https://kapi.kakao.com/v2/user/me', {
-            headers: {
-                Authorization: `Bearer ${tokens.access_token}`,
-            },
-        });
-
-        if (!userResponse.ok) {
-            throw new Error('사용자 정보를 가져오는데 실패했습니다.');
+        if (!authResponse.success) {
+            throw new Error('서버 인증에 실패했습니다.');
         }
 
-        const userData: KakaoUserResponse = await userResponse.json();
-
-        const user: KakaoUser = {
-            id: String(userData.id),
-            nickname: userData.kakao_account?.profile?.nickname || '사용자',
-            profileImage: userData.kakao_account?.profile?.profile_image_url,
-        };
+        // Store JWT token
+        await AsyncStorage.setItem(STORAGE_KEYS.JWT_TOKEN, authResponse.token);
 
         // Store user info
-        await AsyncStorage.setItem(STORAGE_KEYS.USER_INFO, JSON.stringify(user));
+        await AsyncStorage.setItem(STORAGE_KEYS.USER_INFO, JSON.stringify(authResponse.user));
 
-        console.log('[KakaoAuth] Login successful:', user.id);
-        return user;
+        console.log('[KakaoAuth] Login successful:', authResponse.user.id);
+        return authResponse.user;
     } catch (error) {
         console.error('[KakaoAuth] Authentication failed:', error);
         throw error;
@@ -127,64 +104,120 @@ export async function authenticateWithKakao(): Promise<KakaoUser> {
 }
 
 /**
- * Logout from Kakao
+ * Login with Kakao using server-based authentication
+ */
+export async function loginWithKakaoServer(code: string): Promise<{ user: KakaoUser; token: string }> {
+    try {
+        console.log('[KakaoAuth] Starting server-based login...');
+
+        // Send code to server
+        const response = await fetch(`${SERVER_URL}/auth/kakao`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ code }),
+        });
+
+        if (!response.ok) {
+            const error = await response.text();
+            console.error('[KakaoAuth] Server login error:', error);
+            throw new Error('서버 로그인에 실패했습니다.');
+        }
+
+        const authResponse: ServerAuthResponse = await response.json();
+
+        if (!authResponse.success) {
+            throw new Error('서버 로그인에 실패했습니다.');
+        }
+
+        // Store JWT token
+        await AsyncStorage.setItem(STORAGE_KEYS.JWT_TOKEN, authResponse.token);
+
+        // Store user info
+        await AsyncStorage.setItem(STORAGE_KEYS.USER_INFO, JSON.stringify(authResponse.user));
+
+        console.log('[KakaoAuth] Server login successful:', authResponse.user.id);
+
+        return {
+            user: authResponse.user,
+            token: authResponse.token,
+        };
+    } catch (error) {
+        console.error('[KakaoAuth] Server login failed:', error);
+        throw error;
+    }
+}
+
+/**
+ * Logout from Kakao (Server-based)
  */
 export async function logoutFromKakao(): Promise<void> {
     try {
-        const accessToken = await AsyncStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+        const jwtToken = await AsyncStorage.getItem(STORAGE_KEYS.JWT_TOKEN);
 
-        if (accessToken) {
-            // Call Kakao logout API
-            await fetch('https://kapi.kakao.com/v1/user/logout', {
+        if (jwtToken) {
+            // Call server logout API
+            await fetch(`${SERVER_URL}/auth/logout`, {
                 method: 'POST',
                 headers: {
-                    Authorization: `Bearer ${accessToken}`,
+                    'Authorization': `Bearer ${jwtToken}`,
+                    'Content-Type': 'application/json',
                 },
             });
         }
 
-        // Clear stored tokens and user info
+        // Clear stored JWT token and user info
+        await AsyncStorage.removeItem(STORAGE_KEYS.JWT_TOKEN);
+        await AsyncStorage.removeItem(STORAGE_KEYS.USER_INFO);
+        // Keep legacy keys for backward compatibility cleanup
         await AsyncStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
         await AsyncStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
-        await AsyncStorage.removeItem(STORAGE_KEYS.USER_INFO);
 
         console.log('[KakaoAuth] Logout successful');
     } catch (error) {
         console.error('[KakaoAuth] Logout error:', error);
         // Still clear local storage even if API call fails
+        await AsyncStorage.removeItem(STORAGE_KEYS.JWT_TOKEN);
+        await AsyncStorage.removeItem(STORAGE_KEYS.USER_INFO);
         await AsyncStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
         await AsyncStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
-        await AsyncStorage.removeItem(STORAGE_KEYS.USER_INFO);
     }
 }
 
 /**
- * Check current authentication session
+ * Check current authentication session (JWT-based)
  * @returns User info if logged in, null otherwise
  */
 export async function getAuthSession(): Promise<KakaoUser | null> {
     try {
         const userInfoStr = await AsyncStorage.getItem(STORAGE_KEYS.USER_INFO);
-        const accessToken = await AsyncStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+        const jwtToken = await AsyncStorage.getItem(STORAGE_KEYS.JWT_TOKEN);
 
-        if (!userInfoStr || !accessToken) {
+        if (!userInfoStr || !jwtToken) {
             return null;
         }
 
-        // Verify token is still valid
-        const response = await fetch('https://kapi.kakao.com/v1/user/access_token_info', {
-            headers: {
-                Authorization: `Bearer ${accessToken}`,
-            },
-        });
+        // Verify JWT token is still valid by checking expiration
+        // JWT format: header.payload.signature
+        try {
+            const payload = jwtToken.split('.')[1];
+            // Use Buffer for base64 decoding in React Native
+            const decodedPayload = JSON.parse(
+                Buffer.from(payload, 'base64').toString('utf-8')
+            );
+            const currentTime = Math.floor(Date.now() / 1000);
 
-        if (!response.ok) {
-            // Token expired, try to refresh
-            const refreshed = await refreshToken();
-            if (!refreshed) {
+            if (decodedPayload.exp && decodedPayload.exp < currentTime) {
+                // Token expired
+                console.log('[KakaoAuth] JWT token expired');
                 await logoutFromKakao();
                 return null;
             }
+        } catch (decodeError) {
+            console.error('[KakaoAuth] JWT decode error:', decodeError);
+            await logoutFromKakao();
+            return null;
         }
 
         return JSON.parse(userInfoStr) as KakaoUser;
@@ -195,44 +228,14 @@ export async function getAuthSession(): Promise<KakaoUser | null> {
 }
 
 /**
- * Refresh access token using refresh token
+ * Get JWT token from storage
  */
-async function refreshToken(): Promise<boolean> {
+export async function getJwtToken(): Promise<string | null> {
     try {
-        const refreshToken = await AsyncStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
-
-        if (!refreshToken) {
-            return false;
-        }
-
-        const response = await fetch('https://kauth.kakao.com/oauth/token', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: new URLSearchParams({
-                grant_type: 'refresh_token',
-                client_id: KAKAO_REST_API_KEY,
-                refresh_token: refreshToken,
-            }).toString(),
-        });
-
-        if (!response.ok) {
-            return false;
-        }
-
-        const tokens: KakaoTokenResponse = await response.json();
-
-        await AsyncStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, tokens.access_token);
-        if (tokens.refresh_token) {
-            await AsyncStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, tokens.refresh_token);
-        }
-
-        console.log('[KakaoAuth] Token refreshed');
-        return true;
+        return await AsyncStorage.getItem(STORAGE_KEYS.JWT_TOKEN);
     } catch (error) {
-        console.error('[KakaoAuth] Token refresh failed:', error);
-        return false;
+        console.error('[KakaoAuth] Get JWT token failed:', error);
+        return null;
     }
 }
 
@@ -240,7 +243,8 @@ async function refreshToken(): Promise<boolean> {
 // MOCK MODE for development without Kakao console setup
 // ============================================================
 
-const MOCK_MODE = __DEV__; // Enable mock mode in development
+// const MOCK_MODE = __DEV__; // Enable mock mode in development
+const MOCK_MODE = false; // Force real auth for testing
 
 /**
  * Mock authentication for development
@@ -263,9 +267,4 @@ export async function authenticateWithKakaoMock(): Promise<KakaoUser> {
 /**
  * Smart authenticate - uses mock in dev, real in production
  */
-export async function authenticate(): Promise<KakaoUser> {
-    if (MOCK_MODE) {
-        return authenticateWithKakaoMock();
-    }
-    return authenticateWithKakao();
-}
+// authenticate function removed as it is replaced by hook-based flow

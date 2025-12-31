@@ -32,7 +32,7 @@ export const v5_add_users_table: Migration = {
 
         if (!hasSubscriptionUserId) {
             await db.execAsync(`
-        ALTER TABLE subscription_state ADD COLUMN userId TEXT REFERENCES users(id);
+        ALTER TABLE subscription_state ADD COLUMN userId TEXT;
       `);
         }
 

@@ -1,10 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getDatabase } from '../database';
-import { authenticate, logoutFromKakao, getAuthSession, KakaoUser } from './kakaoAuth';
+import { exchangeCodeForToken, logoutFromKakao, getAuthSession, KakaoUser, getJwtToken } from './kakaoAuth';
 import { startTrialForUser } from '../subscription';
 
 const STORAGE_KEYS = {
     CURRENT_USER_ID: 'current_user_id',
+    JWT_TOKEN: 'jwt_token',
 };
 
 export interface User {
@@ -21,10 +22,10 @@ export interface User {
  * - 기존 유저: updateLastLogin()
  * @returns userId
  */
-export async function loginWithKakao(): Promise<string> {
+export async function loginWithKakao(code: string): Promise<string> {
     try {
-        // Authenticate with Kakao
-        const kakaoUser = await authenticate();
+        // Authenticate with Kakao using the code from UI
+        const kakaoUser = await exchangeCodeForToken(code);
 
         // Check if user exists in DB
         const existingUser = await getUser(kakaoUser.id);

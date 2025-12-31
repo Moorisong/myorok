@@ -95,15 +95,31 @@ ALTER TABLE supplements ADD COLUMN userId TEXT;
 
 ---
 
-## Module B: Kakao SDK
+## Module B: Kakao OAuth (Server-based)
 
-### 신규 파일
+### 아키텍처
+**서버 경유 방식**: 앱 → 인증 코드 획득 → 서버로 전달 → 서버에서 토큰 발급 및 유저 정보 조회 → JWT 반환
+
+```
+┌─────────┐         ┌──────────┐         ┌────────────┐
+│   앱    │ ──code→ │  서버    │ ──토큰→ │  카카오   │
+│(Client)│ ←─JWT─  │(Backend) │ ←유저─  │(OAuth API)│
+└─────────┘         └──────────┘         └────────────┘
+```
+
+### 수정 파일
 - `apps/mobile/services/auth/kakaoAuth.ts`
 
 ### 패키지 설치
 ```bash
-npx expo install expo-auth-session expo-crypto expo-web-browser
+npx expo install expo-auth-session expo-web-browser
 ```
+
+### 카카오 개발자 콘솔 설정
+- **Redirect URI**: `https://myorok.haroo.site/auth/kakao` (서버 주소)
+- **네이티브 앱 키**: 앱에서 OAuth 인증 시작용
+- **REST API 키**: 서버에서 토큰 발급용
+- **클라이언트 시크릿**: 서버에서 토큰 요청 시 사용 (활성화 필수)
 
 ### API 정의
 
@@ -116,29 +132,37 @@ export interface KakaoUser {
   profileImage?: string;
 }
 
-/**
- * 카카오 OAuth2 인증 수행
- * @returns 인증된 사용자 정보
- */
-export async function authenticateWithKakao(): Promise<KakaoUser>;
+export interface ServerAuthResponse {
+  success: boolean;
+  user: KakaoUser;
+  token: string; // JWT for app-server auth
+}
 
 /**
- * 카카오 로그아웃
+ * 서버 기반 카카오 로그인
+ * 1. useAuthRequest로 인증 코드 획득
+ * 2. 서버로 code 전달
+ * 3. 서버에서 JWT 받음
+ */
+export async function loginWithKakaoServer(code: string): Promise<ServerAuthResponse>;
+
+/**
+ * 카카오 로그아웃 (토큰 무효화는 서버에서 처리)
  */
 export async function logoutFromKakao(): Promise<void>;
 
 /**
- * 현재 인증 상태 확인
+ * 현재 인증 상태 확인 (로컬 JWT 기반)
  */
 export async function getAuthSession(): Promise<KakaoUser | null>;
 ```
 
 ### 구현 체크리스트
-- [ ] expo-auth-session 설치 및 설정
-- [ ] 카카오 개발자 콘솔 앱 설정
-- [ ] `authenticateWithKakao()` 구현
-- [ ] `logoutFromKakao()` 구현
-- [ ] `getAuthSession()` 구현
+- [ ] expo-auth-session 설치
+- [ ] 카카오 Redirect URI를 서버 주소로 변경
+- [ ] `loginWithKakaoServer(code)` 구현 (서버 POST /auth/kakao)
+- [ ] `logoutFromKakao()` 구현 (서버 POST /auth/logout)
+- [ ] JWT 저장 및 관리 (AsyncStorage)
 - [ ] 에러 핸들링
 
 ---
@@ -214,9 +238,9 @@ export function SubscriptionPopup(props: SubscriptionPopupProps): JSX.Element;
 
 ---
 
-## Module D: User Service
+## Module D: User Service (Server-based)
 
-### 신규 파일
+### 수정 파일
 - `apps/mobile/services/auth/userService.ts`
 
 ### API 정의
@@ -233,41 +257,49 @@ export interface User {
 }
 
 /**
- * 카카오 로그인 수행 및 사용자 DB 저장
- * - 신규 유저: INSERT + startTrial()
- * - 기존 유저: updateLastLogin()
+ * 카카오 로그인 수행
+ * - 서버로 인증 코드 전달
+ * - JWT 및 사용자 정보 수신
+ * - 로컬 DB에 사용자 정보 저장 (신규/기존 구분)
  */
-export async function loginWithKakao(): Promise<string>;
+export async function loginWithKakao(code: string): Promise<string>;
 
 /**
  * 로그아웃
- * - userId 제거 (로컬 세션)
+ * - 서버로 로그아웃 요청 (JWT 무효화)
+ * - 로컬 JWT 및 userId 제거
  * - 로컬 pet 데이터 유지
  */
 export async function logout(): Promise<void>;
 
 /**
- * 사용자 정보 조회
+ * 사용자 정보 조회 (로컬 DB)
  */
 export async function getUser(userId: string): Promise<User | null>;
 
 /**
- * 마지막 로그인 시각 갱신
+ * 마지막 로그인 시각 갱신 (로컬 DB)
  */
 export async function updateLastLogin(userId: string): Promise<void>;
 
 /**
- * 현재 로그인된 사용자 ID 조회
+ * 현재 로그인된 사용자 ID 조회 (JWT 기반)
  */
 export async function getCurrentUserId(): Promise<string | null>;
 ```
 
+### 서버 API 연동
+- **POST /auth/kakao**: 인증 코드를 서버로 전달, JWT 및 사용자 정보 반환
+- **POST /auth/logout**: JWT 무효화 요청
+
 ### 구현 체크리스트
-- [ ] `loginWithKakao()` 구현 (Module B 사용)
-- [ ] `logout()` 구현
+- [ ] `loginWithKakao(code)` 구현 (Module B 사용)
+- [ ] 서버에서 받은 JWT를 AsyncStorage에 저장
+- [ ] 로컬 DB에 사용자 정보 저장 또는 업데이트
+- [ ] `logout()` 구현 (서버 로그아웃 + 로컬 정리)
 - [ ] `getUser()` 구현 (Module A 사용)
 - [ ] `updateLastLogin()` 구현
-- [ ] `getCurrentUserId()` 구현 (AsyncStorage)
+- [ ] `getCurrentUserId()` 구현 (JWT 디코딩 또는 AsyncStorage)
 
 ---
 
@@ -414,7 +446,87 @@ apps/mobile/
 
 ---
 
+## 서버 API 스펙
+
+### 1. POST /auth/kakao
+**카카오 OAuth 인증 코드를 서버로 전달하여 JWT 획득**
+
+**Request**
+```json
+{
+  "code": "KAKAO_AUTH_CODE"
+}
+```
+
+**Response (Success)**
+```json
+{
+  "success": true,
+  "user": {
+    "id": "1234567890",
+    "nickname": "홍길동",
+    "profileImage": "https://..."
+  },
+  "token": "JWT_TOKEN_HERE"
+}
+```
+
+**Response (Error)**
+```json
+{
+  "success": false,
+  "error": "토큰 발급에 실패했습니다."
+}
+```
+
+**서버 처리 로직**
+1. 인증 코드로 카카오 OAuth 토큰 발급 (클라이언트 시크릿 사용)
+2. 카카오 API로 사용자 정보 조회
+3. JWT 생성 (userId 포함)
+4. 응답 반환
+
+### 2. POST /auth/logout
+**JWT 무효화 요청**
+
+**Request Headers**
+```
+Authorization: Bearer JWT_TOKEN
+```
+
+**Response**
+```json
+{
+  "success": true
+}
+```
+
+**서버 처리 로직**
+1. JWT 검증
+2. 카카오 로그아웃 API 호출 (옵션)
+3. JWT를 블랙리스트에 추가 또는 Redis에서 삭제
+
+---
+
+## 환경 변수
+
+### 앱 (.env 또는 app.json)
+```bash
+EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY=your_kakao_native_app_key
+EXPO_PUBLIC_SERVER_URL=https://myorok.haroo.site
+```
+
+### 서버 (backend/.env)
+```bash
+KAKAO_REST_API_KEY=your_kakao_rest_api_key
+KAKAO_CLIENT_SECRET=your_kakao_client_secret
+KAKAO_REDIRECT_URI=https://myorok.haroo.site/auth/kakao
+JWT_SECRET=your_jwt_secret
+```
+
+---
+
 ## 참조 문서
 
 - [KAKAO_LOGIN_SUBSCRIPTION_SPEC.md](file:///Users/shkim/Desktop/Project/myorok/docs/planning/KAKAO_LOGIN_SUBSCRIPTION_SPEC.md)
 - [LOCAL_DB_SPEC.md](file:///Users/shkim/Desktop/Project/myorok/docs/planning/LOCAL_DB_SPEC.md)
+- [카카오 로그인 배포용 구현 가이드](#user-provided)

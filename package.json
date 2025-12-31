@@ -8,7 +8,9 @@
   "scripts": {
     "mobile": "npm run start --workspace=apps/mobile",
     "web": "npm run dev --workspace=apps/web",
-    "build:web": "npm run build --workspace=apps/web"
+    "backend": "npm run dev --workspace=apps/backend",
+    "build:web": "npm run build --workspace=apps/web",
+    "build:backend": "npm run build --workspace=apps/backend"
   },
   "overrides": {
     "react": "19.1.0",
