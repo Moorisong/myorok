@@ -222,6 +222,33 @@ export default function SettingsScreen() {
                             }
                         }}
                     />
+                    <SettingItem
+                        emoji="📊"
+                        title="3개월 테스트 데이터 생성 (Dev)"
+                        description="90일치 무작위 기록 생성"
+                        onPress={async () => {
+                            Alert.alert(
+                                '테스트 데이터 생성',
+                                '3개월(90일)치 무작위 데이터를 생성합니다. 기존 데이터가 없는 날짜에만 추가됩니다.',
+                                [
+                                    { text: '취소', style: 'cancel' },
+                                    {
+                                        text: '생성',
+                                        onPress: async () => {
+                                            try {
+                                                const { generateTestData } = await import('../../../services/testDataGenerator');
+                                                const result = await generateTestData();
+                                                Alert.alert('완료', `${result.recordsCreated}개의 기록이 생성되었습니다.`);
+                                            } catch (error) {
+                                                console.error('Test data generation failed:', error);
+                                                Alert.alert('오류', '데이터 생성에 실패했습니다.');
+                                            }
+                                        },
+                                    },
+                                ]
+                            );
+                        }}
+                    />
                 </Card>
 
                 <Card style={styles.card}>
