@@ -12,7 +12,7 @@ export default function PrivacyPolicy() {
       <main className={styles.main}>
         <header className={styles.header}>
           <h1 className={styles.title}>묘록 개인정보처리방침</h1>
-          <p className={styles.date}>시행일: 2025년 1월 1일</p>
+          <p className={styles.date}>시행일: 2026년 1월 1일</p>
         </header>
 
         <section className={styles.section}>
@@ -244,7 +244,7 @@ export default function PrivacyPolicy() {
         </section>
 
         <footer className={styles.footer}>
-          <p>본 개인정보처리방침은 2025년 1월 1일부터 시행됩니다.</p>
+          <p>본 개인정보처리방침은 2026년 1월 1일부터 시행됩니다.</p>
           <p className={styles.footerLink}>
             <a href="/partial-delete">선택적 데이터 삭제 안내 &rarr;</a>
           </p>

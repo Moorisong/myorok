@@ -12,7 +12,7 @@ export default function TermsOfService() {
       <main className={styles.main}>
         <header className={styles.header}>
           <h1 className={styles.title}>묘록 서비스 이용약관</h1>
-          <p className={styles.date}>시행일: 2025년 1월 1일</p>
+          <p className={styles.date}>시행일: 2026년 1월 1일</p>
         </header>
 
         <section className={styles.section}>
@@ -156,7 +156,7 @@ export default function TermsOfService() {
         </section>
 
         <footer className={styles.footer}>
-          <p>본 약관은 2025년 1월 1일부터 시행됩니다.</p>
+          <p>본 약관은 2026년 1월 1일부터 시행됩니다.</p>
         </footer>
       </main>
     </div>
