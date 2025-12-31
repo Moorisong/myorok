@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, Alert, Linking } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Updates from 'expo-updates';
 
 import { COLORS } from '../../../constants';
 import { Card, SubscriptionBlockScreen } from '../../../components';
@@ -85,9 +86,13 @@ export default function SettingsScreen() {
                     onPress: async () => {
                         try {
                             await logout();
-                            setCurrentUser(null);
-                            Alert.alert('완료', '로그아웃되었습니다.');
+                            console.log('[Settings] Logout successful, reloading app...');
+                            // Reload app to return to login screen
+                            if (Updates.reloadAsync) {
+                                await Updates.reloadAsync();
+                            }
                         } catch (error) {
+                            console.error('[Settings] Logout error:', error);
                             Alert.alert('오류', '로그아웃에 실패했습니다.');
                         }
                     },
