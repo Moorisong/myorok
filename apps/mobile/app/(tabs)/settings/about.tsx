@@ -55,12 +55,6 @@ export default function AboutScreen() {
                             데이터는 삭제되지 않습니다
                         </Text>
                     </View>
-                    <View style={styles.policyItem}>
-                        <Text style={styles.policyEmoji}>📱</Text>
-                        <Text style={styles.policyText}>
-                            서버 없이도 앱이 동작합니다
-                        </Text>
-                    </View>
                 </Card>
 
                 <Card style={styles.card}>
@@ -69,7 +63,7 @@ export default function AboutScreen() {
                         버그 신고, 기능 제안, 기타 문의사항은{'\n'}
                         아래 이메일로 연락 주세요.
                     </Text>
-                    <Text style={styles.email}>support@myorok.app</Text>
+                    <Text style={styles.email}>thiagooo@naver.com</Text>
                 </Card>
 
                 <Text style={styles.footer}>
