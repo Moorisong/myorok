@@ -80,17 +80,21 @@ export async function toggleSupplementTaken(supplementId: string): Promise<boole
         );
         return newTaken === 1;
     } else {
-        // Get supplement name
+        // Get supplement info including petId
         const supplement = await db.getFirstAsync<Supplement>(
-            `SELECT name FROM supplements WHERE id = ?`,
+            `SELECT petId FROM supplements WHERE id = ?`,
             [supplementId]
         );
 
+        if (!supplement) {
+            throw new Error('Supplement not found');
+        }
+
         const id = generateId();
         await db.runAsync(
-            `INSERT INTO supplement_records (id, supplementId, date, taken, supplementName)
+            `INSERT INTO supplement_records (id, supplementId, date, taken, petId)
        VALUES (?, ?, ?, 1, ?)`,
-            [id, supplementId, today, supplement?.name || '알 수 없음']
+            [id, supplementId, today, supplement.petId]
         );
         return true;
     }

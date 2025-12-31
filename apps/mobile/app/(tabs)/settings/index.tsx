@@ -69,6 +69,7 @@ export default function SettingsScreen() {
 
     const loadCurrentUser = async () => {
         const user = await getCurrentUser();
+        console.log('[Settings] Current user:', user);
         setCurrentUser(user);
     };
 
