@@ -39,7 +39,7 @@ export default function RootLayout() {
     console.log('redirectUri =', KAKAO_REDIRECT_URI);
     console.log('ClientId loaded check:', KAKAO_CLIENT_ID ? `Yes (${KAKAO_CLIENT_ID.slice(0, 4)}...)` : 'No');
     let subscription: any;
-    let linkingSubscription: Linking.Subscription | undefined;
+    let linkingSubscription: ReturnType<typeof Linking.addEventListener> | undefined;
 
     (async () => {
       try {

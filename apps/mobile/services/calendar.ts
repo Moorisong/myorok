@@ -33,7 +33,7 @@ export async function getMonthRecords(year: number, month: number): Promise<Map<
 
     // Get supplement records for the month
     const supplementRecords = await db.getAllAsync<SupplementRecord & { name: string; isDeleted: number }>(
-        `SELECT sr.*, COALESCE(sr.supplementName, s.name, '(삭제된 항목)') as name,
+        `SELECT sr.*, COALESCE(s.name, '(삭제된 항목)') as name,
                 CASE WHEN s.deletedAt IS NOT NULL THEN 1 ELSE 0 END as isDeleted
      FROM supplement_records sr
      LEFT JOIN supplements s ON sr.supplementId = s.id
@@ -118,7 +118,7 @@ export async function getDayDetail(date: string): Promise<CalendarDayData | null
     );
 
     const supplementRecords = await db.getAllAsync<SupplementRecord & { name: string; isDeleted: number }>(
-        `SELECT sr.*, COALESCE(sr.supplementName, s.name, '(삭제된 항목)') as name,
+        `SELECT sr.*, COALESCE(s.name, '(삭제된 항목)') as name,
                 CASE WHEN s.deletedAt IS NOT NULL THEN 1 ELSE 0 END as isDeleted
      FROM supplement_records sr
      LEFT JOIN supplements s ON sr.supplementId = s.id

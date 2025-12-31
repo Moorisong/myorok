@@ -123,7 +123,7 @@ export async function getRecentSupplementHistory(days: number = 30): Promise<(Su
     const startDate = `${startYear}-${startMonth}-${startDay}`;
 
     const records = await db.getAllAsync<SupplementRecord & { name: string }>(
-        `SELECT sr.*, COALESCE(sr.supplementName, s.name, '(삭제된 항목)') as name
+        `SELECT sr.*, COALESCE(s.name, '(삭제된 항목)') as name
          FROM supplement_records sr
          LEFT JOIN supplements s ON sr.supplementId = s.id
          WHERE s.petId = ? AND sr.date >= ?

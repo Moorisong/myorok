@@ -144,12 +144,6 @@ export default function SettingsScreen() {
                                 <Text style={styles.accountLabel}>로그인 계정</Text>
                                 <Text style={styles.accountNickname}>{currentUser.nickname}</Text>
                             </View>
-                            <Pressable
-                                style={styles.logoutButton}
-                                onPress={handleLogout}
-                            >
-                                <Text style={styles.logoutButtonText}>로그아웃</Text>
-                            </Pressable>
                         </View>
                     </Card>
                 )}
@@ -212,16 +206,15 @@ export default function SettingsScreen() {
                     />
                     <SettingItem
                         emoji="🔐"
-                        title="카카오 로그인 테스트 (Dev)"
+                        title="카카오 계정"
                         description={currentUser ? `로그인됨: ${currentUser.nickname}` : '로그인 안됨'}
                         onPress={async () => {
-                            try {
-                                const { loginWithKakao } = await import('../../../services/auth');
-                                const userId = await loginWithKakao();
-                                Alert.alert('로그인 성공', `userId: ${userId}`);
-                                loadCurrentUser();
-                            } catch (error: any) {
-                                Alert.alert('로그인 실패', error.message || '알 수 없는 오류');
+                            if (currentUser) {
+                                Alert.alert(
+                                    '계정 정보',
+                                    `닉네임: ${currentUser.nickname}\nID: ${currentUser.id}\n가입일: ${new Date(currentUser.createdAt).toLocaleDateString()}`,
+                                    [{ text: '확인' }]
+                                );
                             }
                         }}
                     />
@@ -255,6 +248,16 @@ export default function SettingsScreen() {
                         danger
                     />
                 </Card>
+
+                {/* 로그아웃 버튼 (작고 눈에 안띄게) */}
+                {currentUser && (
+                    <Pressable
+                        style={styles.smallLogoutButton}
+                        onPress={handleLogout}
+                    >
+                        <Text style={styles.smallLogoutText}>로그아웃</Text>
+                    </Pressable>
+                )}
 
                 <View style={styles.bottomPadding} />
             </ScrollView>
@@ -375,5 +378,16 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '500',
         color: COLORS.error,
+    },
+    smallLogoutButton: {
+        alignSelf: 'center',
+        paddingVertical: 12,
+        paddingHorizontal: 20,
+        marginVertical: 16,
+    },
+    smallLogoutText: {
+        fontSize: 12,
+        color: COLORS.textSecondary,
+        opacity: 0.6,
     },
 });
