@@ -1,0 +1,114 @@
+.container {
+  min-height: 100vh;
+  padding: 2rem;
+  background-color: #f9fafb;
+}
+
+.main {
+  max-width: 800px;
+  margin: 0 auto;
+  background-color: white;
+  padding: 3rem;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+}
+
+.header {
+  margin-bottom: 3rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 0.5rem 0;
+}
+
+.date {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin: 0;
+}
+
+.section {
+  margin-bottom: 2.5rem;
+}
+
+.section h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0 0 1rem 0;
+  padding-top: 1rem;
+}
+
+.section p {
+  font-size: 1rem;
+  line-height: 1.75;
+  color: #374151;
+  margin: 0.5rem 0;
+}
+
+.section ol {
+  margin: 0.75rem 0;
+  padding-left: 1.5rem;
+  color: #374151;
+}
+
+.section ol li {
+  font-size: 1rem;
+  line-height: 1.75;
+  margin-bottom: 0.75rem;
+}
+
+.section ul {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+  list-style-type: disc;
+}
+
+.section ul li {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  margin-bottom: 0.5rem;
+  color: #4b5563;
+}
+
+.footer {
+  margin-top: 3rem;
+  padding-top: 2rem;
+  border-top: 1px solid #e5e7eb;
+  text-align: center;
+}
+
+.footer p {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin: 0;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .container {
+    padding: 1rem;
+  }
+
+  .main {
+    padding: 1.5rem;
+  }
+
+  .title {
+    font-size: 1.875rem;
+  }
+
+  .section h2 {
+    font-size: 1.25rem;
+  }
+
+  .section p,
+  .section ol li {
+    font-size: 0.9375rem;
+  }
+}
