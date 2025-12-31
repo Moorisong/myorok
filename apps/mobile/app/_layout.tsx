@@ -3,26 +3,26 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as Linking from 'expo-linking';
+import { useEffect, useState } from 'react';
+import Constants from 'expo-constants';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuthRequest, ResponseType } from 'expo-auth-session';
 
 import { COLORS } from '../constants';
 import { PetProvider } from '../hooks/use-selected-pet';
 import { AuthProvider, useAuth } from '../hooks/useAuth';
 import { ToastProvider } from '../components/ToastContext';
-import { SubscriptionBlockScreen } from '../components';
+import { SubscriptionBlockScreen } from '../components/subscription/SubscriptionBlockScreen';
 import { LoginScreen } from '../components/auth/LoginScreen';
-import { useEffect, useState } from 'react';
 import { registerForPushNotificationsAsync, scheduleInactivityNotification } from '../services/NotificationService';
 import { initializeSubscription, isAppAccessAllowed } from '../services';
-import { useAuthRequest, ResponseType } from 'expo-auth-session';
 import { loginWithKakao } from '../services/auth';
 import { KAKAO_CLIENT_ID, KAKAO_DISCOVERY, KAKAO_REDIRECT_URI } from '../services/auth/kakaoAuth';
-import Constants from 'expo-constants';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getCurrentUserId } from '../services/auth';
 
 // Main app content that uses auth context
 function AppContent() {
-  const { isLoggedIn, setIsLoggedIn, isLoggingIn, setIsLoggingIn, checkAuthStatus } = useAuth();
+  const { isLoggedIn, setIsLoggedIn, isLoggingIn, setIsLoggingIn, checkAuthStatus, subscriptionStatus } = useAuth();
   const [subscriptionBlocked, setSubscriptionBlocked] = useState(false);
 
   // Kakao Auth Request Hook
@@ -133,7 +133,9 @@ function AppContent() {
               console.log('[DeepLink] Existing user updated');
             }
 
-            setIsLoggedIn(true);
+            // Re-check auth status to update context (including subscription)
+            await checkAuthStatus();
+
             setIsLoggingIn(false);
             console.log('[DeepLink] Login successful via deep link');
           } catch (error) {
@@ -182,9 +184,10 @@ function AppContent() {
         (async () => {
           setIsLoggingIn(true);
           try {
-            const userId = await loginWithKakao(code);
-            console.log('[RootLayout] Login successful:', userId);
-            setIsLoggedIn(true);
+            await loginWithKakao(code);
+            console.log('[RootLayout] Login successful');
+            // Re-check auth status to update subscription status
+            await checkAuthStatus();
           } catch (error) {
             console.error('[RootLayout] Login failed:', error);
             // Optional: Show error toast
@@ -218,7 +221,7 @@ function AppContent() {
     }
   };
 
-  // Show loading screen while checking auth status
+  // 1. Initial Loading
   if (isLoggedIn === null) {
     return (
       <GestureHandlerRootView style={{ flex: 1 }}>
@@ -230,7 +233,7 @@ function AppContent() {
     );
   }
 
-  // Show login screen if not logged in
+  // 2. Not Logged In
   if (isLoggedIn === false && !isLoggingIn) {
     return (
       <GestureHandlerRootView style={{ flex: 1 }}>
@@ -246,8 +249,8 @@ function AppContent() {
     );
   }
 
-  // Show loading screen while logging in (after OAuth redirect, before login complete)
-  if (isLoggingIn) {
+  // 3. Logging In Or Checking Subscription (Logged In but status unknown)
+  if (isLoggingIn || (isLoggedIn === true && subscriptionStatus === null)) {
     return (
       <GestureHandlerRootView style={{ flex: 1 }}>
         <SafeAreaProvider>
@@ -258,6 +261,19 @@ function AppContent() {
     );
   }
 
+  // 4. Logged In & Expired -> Block Screen
+  if (isLoggedIn === true && subscriptionStatus === 'expired') {
+    return (
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <SafeAreaProvider>
+          <StatusBar style="dark" />
+          <SubscriptionBlockScreen />
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    );
+  }
+
+  // 5. Active / Trial -> Main App
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
@@ -272,7 +288,8 @@ function AppContent() {
             >
               <Stack.Screen name="(tabs)" />
             </Stack>
-            <SubscriptionBlockScreen visible={subscriptionBlocked} />
+            {/* Dev/Update blocking if needed */}
+            {subscriptionBlocked && <SubscriptionBlockScreen />}
           </ToastProvider>
         </PetProvider>
       </SafeAreaProvider>

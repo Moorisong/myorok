@@ -645,3 +645,56 @@ JWT_SECRET=your_jwt_secret
 - [KAKAO_LOGIN_SUBSCRIPTION_SPEC.md](file:///Users/shkim/Desktop/Project/myorok/docs/planning/KAKAO_LOGIN_SUBSCRIPTION_SPEC.md)
 - [LOCAL_DB_SPEC.md](file:///Users/shkim/Desktop/Project/myorok/docs/planning/LOCAL_DB_SPEC.md)
 - [카카오 로그인 배포용 구현 가이드](#user-provided)
+
+---
+
+## 🔐 앱하루 로그인 후 구독 플로우 (User Specification)
+
+### 1. 앱 실행 시
+
+1. 앱 실행 후 **로그인 상태 확인**
+   - `userId` 존재 여부 확인
+   - 로그인 안 되어 있으면 **로그인 페이지**로 이동
+
+---
+
+### 2. 로그인 성공
+
+1. 카카오 로그인 성공
+2. `users` 테이블에 사용자 정보 저장/갱신
+3. `subscription_state`에서 구독 상태 확인
+   - **trial**: 무료 체험 중
+   - **active**: 구독 중
+   - **expired**: 체험/구독 종료
+
+---
+
+### 3. 구독 필요 여부 판단
+
+| 상태       | 동작                                         |
+|-----------|--------------------------------------------|
+| active    | 오늘 탭 진입, 모든 기능 접근 가능             |
+| trial     | 오늘 탭 진입, 모든 기능 접근 가능             |
+| expired   | 전면 구독 화면 표시, 기록/입력 기능 차단     |
+
+---
+
+### 4. 플로우 요약
+
+앱 실행
+│
+▼
+로그인 상태 확인
+│
+├─ 로그인 안 됨 → 로그인 페이지
+│
+▼
+로그인 성공
+│
+▼
+구독 상태 확인 (subscription_state)
+│
+├─ active / trial → 오늘 탭 진입
+│
+└─ expired → 전면 구독 화면 표시
+
