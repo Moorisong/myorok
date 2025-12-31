@@ -91,6 +91,7 @@ function AppContent() {
 
         if (token && userString) {
           console.log('[DeepLink] JWT token and user info received');
+          setIsLoggingIn(true); // Prevent login screen flash during processing
           try {
             // Parse user info
             const user = JSON.parse(decodeURIComponent(userString));
@@ -230,7 +231,7 @@ function AppContent() {
   }
 
   // Show login screen if not logged in
-  if (isLoggedIn === false) {
+  if (isLoggedIn === false && !isLoggingIn) {
     return (
       <GestureHandlerRootView style={{ flex: 1 }}>
         <SafeAreaProvider>
@@ -240,6 +241,18 @@ function AppContent() {
             onLoginPress={handleLogin}
             isLoading={isLoggingIn}
           />
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    );
+  }
+
+  // Show loading screen while logging in (after OAuth redirect, before login complete)
+  if (isLoggingIn) {
+    return (
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <SafeAreaProvider>
+          <StatusBar style="dark" />
+          {/* Loading screen during login process */}
         </SafeAreaProvider>
       </GestureHandlerRootView>
     );
