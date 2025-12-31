@@ -1,5 +1,5 @@
 import { CONFIG } from '../constants';
-import { getDeviceId } from './pin';
+import { getDeviceId } from './device';
 
 // 타입 정의
 export interface ComfortPost {

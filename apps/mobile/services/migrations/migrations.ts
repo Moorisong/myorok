@@ -1,5 +1,6 @@
 import * as SQLite from 'expo-sqlite';
 import { Migration } from './types';
+import { v5_add_users_table } from './v5_add_users_table';
 
 /**
  * All database migrations in order
@@ -175,15 +176,11 @@ export const migrations: Migration[] = [
     version: 4,
     name: 'create_performance_indexes',
     up: async (db: SQLite.SQLiteDatabase) => {
-      // Create all performance indexes as specified in the documentation
+      // Create basic performance indexes
       await db.execAsync(`
         -- daily_records: petId + date combination
         CREATE INDEX IF NOT EXISTS idx_daily_records_pet_date
         ON daily_records(petId, date);
-
-        -- supplements: petId filtering (excluding soft-deleted)
-        CREATE INDEX IF NOT EXISTS idx_supplements_pet
-        ON supplements(petId) WHERE deletedAt IS NULL;
 
         -- fluid_records: petId + date combination
         CREATE INDEX IF NOT EXISTS idx_fluid_records_pet_date
@@ -192,15 +189,59 @@ export const migrations: Migration[] = [
         -- custom_metrics: petId filtering
         CREATE INDEX IF NOT EXISTS idx_custom_metrics_pet
         ON custom_metrics(petId);
-
-        -- medication_memos: petId (excluding soft-deleted)
-        CREATE INDEX IF NOT EXISTS idx_medication_memos_pet
-        ON medication_memos(petId) WHERE deletedAt IS NULL;
-
-        -- food_preference_memos: petId (excluding soft-deleted)
-        CREATE INDEX IF NOT EXISTS idx_food_preference_memos_pet
-        ON food_preference_memos(petId) WHERE deletedAt IS NULL;
       `);
+
+      // Check if deletedAt columns exist before creating conditional indexes
+      const supplementsInfo = await db.getAllAsync<{ name: string }>(
+        'PRAGMA table_info(supplements)'
+      );
+      const hasSupplementsDeletedAt = supplementsInfo.some((col) => col.name === 'deletedAt');
+
+      if (hasSupplementsDeletedAt) {
+        await db.execAsync(`
+          CREATE INDEX IF NOT EXISTS idx_supplements_pet
+          ON supplements(petId) WHERE deletedAt IS NULL;
+        `);
+      } else {
+        await db.execAsync(`
+          CREATE INDEX IF NOT EXISTS idx_supplements_pet
+          ON supplements(petId);
+        `);
+      }
+
+      const medicationMemosInfo = await db.getAllAsync<{ name: string }>(
+        'PRAGMA table_info(medication_memos)'
+      );
+      const hasMedicationMemosDeletedAt = medicationMemosInfo.some((col) => col.name === 'deletedAt');
+
+      if (hasMedicationMemosDeletedAt) {
+        await db.execAsync(`
+          CREATE INDEX IF NOT EXISTS idx_medication_memos_pet
+          ON medication_memos(petId) WHERE deletedAt IS NULL;
+        `);
+      } else {
+        await db.execAsync(`
+          CREATE INDEX IF NOT EXISTS idx_medication_memos_pet
+          ON medication_memos(petId);
+        `);
+      }
+
+      const foodPreferenceMemosInfo = await db.getAllAsync<{ name: string }>(
+        'PRAGMA table_info(food_preference_memos)'
+      );
+      const hasFoodPreferenceMemosDeletedAt = foodPreferenceMemosInfo.some((col) => col.name === 'deletedAt');
+
+      if (hasFoodPreferenceMemosDeletedAt) {
+        await db.execAsync(`
+          CREATE INDEX IF NOT EXISTS idx_food_preference_memos_pet
+          ON food_preference_memos(petId) WHERE deletedAt IS NULL;
+        `);
+      } else {
+        await db.execAsync(`
+          CREATE INDEX IF NOT EXISTS idx_food_preference_memos_pet
+          ON food_preference_memos(petId);
+        `);
+      }
     },
     down: async (db: SQLite.SQLiteDatabase) => {
       // Drop all created indexes
@@ -214,4 +255,6 @@ export const migrations: Migration[] = [
       `);
     },
   },
+  // v5: Add users table and userId columns
+  v5_add_users_table,
 ];
