@@ -78,13 +78,13 @@ export async function generateTestData(): Promise<{ petsCreated: number; records
         const intakeCount = randomInt(1, 3);
         for (let j = 0; j < intakeCount; j++) {
             const id = generateId();
-            const amount = randomInt(10, 50);
-            const type = Math.random() < 0.7 ? 'water' : 'wet_food'; // 70% 물, 30% 습식사료
+            const volume = randomInt(10, 50);
+            const fluidType = Math.random() < 0.7 ? 'water' : 'wet_food'; // 70% 물, 30% 습식사료
 
             await db.runAsync(
-                `INSERT INTO fluid_records (id, petId, date, type, amount, createdAt, userId)
+                `INSERT INTO fluid_records (id, petId, date, fluidType, volume, createdAt, userId)
                  VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                [id, petId, dateStr, type, amount, timestamp, userId]
+                [id, petId, dateStr, fluidType, volume, timestamp, userId]
             );
         }
     }
