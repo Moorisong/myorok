@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "862452811288",
+    "project_id": "myorok-ff3d1",
+    "storage_bucket": "myorok-ff3d1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:862452811288:android:c8eed3fdfa496d22f6256d",
+        "android_client_info": {
+          "package_name": "com.myorok.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBZqOzX06Ru1PR5z5TfDPCBD18AkagNpS0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

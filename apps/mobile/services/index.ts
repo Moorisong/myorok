@@ -73,6 +73,12 @@ export {
     shouldShowTrialWarning,
     getTrialCountdownText,
     resetSubscription,
+    markTrialNotificationAsSent,
+    // User-based subscription functions (for Kakao login)
+    getSubscriptionStatusForUser,
+    startTrialForUser,
+    activateSubscriptionForUser,
+    expireSubscriptionForUser,
 } from './subscription';
 export type { SubscriptionStatus, SubscriptionState } from './subscription';
 

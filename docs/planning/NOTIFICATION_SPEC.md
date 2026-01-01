@@ -27,21 +27,105 @@
 
 - **트리거**: 앱 실행 시 로컬 알림 스케줄링 리셋
 - **동작**: 앱이 3일(72시간) 동안 실행되지 않으면 로컬 알림 발생
-- **메시지**: 
+- **메시지**:
   - 타이틀: "3일 동안 기록이 없어요 😿"
   - 바디: "오늘 고양이 상태를 기록해 주세요."
 - **중복 방지**:
   - 동일 알림 타입(INACTIVITY)은 항상 1건만 예약
   - 앱 실행 시마다 이전 예약을 취소하고 새로 설정 (3일 타이머 리셋)
-- **구현**: 
+- **구현**:
   - Mobile: `NotificationService`에서 `cancelAll` 후 단일 스케줄 등록
   - 로컬 알림 특성상 서버 체크 불가
 - **기술적 제약**: 알림은 "기록 없음"이 아닌 "앱 미접속 3일"을 의미
-- **테스트 방법**: 
+- **테스트 방법**:
   - 개발 시 3일 → 10초로 변경하여 테스트
   - 알림 테스트 페이지에서 "10초 뒤 알림 예약" 버튼 사용
 
----
+### 2.3 체험 종료 24시간 전 푸시 알림
+
+- **목적**: 무료 체험 사용자가 체험 종료 전에 구독 결정을 할 수 있도록 알림
+- **트리거**: 체험 종료 24시간 전
+- **대상**: `subscriptionStatus === "trial"` 상태 사용자
+- **메시지**:
+  - 타이틀: "무료 체험이 곧 종료됩니다!"
+  - 바디: "무료 체험 기간 동안 기록을 즐겨보셨나요? 체험이 내일 종료됩니다. 계속 사용하려면 구독이 필요합니다."
+  - 액션: 구독 화면 이동 (`GO_TO_SUBSCRIBE`)
+- **계산 로직**:
+  ```
+  trialEndDate = trialStartDate + 7일
+  pushDate = trialEndDate - 1일 (24시간 전)
+  ```
+- **발송 조건**:
+  - `subscriptionStatus === "trial"`
+  - 현재 날짜 ≥ pushDate
+  - 이전에 알림을 이미 발송하지 않은 경우
+- **로컬 DB 저장**:
+  ```typescript
+  {
+    userId: String,
+    lastTrialPushAt: Date,    // 마지막 푸시 발송 시각 (ISO 8601)
+    nextTrialPushAt: Date      // 다음 발송 예정 시각 (ISO 8601)
+  }
+  ```
+- **중복 방지**:
+  - 하루 1회만 알림
+  - 발송 후 `lastTrialPushAt` 업데이트
+  - 체험 종료 후 알림 중복 금지
+- **구현**:
+  - Backend: 사용자 체험 시작일 기록 (`trialStartDate`)
+  - Mobile: 앱 실행 시 체험 종료 날짜 계산 및 푸시 예약
+  - 알림 미수신 시: 앱 실행 시 로컬 체크 후 푸시 트리거 가능
+- **플로우**:
+  ```
+  체험 시작일 기록
+     │
+     ▼
+  체험 6일째
+     │
+     ▼
+  푸시 알림 예약
+     │
+     ▼
+  푸시 발송
+     │
+     ▼
+  사용자 클릭 → 구독 화면
+     │
+     ▼
+  구독 완료 → subscriptionStatus = active
+  ```
+
+  ```
+97: 
+98: ### 2.4 알림 설정 (Phase 1)
+99: 
+100: 사용자가 알림 유형별로 수신 여부를 직접 제어할 수 있도록 설정 기능을 제공합니다.
+101: 
+102: - **적용 범위 (Phase 1)**:
+103:   | Key | 이름 | Phase 1 처리 |
+104:   |---|---|---|
+105:   | `comments` | 댓글 알림 | ✅ 설정 적용 (체크 후 발송) |
+106:   | `inactivity` | 미활동 알림 | ✅ 설정 적용 (체크 후 스케줄링) |
+107:   | `marketing` | 마케팅 알림 | ⚠️ UI만 제공 (미적용, Default: true) |
+108: 
+109: - **데이터 구조**:
+110:   `Device.settings` JSON 필드 활용
+111:   ```typescript
+112:   settings: {
+113:     marketing: boolean;   // default: true
+114:     comments: boolean;    // default: true
+115:     inactivity: boolean;  // default: true
+116:   }
+117:   ```
+118: 
+119: - **UX 동작**:
+120:   - `apps/mobile/app/(tabs)/settings/index.tsx`에 [알림 설정] 섹션 추가
+121:   - 토글 변경 시 즉시 `POST /api/device/register` 호출하여 설정 저장
+122:   - Optimistic Update 적용 (실패 시 원복)
+123:   - 마케팅 알림 하단에는 "마케팅 알림은 현재 발송되지 않으며, 추후 적용될 예정입니다." 문구 표시
+124: 
+125: ---
+126:
 
 ## 3. 기술 스택 및 데이터베이스
 
@@ -52,6 +136,8 @@
     deviceId: String,
     pushToken: String,
     settings: {
+      marketing: Boolean,
+      comments: Boolean,
       inactivity: Boolean
     },
     updatedAt: Date

@@ -114,8 +114,13 @@ export async function scheduleInactivityNotification() {
 
     Notifications = require('expo-notifications');
 
-    // Cancel existing notifications
-    await Notifications.cancelAllScheduledNotificationsAsync();
+    // Cancel only INACTIVITY type notifications (not all)
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    for (const notification of scheduled) {
+        if (notification.content?.data?.type === 'INACTIVITY') {
+            await Notifications.cancelScheduledNotificationAsync(notification.identifier);
+        }
+    }
 
     // Schedule single notification: After 3 days of app inactivity
     await Notifications.scheduleNotificationAsync({
@@ -123,6 +128,7 @@ export async function scheduleInactivityNotification() {
             title: "3일 동안 기록이 없어요 😿",
             body: "오늘 고양이 상태를 기록해 주세요.",
             sound: true,
+            data: { type: 'INACTIVITY' }, // Add type identifier
         },
         trigger: {
             type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
@@ -138,16 +144,108 @@ export async function scheduleTestNotification(seconds: number) {
 
     try {
         const Notifications = require('expo-notifications');
-        await Notifications.scheduleNotificationAsync({
+        const identifier = await Notifications.scheduleNotificationAsync({
             content: {
                 title: '테스트 알림 🔔',
                 body: `${seconds}초 후 알림이 도착했습니다!`,
                 sound: 'default',
+                data: { type: 'TEST' }, // Add type identifier to prevent cancellation
             },
-            trigger: { seconds },
+            trigger: {
+                type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+                seconds
+            },
         });
-        console.log(`[Local] Scheduled test notification in ${seconds}s`);
+        console.log(`[Local] Scheduled test notification in ${seconds}s, ID: ${identifier}`);
+        return identifier;
     } catch (error) {
         console.log('Error scheduling test notification:', error);
+        throw error;
+    }
+}
+
+/**
+ * Schedule trial end notification (24 hours before trial expires)
+ * @param trialStartDate ISO 8601 date string of when trial started
+ * @returns Promise<string | null> Returns the notification identifier if scheduled, null if already sent or skipped
+ */
+export async function scheduleTrialEndNotification(trialStartDate: string): Promise<string | null> {
+    // Check for Expo Go
+    if (Constants.executionEnvironment === 'storeClient') {
+        console.log('[TrialNotification] Skipped in Expo Go');
+        return null;
+    }
+
+    try {
+        const Notifications = require('expo-notifications');
+
+        // Calculate trial end date and push date
+        const startDate = new Date(trialStartDate);
+        const trialEndDate = new Date(startDate);
+        trialEndDate.setDate(trialEndDate.getDate() + 7); // Trial lasts 7 days
+
+        const pushDate = new Date(trialEndDate);
+        pushDate.setDate(pushDate.getDate() - 1); // Notify 24 hours before
+
+        const now = new Date();
+
+        // Check if push date is in the past
+        if (pushDate <= now) {
+            console.log('[TrialNotification] Push date is in the past, skipping');
+            return null;
+        }
+
+        // Cancel any existing trial end notifications
+        const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
+        for (const notification of scheduledNotifications) {
+            if (notification.content?.data?.type === 'TRIAL_END') {
+                await Notifications.cancelScheduledNotificationAsync(notification.identifier);
+                console.log('[TrialNotification] Cancelled existing trial end notification');
+            }
+        }
+
+        // Schedule notification
+        const identifier = await Notifications.scheduleNotificationAsync({
+            content: {
+                title: '무료 체험이 곧 종료됩니다!',
+                body: '무료 체험 기간 동안 기록을 즐겨보셨나요? 체험이 내일 종료됩니다. 계속 사용하려면 구독이 필요합니다.',
+                sound: 'default',
+                data: {
+                    type: 'TRIAL_END',
+                    action: 'GO_TO_SUBSCRIBE',
+                },
+            },
+            trigger: {
+                type: Notifications.SchedulableTriggerInputTypes.DATE,
+                date: pushDate,
+            },
+        });
+
+        console.log(`[TrialNotification] Scheduled for ${pushDate.toISOString()}`);
+        return identifier;
+    } catch (error) {
+        console.error('[TrialNotification] Error scheduling:', error);
+        return null;
+    }
+}
+
+/**
+ * Cancel trial end notification
+ */
+export async function cancelTrialEndNotification(): Promise<void> {
+    if (Constants.executionEnvironment === 'storeClient') return;
+
+    try {
+        const Notifications = require('expo-notifications');
+        const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
+
+        for (const notification of scheduledNotifications) {
+            if (notification.content?.data?.type === 'TRIAL_END') {
+                await Notifications.cancelScheduledNotificationAsync(notification.identifier);
+                console.log('[TrialNotification] Cancelled trial end notification');
+            }
+        }
+    } catch (error) {
+        console.error('[TrialNotification] Error cancelling:', error);
     }
 }

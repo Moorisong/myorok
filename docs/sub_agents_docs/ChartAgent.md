@@ -164,3 +164,142 @@
 -   **빈 데이터 처리**:
     -   15d/1m/3m: "기록 없음" 텍스트 표시.
     -   All: 데이터가 하나도 없으면 "기록이 충분하지 않습니다" 안내.
+
+---
+
+## 8. Custom Metrics Chart (Adaptive Chart)
+
+> **적용 대상**: `/charts/custom` (사용자 정의 지표 차트)
+> **목표**: 데이터가 많아져도 시각적으로 깔끔하게 차트를 표시하고, 기록량에 따라 차트 유형 및 집계 단위를 자동 조정
+
+### 8.1 Adaptive Chart 전략
+
+| 데이터 기간 | 데이터 개수 | 차트 유형 | 집계 단위 | 비고 |
+|-------------|------------|-----------|-----------|------|
+| **최근 15일 / 1개월** | ≤ 60 | Dot Chart / Line Chart | 일 단위 | 점 위 값 표시, 상세 데이터 확인 가능 |
+| **1~3개월** | 61~180 | Line Chart / Area Chart | 주 단위 평균 | 점 생략, 선/영역 강조, Tooltip으로 값 확인 |
+| **3~12개월** | 181~730 | Bar Chart / Line Chart | 주 단위 합계/평균 | 주간 추세 강조, 값 Tooltip 제공 |
+| **1년 이상** | >730 | Sparklines / 요약 카드 | 월 단위 평균/합계 | 최소/최대/평균 표시, 큰 추세 중심 |
+
+> ⚠️ 모든 기간에서 Tooltip 혹은 클릭 시 **일 단위 값 조회** 가능하도록 구현
+
+---
+
+## 9. Custom Metrics UI/UX 개선
+
+### 9.1 기간 선택 UI
+-   **선택 옵션**: 최근 1주, 1개월, 3개월, 6개월, 1년, 전체
+-   선택 시 차트 유형 및 집계 단위 **자동 적용**
+
+### 9.2 줌/스크롤 기능
+-   전체 기간 차트에서 일부 영역 확대 가능
+-   확대 시 단위가 자동으로 `주 → 일`로 변경
+
+### 9.3 데이터 포인트 표시
+-   밀도가 높으면 점 생략
+-   마우스 오버/터치 시 Tooltip으로 값 표시
+
+### 9.4 요약 카드
+-   전체 기간 또는 긴 기간 데이터 시 `최소 / 최대 / 평균` 표시
+-   필요 시 `최근 변화 추세` 아이콘 표시 (↑↓→)
+
+---
+
+## 10. Custom Metrics DB / 서비스 함수 개선
+
+### 10.1 집계 관련 함수 추가
+
+```typescript
+// 기간별 집계 조회
+getMetricRecordsAggregated(
+  metricId: string, 
+  startDate: string, 
+  endDate: string, 
+  unit: 'day' | 'week' | 'month'
+): Promise<AggregatedRecord[]>
+
+// 반환값 예시
+interface AggregatedRecord {
+  date: string;   // "2026-01-01" (일) 또는 "2026-W01" (주) 또는 "2026-01" (월)
+  value: number;  // 집계된 값 (평균 또는 합계)
+  count: number;  // 해당 기간 내 레코드 수
+}
+```
+
+### 10.2 기존 함수 개선 (getMetricRecords)
+-   단순 최신순 조회 대신, `limit` + `기간 선택` 옵션 추가
+-   내부에서 데이터 수에 따라 **집계 단위 추천** 반환
+
+---
+
+## 11. Custom Metrics 차트 렌더링 전략
+
+### 11.1 차트 타입 선택 로직
+
+```typescript
+function selectChartType(recordCount: number): ChartType {
+  if (recordCount <= 60) return 'DotChart';
+  if (recordCount <= 180) return 'LineChart';
+  if (recordCount <= 730) return 'BarChart';
+  return 'SummaryCard';
+}
+
+type ChartType = 'DotChart' | 'LineChart' | 'BarChart' | 'SummaryCard';
+```
+
+### 11.2 렌더링 시점
+1.  클라이언트에서 데이터 개수 확인
+2.  차트 유형/집계 결정
+3.  렌더링
+
+### 11.3 성능 최적화
+-   필요 시, **Lazy Load** 또는 **Virtualization** 적용 (데이터 많을 때 성능 개선)
+
+---
+
+## 12. Custom Metrics 마이그레이션/호환성
+
+### 12.1 호환성 원칙
+-   **기존 DB 구조 유지**: 스키마 변경 없음
+-   집계 함수 추가 및 UI/UX 개선만 적용
+-   기존 단일 Dot Chart/Bar Chart도 그대로 사용 가능
+
+### 12.2 추가 고려 사항
+-   다중 사용자(`userId`) 및 펫(`petId`) 단위 지원
+-   삭제 시 orphan 레코드 방지
+-   향후 Line + Area + Sparklines 혼합 차트 확장 가능
+-   줌/스크롤과 Tooltip으로 상세/요약 정보 동시 제공
+
+---
+
+## AI 작업 지침
+
+### 목적
+Chart 관련 기능 개발 및 유지보수 시 참조하는 에이전트 문서
+
+### 작업 단계
+
+#### 1. Summary Chart 작업 (`/charts/summary`)
+1. 기간별 표현 전략 (섹션 2) 확인
+2. 데이터 타입별 차트 적용 (증상: Dot/Bar, 수액: Bar, 약: Timeline)
+3. 전체 기간 선택 시 Summary Cards로 전환
+
+#### 2. Custom Metrics Chart 작업 (`/charts/custom`)
+1. 데이터 개수 기반 차트 타입 자동 선택 (섹션 11.1)
+2. 기간별 집계 함수 적용 (`getMetricRecordsAggregated`)
+3. UI/UX 개선 사항 적용 (줌/스크롤, Tooltip, 요약 카드)
+
+#### 3. DB/서비스 함수 구현
+1. `getMetricRecordsAggregated()` 함수 구현 (섹션 10.1)
+2. 기존 `getMetricRecords()` 함수 개선 (섹션 10.2)
+
+#### 4. 성능 최적화
+1. Lazy Load / Virtualization 적용
+2. 데이터량에 따른 집계 단위 자동 추천
+
+### 주의사항
+-   **이벤트성 데이터는 Line Chart로 연결 금지** (의료적 오해 방지)
+-   **숫자 중심 표시**: 모든 차트에서 수치 확인 가능
+-   **빈 데이터 처리**: 명확한 안내 문구 표시
+-   **Android 전용**: iOS 관련 내용 금지
+-   **데이터 보존**: 삭제 없음, orphan 레코드 방지

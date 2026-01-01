@@ -8,7 +8,10 @@ import {
     TextInput,
     Alert,
     ScrollView,
+    KeyboardAvoidingView,
+    Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 
 import { COLORS, COMFORT_MESSAGES } from '../constants';
@@ -97,86 +100,92 @@ export default function ComfortComposeModal({
             presentationStyle="formSheet"
             onRequestClose={handleClose}
         >
-            <View style={styles.container}>
-                {/* 헤더 */}
-                <View style={styles.header}>
-                    <Pressable onPress={handleClose} hitSlop={8}>
-                        <Text style={styles.cancelButton}>취소</Text>
-                    </Pressable>
-                    <Text style={styles.title}>
-                        {isEdit ? '글 수정' : COMFORT_MESSAGES.COMPOSE_TITLE}
-                    </Text>
-                    <Pressable
-                        onPress={handleSubmit}
-                        disabled={!content.trim() || isOverLimit || isSubmitting}
-                        hitSlop={8}
-                    >
-                        <Text
-                            style={[
-                                styles.submitButton,
-                                (!content.trim() || isOverLimit || isSubmitting) && styles.submitButtonDisabled,
-                            ]}
-                        >
-                            {isSubmitting ? '게시 중...' : '게시'}
+            <SafeAreaView style={styles.container}>
+                <KeyboardAvoidingView
+                    style={styles.keyboardAvoidingView}
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    keyboardVerticalOffset={0}
+                >
+                    {/* 헤더 */}
+                    <View style={styles.header}>
+                        <Pressable onPress={handleClose} hitSlop={8}>
+                            <Text style={styles.cancelButton}>취소</Text>
+                        </Pressable>
+                        <Text style={styles.title}>
+                            {isEdit ? '글 수정' : COMFORT_MESSAGES.COMPOSE_TITLE}
                         </Text>
-                    </Pressable>
-                </View>
-
-                {/* 이모지 선택 (새 글 작성 시에만) */}
-                {!isEdit && (
-                    <View style={styles.emojiSection}>
-                        <Text style={styles.emojiLabel}>프로필 이모지</Text>
-                        <ScrollView
-                            horizontal
-                            showsHorizontalScrollIndicator={false}
-                            contentContainerStyle={styles.emojiList}
-                            keyboardShouldPersistTaps="always"
+                        <Pressable
+                            onPress={handleSubmit}
+                            disabled={!content.trim() || isOverLimit || isSubmitting}
+                            hitSlop={8}
                         >
-                            {PROFILE_EMOJIS.map((emoji) => (
-                                <Pressable
-                                    key={emoji}
-                                    style={[
-                                        styles.emojiItem,
-                                        selectedEmoji === emoji && styles.emojiItemSelected,
-                                    ]}
-                                    onPress={() => {
-                                        setSelectedEmoji(emoji);
-                                        inputRef.current?.focus();
-                                    }}
-                                >
-                                    <Text style={styles.emojiText}>{emoji}</Text>
-                                </Pressable>
-                            ))}
-                        </ScrollView>
+                            <Text
+                                style={[
+                                    styles.submitButton,
+                                    (!content.trim() || isOverLimit || isSubmitting) && styles.submitButtonDisabled,
+                                ]}
+                            >
+                                {isSubmitting ? '게시 중...' : '게시'}
+                            </Text>
+                        </Pressable>
                     </View>
-                )}
 
-                {/* 본문 입력 */}
-                <View style={styles.inputContainer}>
-                    <TextInput
-                        ref={inputRef}
-                        style={styles.input}
-                        placeholder={COMFORT_MESSAGES.COMPOSE_PLACEHOLDER}
-                        placeholderTextColor={COLORS.textSecondary}
-                        multiline
-                        value={content}
-                        onChangeText={setContent}
-                        maxLength={MAX_LENGTH + 50}
-                        textAlignVertical="top"
-                    />
-                </View>
+                    {/* 이모지 선택 (새 글 작성 시에만) */}
+                    {!isEdit && (
+                        <View style={styles.emojiSection}>
+                            <Text style={styles.emojiLabel}>프로필 이모지</Text>
+                            <ScrollView
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                                contentContainerStyle={styles.emojiList}
+                                keyboardShouldPersistTaps="always"
+                            >
+                                {PROFILE_EMOJIS.map((emoji) => (
+                                    <Pressable
+                                        key={emoji}
+                                        style={[
+                                            styles.emojiItem,
+                                            selectedEmoji === emoji && styles.emojiItemSelected,
+                                        ]}
+                                        onPress={() => {
+                                            setSelectedEmoji(emoji);
+                                            inputRef.current?.focus();
+                                        }}
+                                    >
+                                        <Text style={styles.emojiText}>{emoji}</Text>
+                                    </Pressable>
+                                ))}
+                            </ScrollView>
+                        </View>
+                    )}
 
-                {/* 하단 정보 */}
-                <View style={styles.footer}>
-                    <View style={styles.noticeRow}>
-                        <Feather name="clock" size={14} color={COLORS.textSecondary} />
-                        <Text style={styles.noticeText}>1시간에 1번 글을 쓸 수 있어요</Text>
+                    {/* 본문 입력 */}
+                    <View style={styles.inputContainer}>
+                        <TextInput
+                            ref={inputRef}
+                            style={styles.input}
+                            placeholder={COMFORT_MESSAGES.COMPOSE_PLACEHOLDER}
+                            placeholderTextColor={COLORS.textSecondary}
+                            multiline
+                            value={content}
+                            onChangeText={setContent}
+                            maxLength={MAX_LENGTH + 50}
+                            textAlignVertical="top"
+                        />
                     </View>
-                    <Text style={[styles.charCount, isOverLimit && styles.charCountOver]}>
-                        {content.length}{COMFORT_MESSAGES.COMPOSE_LIMIT}
-                    </Text>
-                </View>
-            </View>
+
+                    {/* 하단 정보 */}
+                    <View style={styles.footer}>
+                        <View style={styles.noticeRow}>
+                            <Feather name="clock" size={14} color={COLORS.textSecondary} />
+                            <Text style={styles.noticeText}>1시간에 한번 글을 쓸 수 있어요</Text>
+                        </View>
+                        <Text style={[styles.charCount, isOverLimit && styles.charCountOver]}>
+                            {content.length}{COMFORT_MESSAGES.COMPOSE_LIMIT}
+                        </Text>
+                    </View>
+                </KeyboardAvoidingView>
+            </SafeAreaView>
         </Modal>
     );
 }
@@ -185,14 +194,17 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: COLORS.surface,
-        maxHeight: 400,
+    },
+    keyboardAvoidingView: {
+        flex: 1,
     },
     header: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
         paddingHorizontal: 16,
-        paddingVertical: 12,
+        paddingTop: 24,
+        paddingBottom: 12,
         borderBottomWidth: 1,
         borderBottomColor: COLORS.border,
     },
@@ -222,6 +234,7 @@ const styles = StyleSheet.create({
         fontSize: 16,
         lineHeight: 24,
         color: COLORS.textPrimary,
+        textAlignVertical: 'top', // Android fix
     },
     footer: {
         flexDirection: 'row',

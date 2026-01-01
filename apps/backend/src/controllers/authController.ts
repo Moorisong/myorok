@@ -211,7 +211,7 @@ export const kakaoCallback = async (
 };
 
 export const logout = async (
-  req: AuthRequest,
+  _req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {

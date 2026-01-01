@@ -6,8 +6,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../../constants';
 import { Card, SubscriptionBlockScreen } from '../../../components';
 import { useSelectedPet } from '../../../hooks/use-selected-pet';
+import { useAuth } from '../../../hooks/useAuth';
 import { getSubscriptionStatus, getTrialCountdownText } from '../../../services';
-import { getCurrentUser, logout } from '../../../services/auth';
+import { getCurrentUser } from '../../../services/auth';
 import type { SubscriptionState } from '../../../services';
 import type { User } from '../../../services/auth';
 
@@ -50,6 +51,7 @@ function SettingItem({ emoji, title, description, onPress, danger }: SettingItem
 export default function SettingsScreen() {
     const router = useRouter();
     const { selectedPet } = useSelectedPet();
+    const { logout: authLogout } = useAuth();
 
     const [subscriptionState, setSubscriptionState] = useState<SubscriptionState | null>(null);
     const [showBlockPreview, setShowBlockPreview] = useState(false);
@@ -69,6 +71,7 @@ export default function SettingsScreen() {
 
     const loadCurrentUser = async () => {
         const user = await getCurrentUser();
+        console.log('[Settings] Current user:', user);
         setCurrentUser(user);
     };
 
@@ -83,10 +86,11 @@ export default function SettingsScreen() {
                     style: 'destructive',
                     onPress: async () => {
                         try {
-                            await logout();
-                            setCurrentUser(null);
-                            Alert.alert('완료', '로그아웃되었습니다.');
+                            await authLogout();
+                            console.log('[Settings] Logout successful, returning to login screen');
+                            // Auth context will update isLoggedIn, triggering login screen
                         } catch (error) {
+                            console.error('[Settings] Logout error:', error);
                             Alert.alert('오류', '로그아웃에 실패했습니다.');
                         }
                     },
@@ -144,12 +148,6 @@ export default function SettingsScreen() {
                                 <Text style={styles.accountLabel}>로그인 계정</Text>
                                 <Text style={styles.accountNickname}>{currentUser.nickname}</Text>
                             </View>
-                            <Pressable
-                                style={styles.logoutButton}
-                                onPress={handleLogout}
-                            >
-                                <Text style={styles.logoutButtonText}>로그아웃</Text>
-                            </Pressable>
                         </View>
                     </Card>
                 )}
@@ -180,6 +178,15 @@ export default function SettingsScreen() {
 
                 <Card style={styles.card}>
                     <SettingItem
+                        emoji="🔔"
+                        title="알림 설정"
+                        description="댓글, 미활동, 마케팅 알림 관리"
+                        onPress={() => handleNavigate('/settings/notifications')}
+                    />
+                </Card>
+
+                <Card style={styles.card}>
+                    <SettingItem
                         emoji="🧪"
                         title="참고용 메모 보관함 (베타)"
                         description="사료 기호성 / 약물 메모를 간단히 저장해둘 수 있어요"
@@ -193,6 +200,58 @@ export default function SettingsScreen() {
                         title="알림 테스트 (Dev)"
                         description="푸시 알림 로직 검증"
                         onPress={() => handleNavigate('/settings/notification-test')}
+                    />
+                    <SettingItem
+                        emoji="⏰"
+                        title="체험 종료 알림 테스트 (Dev)"
+                        description="10초 뒤 체험 종료 알림 발송"
+                        onPress={async () => {
+                            try {
+                                const Constants = await import('expo-constants');
+
+                                // Check for Expo Go
+                                if (Constants.default.executionEnvironment === 'storeClient') {
+                                    Alert.alert('알림', 'Expo Go에서는 로컬 알림이 지원되지 않습니다.');
+                                    return;
+                                }
+
+                                const Notifications = require('expo-notifications');
+
+                                // Cancel existing trial end notifications
+                                const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
+                                for (const notification of scheduledNotifications) {
+                                    if (notification.content?.data?.type === 'TRIAL_END') {
+                                        await Notifications.cancelScheduledNotificationAsync(notification.identifier);
+                                    }
+                                }
+
+                                // Schedule test notification in 10 seconds
+                                await Notifications.scheduleNotificationAsync({
+                                    content: {
+                                        title: '무료 체험이 곧 종료됩니다!',
+                                        body: '무료 체험 기간 동안 기록을 즐겨보셨나요? 체험이 내일 종료됩니다. 계속 사용하려면 구독이 필요합니다.',
+                                        sound: 'default',
+                                        data: {
+                                            type: 'TRIAL_END',
+                                            action: 'GO_TO_SUBSCRIBE',
+                                        },
+                                    },
+                                    trigger: {
+                                        type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+                                        seconds: 10,
+                                    },
+                                });
+
+                                Alert.alert(
+                                    '테스트 알림 예약 완료',
+                                    '10초 뒤 체험 종료 알림이 발송됩니다.\n\n알림을 탭하면 구독 화면으로 이동하고,\nlastTrialPushAt이 DB에 기록됩니다.',
+                                    [{ text: '확인' }]
+                                );
+                            } catch (error) {
+                                console.error('[Settings] Trial notification test failed:', error);
+                                Alert.alert('오류', '알림 예약에 실패했습니다.');
+                            }
+                        }}
                     />
                     <SettingItem
                         emoji="🔄"
@@ -211,18 +270,30 @@ export default function SettingsScreen() {
                         onPress={() => setShowBlockPreview(true)}
                     />
                     <SettingItem
-                        emoji="🔐"
-                        title="카카오 로그인 테스트 (Dev)"
-                        description={currentUser ? `로그인됨: ${currentUser.nickname}` : '로그인 안됨'}
+                        emoji="📊"
+                        title="1년 테스트 데이터 생성 (Dev)"
+                        description="365일치 무작위 기록 생성"
                         onPress={async () => {
-                            try {
-                                const { loginWithKakao } = await import('../../../services/auth');
-                                const userId = await loginWithKakao();
-                                Alert.alert('로그인 성공', `userId: ${userId}`);
-                                loadCurrentUser();
-                            } catch (error: any) {
-                                Alert.alert('로그인 실패', error.message || '알 수 없는 오류');
-                            }
+                            Alert.alert(
+                                '테스트 데이터 생성',
+                                '1년(365일)치 무작위 데이터를 생성합니다. 기존 데이터가 없는 날짜에만 추가됩니다.',
+                                [
+                                    { text: '취소', style: 'cancel' },
+                                    {
+                                        text: '생성',
+                                        onPress: async () => {
+                                            try {
+                                                const { generateTestData } = await import('../../../services/testDataGenerator');
+                                                const result = await generateTestData();
+                                                Alert.alert('완료', `${result.recordsCreated}개의 기록이 생성되었습니다.`);
+                                            } catch (error) {
+                                                console.error('Test data generation failed:', error);
+                                                Alert.alert('오류', '데이터 생성에 실패했습니다.');
+                                            }
+                                        },
+                                    },
+                                ]
+                            );
                         }}
                     />
                 </Card>
@@ -255,6 +326,18 @@ export default function SettingsScreen() {
                         danger
                     />
                 </Card>
+
+                {/* 로그아웃 버튼 */}
+                {currentUser ? (
+                    <View style={styles.logoutContainer}>
+                        <Pressable
+                            style={styles.smallLogoutButton}
+                            onPress={handleLogout}
+                        >
+                            <Text style={styles.smallLogoutText}>로그아웃</Text>
+                        </Pressable>
+                    </View>
+                ) : null}
 
                 <View style={styles.bottomPadding} />
             </ScrollView>
@@ -375,5 +458,18 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '500',
         color: COLORS.error,
+    },
+    logoutContainer: {
+        alignItems: 'center',
+        paddingTop: 25,
+    },
+    smallLogoutButton: {
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+    },
+    smallLogoutText: {
+        fontSize: 13,
+        color: COLORS.textSecondary,
+        opacity: 0.5,
     },
 });

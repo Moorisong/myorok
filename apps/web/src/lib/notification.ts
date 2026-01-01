@@ -10,6 +10,7 @@ export interface PushOptions {
     cooldownMs?: number;    // Minimum time between pushes (default: 0)
     countThreshold?: number; // Send only after N events if within cooldown (default: 1)
     type?: string;          // Notification Type (Required for throttling)
+    notificationCategory?: 'comments' | 'inactivity' | 'marketing'; // For checking user settings
 }
 
 export async function sendPushNotification(
@@ -52,6 +53,15 @@ export async function sendPushNotification(
     if (!device) {
         console.log(`[Push] No device found for ${deviceId}`);
         return { status: 'error', message: '기기 정보를 찾을 수 없음' };
+    }
+
+    // Check notification settings (default: true if not set)
+    if (options.notificationCategory) {
+        const isEnabled = device.settings?.[options.notificationCategory] !== false;
+        if (!isEnabled) {
+            console.log(`[Push] Notification category '${options.notificationCategory}' is disabled for device ${deviceId}`);
+            return { status: 'skipped', message: `사용자가 ${options.notificationCategory} 알림을 비활성화함` };
+        }
     }
 
     if (!device.pushToken) {

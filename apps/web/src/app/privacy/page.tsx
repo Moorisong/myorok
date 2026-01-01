@@ -50,7 +50,7 @@ export default function PrivacyPolicy() {
           </ul>
 
           <p className={styles.highlight}>
-            ※ 서비스는 이메일, 전화번호, 주소 등의 개인 식별 정보를 수집하지 않습니다.
+            ※ 서비스는 이메일, 전화번호, 주소 등의 개인 식별 정보 및 신용카드 번호 등 결제 정보를 직접 수집하지 않습니다. 결제 정보는 앱 마켓(Google Play Store)에서 처리합니다.
           </p>
         </section>
 
@@ -122,7 +122,7 @@ export default function PrivacyPolicy() {
           <ol>
             <li>이용자가 사전에 동의한 경우</li>
             <li>법령의 규정에 의거하거나, 수사 목적으로 법령에 정해진 절차와 방법에 따라
-                수사기관의 요구가 있는 경우</li>
+              수사기관의 요구가 있는 경우</li>
           </ol>
         </section>
 
@@ -250,6 +250,6 @@ export default function PrivacyPolicy() {
           </p>
         </footer>
       </main>
-    </div>
+    </div >
   );
 }

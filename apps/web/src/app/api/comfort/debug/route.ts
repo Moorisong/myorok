@@ -185,6 +185,30 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ success: true, state, pushResult: result });
         }
 
+        if (action === 'simulate-push-no-cooldown') {
+            const { title, body: pushBody } = body;
+            const result = await sendPushNotification(
+                deviceId,
+                title || '댓글 알림 테스트',
+                pushBody || '새로운 댓글이 달렸습니다!',
+                { type: 'COMFORT_COMMENT', action: 'OPEN_COMFORT' },
+                { cooldownMs: 0, type: 'COMFORT_COMMENT' }
+            );
+            return NextResponse.json({ success: true, pushResult: result });
+        }
+
+        if (action === 'get-device-info') {
+            const device = await Device.findOne({ deviceId });
+            return NextResponse.json({
+                success: true,
+                device: device ? {
+                    deviceId: device.deviceId,
+                    pushToken: device.pushToken,
+                    hasToken: !!device.pushToken
+                } : null
+            });
+        }
+
         return NextResponse.json({ success: false, error: '알 수 없는 액션입니다.' }, { status: 400 });
 
     } catch (error) {

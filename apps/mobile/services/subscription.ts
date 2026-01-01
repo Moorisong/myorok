@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getDatabase } from './database';
+import { scheduleTrialEndNotification, cancelTrialEndNotification } from './NotificationService';
 
 const SUBSCRIPTION_KEYS = {
     TRIAL_START_DATE: 'trial_start_date',
@@ -39,6 +40,15 @@ export async function initializeSubscription(): Promise<void> {
        VALUES (1, ?, ?, ?, ?)`,
             [now, 'trial', now, now]
         );
+
+        // Schedule trial end notification
+        await scheduleTrialEndNotificationIfNeeded(now);
+    } else {
+        // Check if notification needs to be scheduled for existing trial
+        const status = await AsyncStorage.getItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS) as SubscriptionStatus;
+        if (status === 'trial') {
+            await scheduleTrialEndNotificationIfNeeded(trialStartDate);
+        }
     }
 }
 
@@ -124,11 +134,15 @@ export async function activateSubscription(expiryDate?: string): Promise<void> {
     // Update database
     const db = await getDatabase();
     await db.runAsync(
-        `UPDATE subscription_state 
+        `UPDATE subscription_state
      SET subscriptionStatus = ?, subscriptionStartDate = ?, subscriptionExpiryDate = ?, updatedAt = ?
      WHERE id = 1`,
         ['active', now, expiry, now]
     );
+
+    // Cancel trial end notification
+    await cancelTrialEndNotification();
+    console.log('[Subscription] Trial end notification cancelled due to subscription activation');
 }
 
 /**
@@ -351,5 +365,72 @@ export async function expireSubscriptionForUser(userId: string): Promise<void> {
     } catch (error) {
         console.error('[Subscription] Expire subscription failed:', error);
         throw error;
+    }
+}
+
+/**
+ * Schedule trial end notification if not already sent
+ * @param trialStartDate ISO 8601 date string of when trial started
+ */
+async function scheduleTrialEndNotificationIfNeeded(trialStartDate: string): Promise<void> {
+    try {
+        const db = await getDatabase();
+
+        // Check if notification was already sent
+        const record = await db.getFirstAsync<{
+            lastTrialPushAt: string | null;
+        }>(
+            'SELECT lastTrialPushAt FROM subscription_state WHERE id = 1'
+        );
+
+        // If already sent, skip
+        if (record?.lastTrialPushAt) {
+            console.log('[Subscription] Trial end notification already sent, skipping');
+            return;
+        }
+
+        // Calculate push date (6 days after trial start)
+        const startDate = new Date(trialStartDate);
+        const pushDate = new Date(startDate);
+        pushDate.setDate(pushDate.getDate() + 6); // 7 days trial - 1 day = 6 days
+
+        const now = new Date();
+
+        // If push date is in the future, schedule it
+        if (pushDate > now) {
+            const identifier = await scheduleTrialEndNotification(trialStartDate);
+
+            if (identifier) {
+                // Update database with next push date
+                await db.runAsync(
+                    `UPDATE subscription_state SET nextTrialPushAt = ?, updatedAt = ? WHERE id = 1`,
+                    [pushDate.toISOString(), now.toISOString()]
+                );
+                console.log('[Subscription] Trial end notification scheduled for', pushDate.toISOString());
+            }
+        } else {
+            console.log('[Subscription] Trial end notification date has passed, skipping');
+        }
+    } catch (error) {
+        console.error('[Subscription] Failed to schedule trial end notification:', error);
+    }
+}
+
+/**
+ * Mark trial notification as sent
+ */
+export async function markTrialNotificationAsSent(): Promise<void> {
+    try {
+        const db = await getDatabase();
+        const now = new Date().toISOString();
+
+        await db.runAsync(
+            `UPDATE subscription_state SET lastTrialPushAt = ?, updatedAt = ? WHERE id = 1`,
+            [now, now]
+        );
+
+        console.log('[Subscription] Marked trial notification as sent');
+    } catch (error) {
+        console.error('[Subscription] Failed to mark trial notification as sent:', error);
     }
 }

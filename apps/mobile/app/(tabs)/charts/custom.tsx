@@ -6,27 +6,48 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../../constants';
 import { Header, Card } from '../../../components';
 import {
+    AdaptiveChart,
+    PeriodSelector,
+    PeriodOption,
+    getDateRangeForPeriod,
+    ChartDataPoint,
+} from '../../../components/charts';
+import {
     getCustomMetrics,
-    getMetricRecords,
+    getMetricRecordsByDateRange,
+    getMetricRecordsAggregated,
+    getMetricRecordCount,
+    getMetricSummaryStats,
+    selectChartType,
+    recommendAggregateUnit,
     CustomMetric,
-    CustomMetricRecord
+    ChartType,
+    AggregatedRecord,
 } from '../../../services/customMetrics';
 import { useSelectedPet } from '../../../hooks/use-selected-pet';
-
-interface ChartPoint {
-    date: string;
-    value: number;
-    originalDate: string; // for sorting if needed
-}
 
 export default function CustomChartScreen() {
     const { selectedPetId } = useSelectedPet();
     const [metrics, setMetrics] = useState<CustomMetric[]>([]);
     const [selectedMetric, setSelectedMetric] = useState<CustomMetric | null>(null);
-    const [chartData, setChartData] = useState<ChartPoint[]>([]);
+    const [selectedPeriod, setSelectedPeriod] = useState<PeriodOption>('1m');
+
+    const [chartType, setChartType] = useState<ChartType>('DotChart');
+    const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
+    const [aggregatedData, setAggregatedData] = useState<AggregatedRecord[]>([]);
+    const [summaryStats, setSummaryStats] = useState<{
+        min: number;
+        max: number;
+        avg: number;
+        count: number;
+        firstDate: string | null;
+        lastDate: string | null;
+    } | null>(null);
+    const [loading, setLoading] = useState(false);
 
     useFocusEffect(
         useCallback(() => {
+            setSelectedMetric(null);
             loadMetrics();
         }, [selectedPetId])
     );
@@ -36,19 +57,17 @@ export default function CustomChartScreen() {
             loadMetricData(selectedMetric.id);
         } else {
             setChartData([]);
+            setAggregatedData([]);
+            setSummaryStats(null);
         }
-    }, [selectedMetric]);
+    }, [selectedMetric, selectedPeriod]);
 
     const loadMetrics = async () => {
         try {
             const fetchedMetrics = await getCustomMetrics();
             setMetrics(fetchedMetrics);
-            if (fetchedMetrics.length > 0 && !selectedMetric) {
+            if (fetchedMetrics.length > 0) {
                 setSelectedMetric(fetchedMetrics[0]);
-            } else if (fetchedMetrics.length > 0 && selectedMetric) {
-                // Check if selected metric still exists
-                const exists = fetchedMetrics.find(m => m.id === selectedMetric.id);
-                if (!exists) setSelectedMetric(fetchedMetrics[0]);
             }
         } catch (error) {
             console.error('Error loading metrics:', error);
@@ -56,29 +75,68 @@ export default function CustomChartScreen() {
     };
 
     const loadMetricData = async (metricId: string) => {
+        setLoading(true);
         try {
-            const records = await getMetricRecords(metricId, 30); // Last 30 records
-            // Process for chart (Sort by date ASC for chart)
-            const sortedRecords = [...records].sort((a, b) => a.date.localeCompare(b.date));
+            const { startDate, endDate } = getDateRangeForPeriod(selectedPeriod);
 
-            const points: ChartPoint[] = sortedRecords.map(r => ({
-                date: r.date.substring(5).replace('-', '/'),
-                value: r.value,
-                originalDate: r.date
-            }));
-            setChartData(points);
+            // Get total count to determine chart type
+            const totalCount = await getMetricRecordCount(metricId);
+            const determinedChartType = selectChartType(totalCount);
+            setChartType(determinedChartType);
+
+            // For SummaryCard, just get summary stats
+            if (determinedChartType === 'SummaryCard' || selectedPeriod === 'all' && totalCount > 180) {
+                const stats = await getMetricSummaryStats(metricId);
+                setSummaryStats(stats);
+
+                // Still get some aggregated data for trend
+                const unit = recommendAggregateUnit(totalCount);
+                const aggData = await getMetricRecordsAggregated(metricId, startDate, endDate, unit);
+                setAggregatedData(aggData);
+                setChartData(aggData.map(r => ({
+                    date: r.date,
+                    displayDate: formatDisplayDate(r.date),
+                    value: r.value,
+                })));
+            } else if (determinedChartType === 'BarChart' || determinedChartType === 'LineChart') {
+                // Aggregate by week for medium-range data
+                const unit = totalCount > 60 ? 'week' : 'day';
+                const aggData = await getMetricRecordsAggregated(metricId, startDate, endDate, unit);
+                setAggregatedData(aggData);
+                setChartData(aggData.map(r => ({
+                    date: r.date,
+                    displayDate: formatDisplayDate(r.date),
+                    value: r.value,
+                })));
+                setSummaryStats(null);
+            } else {
+                // DotChart - show daily data
+                const records = await getMetricRecordsByDateRange(metricId, startDate, endDate);
+                const sortedRecords = [...records].sort((a, b) => a.date.localeCompare(b.date));
+
+                const points: ChartDataPoint[] = sortedRecords.map(r => ({
+                    date: r.date,
+                    displayDate: r.date.substring(5).replace('-', '/'),
+                    value: r.value,
+                    originalRecord: r,
+                }));
+                setChartData(points);
+                setAggregatedData([]);
+                setSummaryStats(null);
+            }
         } catch (error) {
             console.error('Error loading metric data:', error);
+        } finally {
+            setLoading(false);
         }
     };
-
-    const maxValue = chartData.length > 0 ? Math.max(...chartData.map(d => d.value)) * 1.2 : 100;
 
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
             <Header title="커스텀 수치 차트" showBack />
 
             <ScrollView style={styles.content}>
+                {/* Metric Selector */}
                 <Card style={styles.card}>
                     <Text style={styles.sectionTitle}>수치 선택</Text>
                     <View style={styles.metricList}>
@@ -108,6 +166,7 @@ export default function CustomChartScreen() {
                     </View>
                 </Card>
 
+                {/* Chart Card */}
                 {selectedMetric && (
                     <Card style={styles.card}>
                         <Text style={styles.sectionTitle}>
@@ -115,42 +174,33 @@ export default function CustomChartScreen() {
                             {selectedMetric.unit && ` (${selectedMetric.unit})`}
                         </Text>
 
-                        {chartData.length === 0 ? (
-                            <Text style={styles.emptyText}>기록된 데이터가 없습니다.</Text>
-                        ) : (
-                            <>
-                                {/* 간단한 라인 차트 시뮬레이션 */}
-                                <View style={styles.chart}>
-                                    {chartData.map((point, index) => (
-                                        <View key={index} style={styles.pointContainer}>
-                                            <View style={styles.pointWrapper}>
-                                                <View
-                                                    style={[
-                                                        styles.pointBar,
-                                                        { height: (point.value / maxValue) * 100 },
-                                                    ]}
-                                                />
-                                                <View style={styles.point} />
-                                            </View>
-                                            <Text style={styles.pointValue}>{point.value}</Text>
-                                            <Text style={styles.pointDate}>{point.date}</Text>
-                                        </View>
-                                    ))}
-                                </View>
+                        {/* Period Selector */}
+                        <PeriodSelector
+                            selected={selectedPeriod}
+                            onSelect={setSelectedPeriod}
+                        />
 
-                                {/* 트렌드 표시 */}
-                                {chartData.length >= 2 && (
-                                    <View style={styles.trendBox}>
-                                        {chartData[chartData.length - 1].value < chartData[0].value ? (
-                                            <Text style={styles.trendGood}>📉 감소 추세</Text>
-                                        ) : chartData[chartData.length - 1].value > chartData[0].value ? (
-                                            <Text style={styles.trendBad}>📈 증가 추세</Text>
-                                        ) : (
-                                            <Text style={styles.trendNeutral}>➡️ 유지 중</Text>
-                                        )}
-                                    </View>
-                                )}
-                            </>
+                        {/* Chart Type Badge */}
+                        <View style={styles.chartTypeBadge}>
+                            <Text style={styles.chartTypeText}>
+                                {getChartTypeLabel(chartType)}
+                            </Text>
+                        </View>
+
+                        {/* Adaptive Chart */}
+                        {loading ? (
+                            <View style={styles.loadingContainer}>
+                                <Text style={styles.loadingText}>로딩 중...</Text>
+                            </View>
+                        ) : (
+                            <AdaptiveChart
+                                chartType={chartType}
+                                data={chartData}
+                                aggregatedData={aggregatedData.length > 0 ? aggregatedData : undefined}
+                                metricName={selectedMetric.name}
+                                unit={selectedMetric.unit}
+                                summaryStats={summaryStats}
+                            />
                         )}
                     </Card>
                 )}
@@ -163,6 +213,29 @@ export default function CustomChartScreen() {
             </ScrollView>
         </SafeAreaView>
     );
+}
+
+function formatDisplayDate(dateStr: string): string {
+    if (dateStr.includes('-W')) {
+        return dateStr.replace('-W', '/W');
+    }
+    if (dateStr.length === 7) {
+        return dateStr.substring(2).replace('-', '/');
+    }
+    return dateStr.substring(5).replace('-', '/');
+}
+
+function getChartTypeLabel(chartType: ChartType): string {
+    switch (chartType) {
+        case 'DotChart':
+            return '📊 일별 점 차트';
+        case 'LineChart':
+            return '📈 주간 라인 차트';
+        case 'BarChart':
+            return '📉 주간 막대 차트';
+        case 'SummaryCard':
+            return '📋 요약 카드';
+    }
 }
 
 const styles = StyleSheet.create({
@@ -208,73 +281,25 @@ const styles = StyleSheet.create({
         color: COLORS.surface,
         fontWeight: '600',
     },
-    emptyText: {
-        fontSize: 14,
-        color: COLORS.textSecondary,
-        textAlign: 'center',
-        paddingVertical: 20,
-    },
-    chart: {
-        flexDirection: 'row',
-        justifyContent: 'space-around',
-        alignItems: 'flex-end',
-        height: 160,
-        paddingTop: 20,
-    },
-    pointContainer: {
-        alignItems: 'center',
-        flex: 1,
-    },
-    pointWrapper: {
-        height: 100,
-        justifyContent: 'flex-end',
-        alignItems: 'center',
-    },
-    pointBar: {
-        width: 3,
-        backgroundColor: `${COLORS.primary}40`,
-        borderRadius: 2,
-    },
-    point: {
-        width: 12,
-        height: 12,
-        borderRadius: 6,
-        backgroundColor: COLORS.primary,
-        position: 'absolute',
-        bottom: -6,
-    },
-    pointValue: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: COLORS.textPrimary,
-        marginTop: 12,
-    },
-    pointDate: {
-        fontSize: 11,
-        color: COLORS.textSecondary,
-        marginTop: 4,
-    },
-    trendBox: {
-        marginTop: 16,
-        padding: 12,
+    chartTypeBadge: {
+        alignSelf: 'flex-start',
         backgroundColor: COLORS.background,
-        borderRadius: 8,
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 12,
+        marginBottom: 12,
+    },
+    chartTypeText: {
+        fontSize: 12,
+        color: COLORS.textSecondary,
+    },
+    loadingContainer: {
+        paddingVertical: 60,
         alignItems: 'center',
     },
-    trendGood: {
-        fontSize: 14,
-        color: COLORS.primary,
-        fontWeight: '600',
-    },
-    trendBad: {
-        fontSize: 14,
-        color: COLORS.error,
-        fontWeight: '600',
-    },
-    trendNeutral: {
+    loadingText: {
         fontSize: 14,
         color: COLORS.textSecondary,
-        fontWeight: '600',
     },
     hint: {
         marginHorizontal: 16,
