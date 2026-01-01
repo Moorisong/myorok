@@ -58,8 +58,7 @@ export function LoginScreen({ onLoginSuccess, onLoginPress, isLoading = false }:
                         변화를 한눈에 파악할 수 있어요.{'\n'}
                     </Text>
                 </View>
-// ... rest of the component matches perfectly up to line 104 in context
-                // I will only replace the top part and styles
+
 
 
                 {/* Actions Section */}

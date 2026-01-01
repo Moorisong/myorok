@@ -193,6 +193,58 @@ export default function SettingsScreen() {
                         onPress={() => handleNavigate('/settings/notification-test')}
                     />
                     <SettingItem
+                        emoji="⏰"
+                        title="체험 종료 알림 테스트 (Dev)"
+                        description="10초 뒤 체험 종료 알림 발송"
+                        onPress={async () => {
+                            try {
+                                const Constants = await import('expo-constants');
+
+                                // Check for Expo Go
+                                if (Constants.default.executionEnvironment === 'storeClient') {
+                                    Alert.alert('알림', 'Expo Go에서는 로컬 알림이 지원되지 않습니다.');
+                                    return;
+                                }
+
+                                const Notifications = require('expo-notifications');
+
+                                // Cancel existing trial end notifications
+                                const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
+                                for (const notification of scheduledNotifications) {
+                                    if (notification.content?.data?.type === 'TRIAL_END') {
+                                        await Notifications.cancelScheduledNotificationAsync(notification.identifier);
+                                    }
+                                }
+
+                                // Schedule test notification in 10 seconds
+                                await Notifications.scheduleNotificationAsync({
+                                    content: {
+                                        title: '무료 체험이 곧 종료됩니다!',
+                                        body: '무료 체험 기간 동안 기록을 즐겨보셨나요? 체험이 내일 종료됩니다. 계속 사용하려면 구독이 필요합니다.',
+                                        sound: 'default',
+                                        data: {
+                                            type: 'TRIAL_END',
+                                            action: 'GO_TO_SUBSCRIBE',
+                                        },
+                                    },
+                                    trigger: {
+                                        type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+                                        seconds: 10,
+                                    },
+                                });
+
+                                Alert.alert(
+                                    '테스트 알림 예약 완료',
+                                    '10초 뒤 체험 종료 알림이 발송됩니다.\n\n알림을 탭하면 구독 화면으로 이동하고,\nlastTrialPushAt이 DB에 기록됩니다.',
+                                    [{ text: '확인' }]
+                                );
+                            } catch (error) {
+                                console.error('[Settings] Trial notification test failed:', error);
+                                Alert.alert('오류', '알림 예약에 실패했습니다.');
+                            }
+                        }}
+                    />
+                    <SettingItem
                         emoji="🔄"
                         title="구독 상태 리셋 (Dev)"
                         description={`현재: ${subscriptionState?.status || '로딩 중'}`}

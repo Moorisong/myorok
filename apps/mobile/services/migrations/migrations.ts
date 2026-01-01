@@ -1,6 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 import { Migration } from './types';
 import { v5_add_users_table } from './v5_add_users_table';
+import { v7_add_trial_notification_columns } from './v7_add_trial_notification_columns';
 
 /**
  * All database migrations in order
@@ -257,4 +258,6 @@ export const migrations: Migration[] = [
   },
   // v5: Add users table and userId columns
   v5_add_users_table,
+  // v7: Add trial notification tracking columns
+  v7_add_trial_notification_columns,
 ];

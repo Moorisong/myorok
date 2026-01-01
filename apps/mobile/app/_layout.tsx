@@ -1,9 +1,9 @@
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as Linking from 'expo-linking';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthRequest, ResponseType } from 'expo-auth-session';
@@ -15,7 +15,7 @@ import { ToastProvider } from '../components/ToastContext';
 import { SubscriptionBlockScreen } from '../components/subscription/SubscriptionBlockScreen';
 import { LoginScreen } from '../components/auth/LoginScreen';
 import { registerForPushNotificationsAsync, scheduleInactivityNotification } from '../services/NotificationService';
-import { initializeSubscription, isAppAccessAllowed } from '../services';
+import { initializeSubscription, isAppAccessAllowed, markTrialNotificationAsSent } from '../services';
 import { loginWithKakao } from '../services/auth';
 import { KAKAO_CLIENT_ID, KAKAO_DISCOVERY, KAKAO_REDIRECT_URI } from '../services/auth/kakaoAuth';
 import { getCurrentUserId } from '../services/auth';
@@ -24,6 +24,10 @@ import { getCurrentUserId } from '../services/auth';
 function AppContent() {
   const { isLoggedIn, setIsLoggedIn, isLoggingIn, setIsLoggingIn, checkAuthStatus, subscriptionStatus } = useAuth();
   const [subscriptionBlocked, setSubscriptionBlocked] = useState(false);
+  const router = useRouter();
+  const notificationListener = useRef<any>();
+  const responseListener = useRef<any>();
+  const NotificationsRef = useRef<any>();
 
   // Kakao Auth Request Hook
   const [request, response, promptAsync] = useAuthRequest(
@@ -69,8 +73,33 @@ function AppContent() {
         // Foreground Notification Listener (Skip in Expo Go)
         if (Constants.executionEnvironment !== 'storeClient') {
           const Notifications = require('expo-notifications');
-          subscription = Notifications.addNotificationReceivedListener((notification: any) => {
-            console.log('Foreground notification:', notification);
+          NotificationsRef.current = Notifications;
+
+          // Foreground notification listener
+          notificationListener.current = Notifications.addNotificationReceivedListener((notification: any) => {
+            console.log('[Notification] Foreground notification received:', notification);
+          });
+
+          // Notification response listener (when user taps notification)
+          responseListener.current = Notifications.addNotificationResponseReceivedListener(async (response: any) => {
+            console.log('[Notification] User tapped notification:', response);
+
+            const data = response.notification.request.content.data;
+
+            // Handle trial end notification
+            if (data?.type === 'TRIAL_END' && data?.action === 'GO_TO_SUBSCRIBE') {
+              console.log('[Notification] Trial end notification tapped, navigating to subscription');
+
+              // Mark notification as sent
+              await markTrialNotificationAsSent();
+
+              // Navigate to subscription preview screen
+              try {
+                router.push('/(tabs)/settings/subscription-preview');
+              } catch (error) {
+                console.error('[Notification] Navigation failed:', error);
+              }
+            }
           });
         }
       } catch (e) {
@@ -162,6 +191,14 @@ function AppContent() {
       }
       if (linkingSubscription) {
         linkingSubscription.remove();
+      }
+      if (NotificationsRef.current) {
+        if (notificationListener.current) {
+          NotificationsRef.current.removeNotificationSubscription(notificationListener.current);
+        }
+        if (responseListener.current) {
+          NotificationsRef.current.removeNotificationSubscription(responseListener.current);
+        }
       }
     };
   }, []);
