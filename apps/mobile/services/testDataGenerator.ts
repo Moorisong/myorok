@@ -3,9 +3,9 @@ import { addPet, getAllPets } from './pets';
 import { getCurrentUserId } from './auth';
 
 /**
- * 3개월간의 무작위 테스트 데이터 생성
+ * 1년간의 무작위 테스트 데이터 생성
  * - 고양이가 없으면 1마리 생성
- * - 90일치 daily_records 생성
+ * - 365일치 daily_records 생성
  * - 수분 섭취 기록 생성
  * - 영양제/약 생성 및 섭취 기록
  * - 커스텀 수치 생성 및 기록
@@ -28,8 +28,8 @@ export async function generateTestData(): Promise<{ petsCreated: number; records
     const now = new Date();
     let recordsCreated = 0;
 
-    // 2. 3개월(90일)치 daily_records 생성
-    for (let i = 0; i < 90; i++) {
+    // 2. 1년(365일)치 daily_records 생성
+    for (let i = 0; i < 365; i++) {
         const recordDate = new Date(now);
         recordDate.setDate(recordDate.getDate() - i);
         const dateStr = recordDate.toISOString().split('T')[0]; // YYYY-MM-DD
@@ -62,7 +62,7 @@ export async function generateTestData(): Promise<{ petsCreated: number; records
     }
 
     // 3. 수분 섭취 기록 (fluid_records) 생성
-    for (let i = 0; i < 90; i++) {
+    for (let i = 0; i < 365; i++) {
         const recordDate = new Date(now);
         recordDate.setDate(recordDate.getDate() - i);
         const dateStr = recordDate.toISOString().split('T')[0];
@@ -129,9 +129,9 @@ export async function generateTestData(): Promise<{ petsCreated: number; records
         supplementIds.push(...existingSupplements.map(s => s.id));
     }
 
-    // 90일치 영양제 섭취 기록 생성
+    // 365일치 영양제 섭취 기록 생성
     for (const suppId of supplementIds) {
-        for (let i = 0; i < 90; i++) {
+        for (let i = 0; i < 365; i++) {
             const recordDate = new Date(now);
             recordDate.setDate(recordDate.getDate() - i);
             const dateStr = recordDate.toISOString().split('T')[0];
@@ -199,9 +199,9 @@ export async function generateTestData(): Promise<{ petsCreated: number; records
         }
     }
 
-    // 90일치 커스텀 수치 기록 생성 (주 1-2회 정도)
+    // 365일치 커스텀 수치 기록 생성 (주 1-2회 정도)
     for (const metric of metricInfos) {
-        for (let i = 0; i < 90; i++) {
+        for (let i = 0; i < 365; i++) {
             // 약 20% 확률로 기록 (주 1-2회)
             if (Math.random() > 0.2) continue;
 

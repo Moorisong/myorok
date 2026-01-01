@@ -262,12 +262,12 @@ export default function SettingsScreen() {
                     />
                     <SettingItem
                         emoji="📊"
-                        title="3개월 테스트 데이터 생성 (Dev)"
-                        description="90일치 무작위 기록 생성"
+                        title="1년 테스트 데이터 생성 (Dev)"
+                        description="365일치 무작위 기록 생성"
                         onPress={async () => {
                             Alert.alert(
                                 '테스트 데이터 생성',
-                                '3개월(90일)치 무작위 데이터를 생성합니다. 기존 데이터가 없는 날짜에만 추가됩니다.',
+                                '1년(365일)치 무작위 데이터를 생성합니다. 기존 데이터가 없는 날짜에만 추가됩니다.',
                                 [
                                     { text: '취소', style: 'cancel' },
                                     {
