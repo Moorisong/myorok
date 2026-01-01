@@ -7,7 +7,7 @@ import { jwtDecode } from 'jwt-decode';
 WebBrowser.maybeCompleteAuthSession();
 
 // Kakao OAuth configuration
-export const KAKAO_CLIENT_ID = process.env.EXPO_PUBLIC_KAKAO_REST_API_KEY!;
+export const KAKAO_CLIENT_ID = process.env.EXPO_KAKAO_REST_API_KEY!;
 const KAKAO_REST_API_KEY = KAKAO_CLIENT_ID;
 
 // Server-based redirect URI
