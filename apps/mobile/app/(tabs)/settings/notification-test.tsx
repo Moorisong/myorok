@@ -13,6 +13,8 @@ import {
     sendTokenToBackend
 } from '../../../services/NotificationService';
 
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001';
+
 export default function NotificationTestScreen() {
     const router = useRouter();
 
@@ -20,7 +22,6 @@ export default function NotificationTestScreen() {
     const [tokenRegistered, setTokenRegistered] = useState<boolean | null>(null);
     const [statusMessage, setStatusMessage] = useState('');
     const [loading, setLoading] = useState(false);
-    const [apiUrl] = useState(process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001');
 
     useEffect(() => {
         initializeScreen();
@@ -34,7 +35,7 @@ export default function NotificationTestScreen() {
 
     const checkTokenStatus = async (id: string) => {
         try {
-            const response = await fetch(`${apiUrl}/api/comfort/debug`, {
+            const response = await fetch(`${API_URL}/api/comfort/debug`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -127,7 +128,7 @@ export default function NotificationTestScreen() {
             setLoading(true);
             setStatusMessage('원격 푸시 발송 중...');
 
-            const response = await fetch(`${apiUrl}/api/comfort/debug`, {
+            const response = await fetch(`${API_URL}/api/comfort/debug`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

@@ -261,20 +261,6 @@ export default function SettingsScreen() {
                         onPress={() => setShowBlockPreview(true)}
                     />
                     <SettingItem
-                        emoji="🔐"
-                        title="카카오 계정"
-                        description={currentUser ? `로그인됨: ${currentUser.nickname}` : '로그인 안됨'}
-                        onPress={async () => {
-                            if (currentUser) {
-                                Alert.alert(
-                                    '계정 정보',
-                                    `닉네임: ${currentUser.nickname}\nID: ${currentUser.id}\n가입일: ${new Date(currentUser.createdAt).toLocaleDateString()}`,
-                                    [{ text: '확인' }]
-                                );
-                            }
-                        }}
-                    />
-                    <SettingItem
                         emoji="📊"
                         title="3개월 테스트 데이터 생성 (Dev)"
                         description="90일치 무작위 기록 생성"
