@@ -114,7 +114,7 @@ export default function ProScreen() {
                         <View style={styles.priceBox}>
                             <Text style={styles.priceLabel}>월 구독료</Text>
                             <Text style={styles.price}>₩3,500</Text>
-                            <Text style={styles.priceNote}>하루 100원도 안 되는 반려동물 기록</Text>
+                            <Text style={styles.priceNote}>하루 110원으로 우리 고양이 기록 습관 만들기</Text>
                         </View>
 
                         <Button
