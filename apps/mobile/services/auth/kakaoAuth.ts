@@ -2,12 +2,13 @@ import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { jwtDecode } from 'jwt-decode';
+import Constants from 'expo-constants';
 
 // Complete auth session for web browser redirect
 WebBrowser.maybeCompleteAuthSession();
 
 // Kakao OAuth configuration
-export const KAKAO_CLIENT_ID = process.env.EXPO_KAKAO_REST_API_KEY!;
+export const KAKAO_CLIENT_ID = Constants.expoConfig?.extra?.EXPO_KAKAO_REST_API_KEY!;
 const KAKAO_REST_API_KEY = KAKAO_CLIENT_ID;
 
 // Server-based redirect URI
