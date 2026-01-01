@@ -20,7 +20,8 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.myorok.app"
+      "package": "com.myorok.app",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -36,6 +37,9 @@
         "projectId": "c0924bda-9321-4092-987b-bfef72708ed3"
       },
       "EXPO_PUBLIC_SERVER_URL": "https://myorok.haroo.site"
+    },
+    "ios": {
+      "bundleIdentifier": "com.myorok.app"
     }
   }
 }

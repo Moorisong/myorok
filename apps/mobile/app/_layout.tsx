@@ -67,7 +67,11 @@ function AppContent() {
         await scheduleInactivityNotification();
         const token = await registerForPushNotificationsAsync();
         if (token) {
-          // Device ID is now managed by auth service
+          const { getDeviceId } = await import('../services/device');
+          const { sendTokenToBackend } = await import('../services/NotificationService');
+          const deviceId = await getDeviceId();
+          await sendTokenToBackend(deviceId, token);
+          console.log('[App] Push token registered:', deviceId);
         }
 
         // Foreground Notification Listener (Skip in Expo Go)

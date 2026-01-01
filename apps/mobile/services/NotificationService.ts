@@ -114,8 +114,13 @@ export async function scheduleInactivityNotification() {
 
     Notifications = require('expo-notifications');
 
-    // Cancel existing notifications
-    await Notifications.cancelAllScheduledNotificationsAsync();
+    // Cancel only INACTIVITY type notifications (not all)
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    for (const notification of scheduled) {
+        if (notification.content?.data?.type === 'INACTIVITY') {
+            await Notifications.cancelScheduledNotificationAsync(notification.identifier);
+        }
+    }
 
     // Schedule single notification: After 3 days of app inactivity
     await Notifications.scheduleNotificationAsync({
@@ -123,6 +128,7 @@ export async function scheduleInactivityNotification() {
             title: "3일 동안 기록이 없어요 😿",
             body: "오늘 고양이 상태를 기록해 주세요.",
             sound: true,
+            data: { type: 'INACTIVITY' }, // Add type identifier
         },
         trigger: {
             type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
@@ -138,17 +144,23 @@ export async function scheduleTestNotification(seconds: number) {
 
     try {
         const Notifications = require('expo-notifications');
-        await Notifications.scheduleNotificationAsync({
+        const identifier = await Notifications.scheduleNotificationAsync({
             content: {
                 title: '테스트 알림 🔔',
                 body: `${seconds}초 후 알림이 도착했습니다!`,
                 sound: 'default',
+                data: { type: 'TEST' }, // Add type identifier to prevent cancellation
             },
-            trigger: { seconds },
+            trigger: {
+                type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+                seconds
+            },
         });
-        console.log(`[Local] Scheduled test notification in ${seconds}s`);
+        console.log(`[Local] Scheduled test notification in ${seconds}s, ID: ${identifier}`);
+        return identifier;
     } catch (error) {
         console.log('Error scheduling test notification:', error);
+        throw error;
     }
 }
 
