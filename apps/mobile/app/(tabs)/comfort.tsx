@@ -92,9 +92,10 @@ export default function ComfortScreen() {
         // 수정 모드
         if (editingPost) {
             const response = await updatePost(editingPost.id, content);
-            if (response.success && response.data) {
-                setPosts(prev => prev.map(p => p.id === editingPost.id ? response.data!.post : p));
+            if (response.success) {
                 setEditingPost(null);
+                // 전체 목록 리프레시로 중복 key 문제 방지
+                loadPosts(false);
                 return { success: true };
             }
             return { success: false, error: response.error?.message };
@@ -249,9 +250,9 @@ export default function ComfortScreen() {
                         {posts.length === 0 ? (
                             renderEmptyState()
                         ) : (
-                            posts.map(post => (
+                            posts.map((post, index) => (
                                 <ComfortPostCard
-                                    key={post.id}
+                                    key={post.id || `post-${index}`}
                                     post={post}
                                     onLike={() => handleLike(post.id)}
                                     onDelete={() => handleDelete(post.id)}
