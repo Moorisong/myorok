@@ -15,7 +15,7 @@ import { Feather } from '@expo/vector-icons';
 import { COLORS } from '../../constants';
 import { CalendarGrid, DaySummaryCard } from '../../components';
 import { useToast } from '../../components/ToastContext';
-import { getMonthRecords, getDayDetail, CalendarDayData, getTodayDateString } from '../../services';
+import { getMonthRecords, getDayDetail, CalendarDayData, getTodayDateString, getSubscriptionStatus } from '../../services';
 import { useSelectedPet } from '../../hooks/use-selected-pet';
 
 
@@ -33,6 +33,7 @@ export default function CalendarScreen() {
     const [selectedDate, setSelectedDate] = useState<string | null>(null);
     const [selectedDayData, setSelectedDayData] = useState<CalendarDayData | null>(null);
     const [loading, setLoading] = useState(true);
+    const [isPremium, setIsPremium] = useState(false);
     const fadeAnim = React.useRef(new Animated.Value(1)).current;
 
     const animateTransition = (callback: () => void) => {
@@ -52,10 +53,14 @@ export default function CalendarScreen() {
         });
     };
 
-    const isPremium = false; // TODO: 유료 상태 연동
-
     useFocusEffect(
         useCallback(() => {
+            // Load subscription status
+            getSubscriptionStatus().then(status => {
+                const hasAccess = status.status === 'trial' || status.status === 'active';
+                setIsPremium(hasAccess);
+            });
+
             loadMonthData();
             if (selectedDate) {
                 getDayDetail(selectedDate).then(detail => {
