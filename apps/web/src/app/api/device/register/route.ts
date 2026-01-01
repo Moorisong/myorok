@@ -22,9 +22,19 @@ export async function POST(request: NextRequest) {
         if (pushToken !== undefined) updateData.pushToken = pushToken;
         if (settings !== undefined) updateData.settings = settings;
 
+        // Set default settings on insert (not on update)
+        const defaultSettings = {
+            marketing: true,
+            comments: true,
+            inactivity: true,
+        };
+
         const device = await Device.findOneAndUpdate(
             { deviceId },
-            { $set: updateData },
+            {
+                $set: updateData,
+                $setOnInsert: { settings: defaultSettings }
+            },
             { upsert: true, new: true }
         );
 

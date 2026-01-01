@@ -178,6 +178,15 @@ export default function SettingsScreen() {
 
                 <Card style={styles.card}>
                     <SettingItem
+                        emoji="🔔"
+                        title="알림 설정"
+                        description="댓글, 미활동, 마케팅 알림 관리"
+                        onPress={() => handleNavigate('/settings/notifications')}
+                    />
+                </Card>
+
+                <Card style={styles.card}>
+                    <SettingItem
                         emoji="🧪"
                         title="참고용 메모 보관함 (베타)"
                         description="사료 기호성 / 약물 메모를 간단히 저장해둘 수 있어요"

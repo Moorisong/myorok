@@ -64,7 +64,7 @@ function AppContent() {
           setSubscriptionBlocked(false);
         }
 
-        await scheduleInactivityNotification();
+        // Register push token first
         const token = await registerForPushNotificationsAsync();
         if (token) {
           const { getDeviceId } = await import('../services/device');
@@ -72,6 +72,33 @@ function AppContent() {
           const deviceId = await getDeviceId();
           await sendTokenToBackend(deviceId, token);
           console.log('[App] Push token registered:', deviceId);
+        }
+
+        // Check inactivity notification setting before scheduling
+        const { getDeviceId } = await import('../services/device');
+        const deviceId = await getDeviceId();
+        const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001';
+
+        try {
+          const response = await fetch(`${API_URL}/api/device/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ deviceId }),
+          });
+          const data = await response.json();
+
+          // Only schedule inactivity notification if setting is enabled (default: true)
+          const inactivityEnabled = data.device?.settings?.inactivity !== false;
+          if (inactivityEnabled) {
+            await scheduleInactivityNotification();
+            console.log('[App] Inactivity notification scheduled (enabled by user)');
+          } else {
+            console.log('[App] Inactivity notification skipped (disabled by user)');
+          }
+        } catch (error) {
+          console.error('[App] Failed to check notification settings:', error);
+          // Fallback: schedule notification if settings check fails
+          await scheduleInactivityNotification();
         }
 
         // Foreground Notification Listener (Skip in Expo Go)

@@ -137,7 +137,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
                 '새 댓글이 달렸어요 💬',
                 '작성하신 글에 새로운 댓글이 등록되었습니다.',
                 { type: 'COMMENT', postId: id, commentId: newComment.id },
-                { cooldownMs: 3 * 60 * 60 * 1000, type: 'COMFORT_COMMENT' }
+                {
+                    cooldownMs: 3 * 60 * 60 * 1000,
+                    type: 'COMFORT_COMMENT',
+                    notificationCategory: 'comments'
+                }
             ).catch(err => console.error('Push Error:', err));
         }
 
