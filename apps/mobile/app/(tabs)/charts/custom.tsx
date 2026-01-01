@@ -27,6 +27,8 @@ export default function CustomChartScreen() {
 
     useFocusEffect(
         useCallback(() => {
+            // Reset selected metric when pet changes
+            setSelectedMetric(null);
             loadMetrics();
         }, [selectedPetId])
     );
@@ -43,12 +45,9 @@ export default function CustomChartScreen() {
         try {
             const fetchedMetrics = await getCustomMetrics();
             setMetrics(fetchedMetrics);
-            if (fetchedMetrics.length > 0 && !selectedMetric) {
+            // Always select the first metric when loading
+            if (fetchedMetrics.length > 0) {
                 setSelectedMetric(fetchedMetrics[0]);
-            } else if (fetchedMetrics.length > 0 && selectedMetric) {
-                // Check if selected metric still exists
-                const exists = fetchedMetrics.find(m => m.id === selectedMetric.id);
-                if (!exists) setSelectedMetric(fetchedMetrics[0]);
             }
         } catch (error) {
             console.error('Error loading metrics:', error);
