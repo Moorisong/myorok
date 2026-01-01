@@ -100,6 +100,35 @@
 
 ---
 
+### 2.4 알림 설정 (Phase 1)
+
+사용자가 알림 유형별로 수신 여부를 직접 제어할 수 있도록 설정 기능을 제공합니다.
+
+- **적용 범위 (Phase 1)**:
+  | Key | 이름 | Phase 1 처리 |
+  |---|---|---|
+  | `comments` | 댓글 알림 | ✅ 설정 적용 (체크 후 발송) |
+  | `inactivity` | 미활동 알림 | ✅ 설정 적용 (체크 후 스케줄링) |
+  | `marketing` | 마케팅 알림 | ⚠️ UI만 제공 (미적용, Default: true) |
+
+- **데이터 구조**:
+  `Device.settings` JSON 필드 활용
+  ```typescript
+  settings: {
+    marketing: boolean;   // default: true
+    comments: boolean;    // default: true
+    inactivity: boolean;  // default: true
+  }
+  ```
+
+- **UX 동작**:
+  - `apps/mobile/app/(tabs)/settings/index.tsx`에 [알림 설정] 섹션 추가
+  - 토글 변경 시 즉시 `POST /api/device/register` 호출하여 설정 저장
+  - Optimistic Update 적용 (실패 시 원복)
+  - 마케팅 알림 하단에는 "마케팅 알림은 현재 발송되지 않으며, 추후 적용될 예정입니다." 문구 표시
+
+---
+
 ## 3. 기술 스택 및 데이터베이스
 
 ### 3.1 Backend (Next.js API)
@@ -109,6 +138,8 @@
     deviceId: String,
     pushToken: String,
     settings: {
+      marketing: Boolean,
+      comments: Boolean,
       inactivity: Boolean
     },
     updatedAt: Date
@@ -188,6 +219,13 @@
 1. Notification type에 `TRIAL_END` 추가
 2. Device settings에 `trialNotification: Boolean` 추가
 3. User/Subscription 테이블에 `lastTrialPushAt`, `nextTrialPushAt` 컬럼 추가
+192: 
+193: #### 5. 알림 설정 구현 (Phase 1)
+194: 1. UI: `apps/mobile/app/(tabs)/settings/index.tsx`에 알림 설정 섹션 추가 (Toggle 3개)
+195: 2. API 연결: 토글 변경 시 `POST /api/device/register` 호출 (settings 전체 업데이트)
+196: 3. 댓글 알림 로직: Backend `sendPushNotification` 전에 `device.settings.comments` 확인
+197: 4. 미활동 알림 로직: Mobile `scheduleNotificationAsync` 전에 `device.settings.inactivity` 확인
+198: 5. 마케팅 알림: UI만 제공하고 로직은 구현하지 않음 (안내 문구 추가)
 
 ### 주의사항
 
