@@ -279,6 +279,75 @@ schema_migrations (
 
 ---
 
+## 15. 데이터 초기화 기능
+
+> 설정 탭에서 제공하는 초기화 버튼을 통해 로컬 DB 데이터를 삭제하는 기능
+
+### 15.1 기능 개요
+
+| 항목 | 설명 |
+|------|------|
+| 위치 | 설정 탭 > 데이터 초기화 |
+| 목적 | 앱 내 기록 데이터 전체 삭제 |
+| 구독 상태 | 유지 (trial/active/expired 등 삭제하지 않음) |
+| 백업 | 제공하지 않음 (초기화 후 복구 불가) |
+| 삭제 방식 | 하드 삭제 (`deletedAt` 소프트 삭제 무시) |
+
+### 15.2 컨펌 메시지
+
+```
+⚠️ 초기화를 진행하면 모든 기록이 삭제됩니다.
+구독 상태는 유지되며, 삭제된 데이터는 복구할 수 없습니다.
+정말 초기화하시겠습니까?
+```
+
+| 버튼 | 동작 |
+|------|------|
+| 취소 | 아무 작업도 수행하지 않음 |
+| 확인 | 데이터 삭제 수행 |
+
+### 15.3 삭제 대상 테이블
+
+| 테이블명 | 삭제 여부 | 비고 |
+|----------|----------|------|
+| daily_records | ✅ 삭제 | 기본 컨디션 기록 |
+| supplements | ✅ 삭제 | 약/영양제 정의 |
+| supplement_records | ✅ 삭제 | 약/영양제 복용 기록 |
+| fluid_records | ✅ 삭제 | 수액/강수 기록 |
+| custom_metrics | ✅ 삭제 | 사용자 정의 수치 항목 |
+| custom_metric_records | ✅ 삭제 | 사용자 정의 수치 기록 |
+| medication_memos | ✅ 삭제 | 약물 메모 |
+| food_preference_memos | ✅ 삭제 | 사료 기호성 메모 |
+| pets | ❌ 유지 | 고양이 정보는 유지 |
+| subscription_state | ❌ 유지 | 구독 상태는 유지 |
+| schema_migrations | ❌ 유지 | 마이그레이션 이력 유지 |
+
+### 15.4 초기화 SQL
+
+```sql
+-- 데이터 초기화 (하드 삭제)
+DELETE FROM daily_records;
+DELETE FROM supplements;
+DELETE FROM supplement_records;
+DELETE FROM fluid_records;
+DELETE FROM custom_metrics;
+DELETE FROM custom_metric_records;
+DELETE FROM medication_memos;
+DELETE FROM food_preference_memos;
+-- pets, subscription_state, schema_migrations는 삭제하지 않음
+```
+
+### 15.5 주의 사항
+
+| 항목 | 설명 |
+|------|------|
+| 복원 불가 | 초기화 전 백업 기능 없음, 데이터 영구 삭제 |
+| 버튼 강조 | 사용자 실수 방지를 위해 위험 표시 (Error 컬러) |
+| 구독 유지 | trial/active/expired 상태 그대로 유지 |
+| 고양이 정보 | 등록된 고양이 정보는 삭제되지 않음 |
+
+---
+
 ## 요약
 
 ```
