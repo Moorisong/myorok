@@ -136,7 +136,14 @@ export default function ComfortPostCard({
                         <Text style={styles.avatarText}>{post.emoji || '🐱'}</Text>
                     </View>
                     <View>
-                        <Text style={styles.displayId}>{post.displayId}</Text>
+                        <View style={styles.displayIdRow}>
+                            <Text style={styles.displayId}>{post.displayId}</Text>
+                            {post.isOwner && (
+                                <View style={styles.myBadge}>
+                                    <Text style={styles.myBadgeText}>내가 쓴 글</Text>
+                                </View>
+                            )}
+                        </View>
                         <Text style={styles.time}>{formatTime(post.createdAt)}</Text>
                     </View>
                 </View>
@@ -268,10 +275,26 @@ const styles = StyleSheet.create({
     avatarText: {
         fontSize: 18,
     },
+    displayIdRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
     displayId: {
         fontSize: 14,
         fontWeight: '600',
         color: COLORS.textPrimary,
+    },
+    myBadge: {
+        backgroundColor: COLORS.primary + '20',
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 4,
+    },
+    myBadgeText: {
+        fontSize: 10,
+        fontWeight: '600',
+        color: COLORS.primary,
     },
     time: {
         fontSize: 12,
