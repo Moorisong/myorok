@@ -13,9 +13,12 @@ export default function SettingsLayout() {
             <Stack.Screen name="index" />
             <Stack.Screen name="pets" />
             <Stack.Screen name="block-list" />
-            <Stack.Screen name="pin" />
             <Stack.Screen name="about" />
             <Stack.Screen name="pro" />
+            <Stack.Screen name="notifications" />
+            <Stack.Screen name="notification-test" />
+            <Stack.Screen name="reference-memos" />
+            <Stack.Screen name="subscription-preview" />
         </Stack>
     );
 }
