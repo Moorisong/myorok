@@ -61,9 +61,9 @@ export const PLACEHOLDERS = {
 } as const;
 
 export const TOAST_MESSAGES = {
-  PEE_RECORDED: '소변 기록 완료. 실행 취소?',
-  POOP_RECORDED: '배변 기록 완료. 실행 취소?',
-  DIARRHEA_RECORDED: '묽은 변 기록 완료. 실행 취소?',
+  PEE_RECORDED: '소변 기록 완료',
+  POOP_RECORDED: '배변 기록 완료',
+  DIARRHEA_RECORDED: '묽은 변 기록 완료',
 } as const;
 
 export const FUTURE_FEATURES = {
