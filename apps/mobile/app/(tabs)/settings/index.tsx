@@ -101,11 +101,24 @@ export default function SettingsScreen() {
 
     const handleReset = () => {
         Alert.alert(
-            '데이터 초기화',
-            '모든 기록이 삭제됩니다. 이 작업은 되돌릴 수 없습니다.',
+            '⚠️ 데이터 초기화',
+            '초기화를 진행하면 모든 기록이 삭제됩니다.\n\n구독 상태는 유지되며, 삭제된 데이터는 복구할 수 없습니다.\n\n정말 초기화하시겠습니까?',
             [
                 { text: '취소', style: 'cancel' },
-                { text: '초기화', style: 'destructive', onPress: () => { } },
+                {
+                    text: '확인',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            const { resetAllData } = await import('../../../services/database');
+                            await resetAllData();
+                            Alert.alert('완료', '모든 기록이 초기화되었습니다.');
+                        } catch (error) {
+                            console.error('[Settings] Reset failed:', error);
+                            Alert.alert('오류', '초기화에 실패했습니다. 다시 시도해 주세요.');
+                        }
+                    },
+                },
             ]
         );
     };

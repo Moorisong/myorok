@@ -28,7 +28,32 @@
 
 ---
 
-## 3. 사용 라이브러리
+## 2.1 구독 정책
+
+### 구독 유형
+- **월 단위 자동 갱신 구독**
+- Google Play In-App Subscription 사용
+- 구독 상태:
+  - **Trial**: 7일 체험 (앱 내부 로직)
+  - **Active**: 결제 완료, 월 단위 자동 갱신
+  - **Expired**: 만료 또는 결제 실패 시
+
+### 앱에서 구독 처리
+| 역할 | 담당 |
+|------|------|
+| 자동 결제/갱신 | Google Play 서버 |
+| 구독 상태 조회 | 앱 |
+| 구독 해지 | Google Play (앱에서 링크 안내) |
+
+### 구독하기 버튼
+- **위치**: 설정 > 구독 관리 페이지
+- **현재 상태**: 결제 모듈 미연동
+- 버튼 클릭 시 안내 메시지 또는 테스트 플로우만 제공
+
+### 앱 내 수동 결제/갱신 로직
+- **없음** (Google Play가 모든 결제/갱신 관리)
+
+---
 
 - `expo-in-app-purchases` (또는 현재 Expo 권장 IAP 라이브러리)
 - `expo-sqlite`
@@ -188,3 +213,138 @@ useEffect(() => {
 - [ ] 결제 취소 처리
 - [ ] 앱 재설치 후 구독 복원
 - [ ] 에러 케이스 처리
+
+---
+
+## 구독 해지 UI 구현 지침
+
+### 위치
+- `apps/mobile/app/(tabs)/settings/pro.tsx` 페이지 하단
+
+### UI 구현
+```typescript
+// 구독 중일 때 하단에 해지 링크 추가
+{isSubscribed && (
+    <View style={styles.cancelSection}>
+        <Text style={styles.cancelInfo}>
+            ℹ️ 구독은 언제든지 취소할 수 있습니다.
+        </Text>
+        <Pressable
+            onPress={() => Linking.openURL('https://play.google.com/store/account/subscriptions')}
+            style={styles.cancelLink}
+        >
+            <Text style={styles.cancelLinkText}>구독 해지하기 →</Text>
+        </Pressable>
+    </View>
+)}
+```
+
+### 스타일
+```typescript
+cancelSection: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    paddingHorizontal: 16,
+},
+cancelInfo: {
+    fontSize: 13,
+    color: '#888',
+    marginBottom: 8,
+},
+cancelLink: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    minHeight: 44, // 터치 영역 확보
+},
+cancelLinkText: {
+    fontSize: 14,
+    color: '#888',
+},
+```
+
+### 동작
+- Google Play 구독 관리 페이지로 이동
+- URL: `https://play.google.com/store/account/subscriptions`
+
+---
+
+## 환불 UI 구현 지침
+
+### 기본 원칙 ⚠️
+
+> [!CAUTION]
+> - 앱 내 환불 처리 ❌
+> - 앱 내 환불 요청 API ❌
+> - 환불은 **Google Play에서만 처리**
+> - 앱은 **안내 + 이동(UI)만 제공**
+
+### 위치
+- `apps/mobile/app/(tabs)/settings/pro.tsx` 페이지 하단
+- 구독 해지 링크 아래 또는 동일 영역
+
+### UI 구현
+```typescript
+// 환불 안내 섹션 (구독 해지 링크 아래에 추가)
+{isSubscribed && (
+    <View style={styles.refundSection}>
+        <Text style={styles.refundInfo}>
+            환불은 Google Play 정책에 따라 처리됩니다.
+        </Text>
+        <Pressable
+            onPress={() => Linking.openURL('https://play.google.com/store/account/subscriptions')}
+            style={styles.refundLink}
+        >
+            <Text style={styles.refundLinkText}>Google Play 구독 관리로 이동 →</Text>
+        </Pressable>
+    </View>
+)}
+```
+
+### 스타일
+```typescript
+refundSection: {
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+},
+refundInfo: {
+    fontSize: 13,
+    color: '#888',
+    marginBottom: 8,
+    textAlign: 'center',
+},
+refundLink: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    minHeight: 44, // 터치 영역 확보
+},
+refundLinkText: {
+    fontSize: 14,
+    color: '#888',
+    // textDecorationLine: 'underline', // 선택사항
+},
+```
+
+### 통합 옵션 (해지와 환불 통합 시)
+```typescript
+// 해지와 환불을 하나의 링크로 통합할 경우
+<Pressable
+    onPress={() => Linking.openURL('https://play.google.com/store/account/subscriptions')}
+    style={styles.cancelLink}
+>
+    <Text style={styles.cancelLinkText}>구독 해지·환불 관리 → Google Play 이동</Text>
+</Pressable>
+```
+
+### 하지 않는 것 (명확화)
+- ❌ 앱 내 환불 버튼
+- ❌ 환불 요청 폼
+- ❌ 고객센터 환불 접수
+- ❌ 외부 웹 결제/환불 링크 (Google Play 외)
+- ❌ 인앱 WebView
+
+### 심사 대응 문구
+```
+This app does not process refunds directly.
+Refunds are handled by Google Play according to their policies.
+```

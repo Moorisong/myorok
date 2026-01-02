@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -40,6 +40,10 @@ export default function ProScreen() {
         } catch (error) {
             console.error('Purchase failed:', error);
         }
+    };
+
+    const handleCancelSubscription = () => {
+        Linking.openURL('https://play.google.com/store/account/subscriptions');
     };
 
     const getStatusMessage = () => {
@@ -131,12 +135,27 @@ export default function ProScreen() {
                 )}
 
                 {isSubscribed && (
-                    <Card style={styles.card}>
-                        <Text style={styles.subscribedTitle}>✅ 구독 활성화</Text>
-                        <Text style={styles.subscribedText}>
-                            모든 기능을 무제한으로 사용하실 수 있습니다.
-                        </Text>
-                    </Card>
+                    <>
+                        <Card style={styles.card}>
+                            <Text style={styles.subscribedTitle}>✅ 구독 활성화</Text>
+                            <Text style={styles.subscribedText}>
+                                현재 모든 기능을 무제한으로 사용하실 수 있습니다.
+                            </Text>
+                        </Card>
+
+                        <View style={styles.cancelSection}>
+                            <Text style={styles.refundInfo}>
+                                환불은 Google Play 정책에 따라 처리되며,{'\n'}일부 경우에만 가능합니다.
+                            </Text>
+                            <Pressable
+                                onPress={handleCancelSubscription}
+                                style={styles.cancelLink}
+                                hitSlop={8}
+                            >
+                                <Text style={styles.cancelLinkText}>구독 해지·환불 가능 여부 확인 → Google Play 이동</Text>
+                            </Pressable>
+                        </View>
+                    </>
                 )}
 
                 <View style={styles.bottomPadding} />
@@ -292,6 +311,33 @@ const styles = StyleSheet.create({
     subscribedText: {
         fontSize: 14,
         color: COLORS.textSecondary,
+    },
+    cancelSection: {
+        alignItems: 'center',
+        paddingTop: 40,
+        paddingBottom: 8,
+    },
+    cancelInfo: {
+        fontSize: 13,
+        color: '#888',
+        marginBottom: 4,
+        textAlign: 'center',
+    },
+    refundInfo: {
+        fontSize: 13,
+        color: '#888',
+        marginBottom: 8,
+        textAlign: 'center',
+    },
+    cancelLink: {
+        paddingVertical: 5,
+        marginTop: 12,
+        minHeight: 44,
+    },
+    cancelLinkText: {
+        fontSize: 14,
+        color: '#888',
+        textDecorationLine: 'underline',
     },
     bottomPadding: {
         height: 40,

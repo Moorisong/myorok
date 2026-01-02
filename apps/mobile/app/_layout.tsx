@@ -2,11 +2,12 @@ import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { Platform } from 'react-native';
 import * as Linking from 'expo-linking';
+import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState, useRef } from 'react';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useAuthRequest, ResponseType } from 'expo-auth-session';
 
 import { COLORS } from '../constants';
 import { PetProvider } from '../hooks/use-selected-pet';
@@ -17,7 +18,7 @@ import { LoginScreen } from '../components/auth/LoginScreen';
 import { registerForPushNotificationsAsync, scheduleInactivityNotification } from '../services/NotificationService';
 import { initializeSubscription, isAppAccessAllowed, markTrialNotificationAsSent } from '../services';
 import { loginWithKakao } from '../services/auth';
-import { KAKAO_CLIENT_ID, KAKAO_DISCOVERY, KAKAO_REDIRECT_URI } from '../services/auth/kakaoAuth';
+import { KAKAO_CLIENT_ID, KAKAO_REDIRECT_URI } from '../services/auth/kakaoAuth';
 import { getCurrentUserId } from '../services/auth';
 
 // Main app content that uses auth context
@@ -25,21 +26,11 @@ function AppContent() {
   const { isLoggedIn, setIsLoggedIn, isLoggingIn, setIsLoggingIn, checkAuthStatus, subscriptionStatus } = useAuth();
   const [subscriptionBlocked, setSubscriptionBlocked] = useState(false);
   const router = useRouter();
-  const notificationListener = useRef<any>();
-  const responseListener = useRef<any>();
-  const NotificationsRef = useRef<any>();
+  const notificationListener = useRef<any>(null);
+  const responseListener = useRef<any>(null);
+  const NotificationsRef = useRef<any>(null);
 
-  // Kakao Auth Request Hook
-  const [request, response, promptAsync] = useAuthRequest(
-    {
-      clientId: KAKAO_CLIENT_ID,
-      scopes: ['profile_nickname', 'profile_image'],
-      redirectUri: KAKAO_REDIRECT_URI,
-      responseType: ResponseType.Code,
-      usePKCE: false, // Disable PKCE since server handles token exchange
-    },
-    KAKAO_DISCOVERY
-  );
+  // Direct OAuth URL construction (bypasses expo-auth-session to avoid PKCE issues)
 
   useEffect(() => {
     console.log('redirectUri =', KAKAO_REDIRECT_URI);
@@ -234,56 +225,41 @@ function AppContent() {
     };
   }, []);
 
-  // Handle Login Response
-  useEffect(() => {
-    // Debug: Log raw response
-    if (response) {
-      console.log('[KakaoAuth] Response received:', {
-        type: response.type,
-        params: response.type === 'success' ? response.params : null,
-        error: response.type === 'error' ? response.error : null,
-      });
-    }
-
-    if (response?.type === 'success') {
-      const { code } = response.params;
-      console.log('[KakaoAuth] Authorization code received:', code ? `${code.slice(0, 10)}...` : 'null');
-      if (code) {
-        (async () => {
-          setIsLoggingIn(true);
-          try {
-            await loginWithKakao(code);
-            console.log('[RootLayout] Login successful');
-            // Re-check auth status to update subscription status
-            await checkAuthStatus();
-          } catch (error) {
-            console.error('[RootLayout] Login failed:', error);
-            // Optional: Show error toast
-          } finally {
-            setIsLoggingIn(false);
-          }
-        })();
-      }
-    } else if (response?.type === 'error') {
-      console.error('[RootLayout] Login error response:', response.error);
-      setIsLoggingIn(false);
-    } else if (response?.type === 'cancel') {
-      console.log('[RootLayout] Login cancelled by user');
-      setIsLoggingIn(false);
-    }
-  }, [response]);
+  // Note: Login response is now handled via deep link in the useEffect above
 
   const handleLogin = async () => {
-    console.log('[RootLayout] handleLogin called, request ready:', !!request);
-    if (!request) {
-      console.error('[RootLayout] Auth request not ready yet');
+    console.log('[RootLayout] handleLogin called');
+    console.log('[RootLayout] KAKAO_CLIENT_ID:', KAKAO_CLIENT_ID ? `${KAKAO_CLIENT_ID.slice(0, 4)}...` : 'undefined');
+
+    if (!KAKAO_CLIENT_ID) {
+      console.error('[RootLayout] KAKAO_CLIENT_ID is not defined');
       return;
     }
+
     try {
-      // Trigger login prompt (using server redirect URI)
-      console.log('[RootLayout] Calling promptAsync...');
-      const result = await promptAsync();
-      console.log('[RootLayout] promptAsync returned:', result);
+      // Construct OAuth URL directly without PKCE to avoid server-side issues
+      const authUrl =
+        `https://kauth.kakao.com/oauth/authorize?` +
+        `client_id=${KAKAO_CLIENT_ID}` +
+        `&redirect_uri=${encodeURIComponent(KAKAO_REDIRECT_URI)}` +
+        `&response_type=code` +
+        `&scope=profile_nickname,profile_image`;
+
+      console.log('[RootLayout] Opening OAuth URL...');
+
+      // Platform-specific browser handling for better 2FA experience
+      if (Platform.OS === 'android') {
+        // Android: Use external browser to prevent session loss during KakaoTalk 2FA
+        // External browser runs as separate app, so it persists when switching to KakaoTalk
+        await Linking.openURL(authUrl);
+        console.log('[RootLayout] External browser opened (Android)');
+      } else {
+        // iOS: Use in-app browser for better UX (iOS handles app switching better)
+        await WebBrowser.openBrowserAsync(authUrl, {
+          showInRecents: true,
+        });
+        console.log('[RootLayout] In-app browser opened (iOS)');
+      }
     } catch (error) {
       console.error('[RootLayout] Login prompt failed:', error);
     }
