@@ -139,20 +139,20 @@ export default function ProScreen() {
                         <Card style={styles.card}>
                             <Text style={styles.subscribedTitle}>✅ 구독 활성화</Text>
                             <Text style={styles.subscribedText}>
-                                모든 기능을 무제한으로 사용하실 수 있습니다.
+                                현재 모든 기능을 무제한으로 사용하실 수 있습니다.
                             </Text>
                         </Card>
 
                         <View style={styles.cancelSection}>
-                            <Text style={styles.cancelInfo}>
-                                ℹ️ 구독은 언제든지 취소할 수 있습니다.
+                            <Text style={styles.refundInfo}>
+                                환불은 Google Play 정책에 따라 처리되며,{'\n'}일부 경우에만 가능합니다.
                             </Text>
                             <Pressable
                                 onPress={handleCancelSubscription}
                                 style={styles.cancelLink}
                                 hitSlop={8}
                             >
-                                <Text style={styles.cancelLinkText}>구독 해지하기 →</Text>
+                                <Text style={styles.cancelLinkText}>구독 해지·환불 가능 여부 확인 → Google Play 이동</Text>
                             </Pressable>
                         </View>
                     </>
@@ -320,16 +320,24 @@ const styles = StyleSheet.create({
     cancelInfo: {
         fontSize: 13,
         color: '#888',
+        marginBottom: 4,
+        textAlign: 'center',
+    },
+    refundInfo: {
+        fontSize: 13,
+        color: '#888',
         marginBottom: 8,
         textAlign: 'center',
     },
     cancelLink: {
         paddingVertical: 5,
+        marginTop: 12,
         minHeight: 44,
     },
     cancelLinkText: {
         fontSize: 14,
         color: '#888',
+        textDecorationLine: 'underline',
     },
     bottomPadding: {
         height: 40,
