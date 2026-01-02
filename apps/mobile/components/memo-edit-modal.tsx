@@ -69,6 +69,7 @@ export default function MemoEditModal({
                             value={name}
                             onChangeText={setName}
                             placeholder={showTypeSelector ? '예: 로얄캐닌 유리너리' : '예: 세파클러'}
+                            placeholderTextColor={COLORS.textSecondary}
                             autoFocus
                         />
 
@@ -104,6 +105,7 @@ export default function MemoEditModal({
                             value={memo}
                             onChangeText={setMemo}
                             placeholder={showTypeSelector ? '예: 잘 먹음, 기호성 좋음' : '예: 설사 유발, 사용 금지'}
+                            placeholderTextColor={COLORS.textSecondary}
                             multiline
                             numberOfLines={4}
                             textAlignVertical="top"
