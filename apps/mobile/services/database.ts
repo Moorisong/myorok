@@ -253,3 +253,33 @@ export function getTodayDateString(): string {
   const day = String(now.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
+
+/**
+ * 데이터 초기화 (하드 삭제)
+ * 
+ * 삭제 대상:
+ * - daily_records, supplements, supplement_records, fluid_records
+ * - custom_metrics, custom_metric_records, medication_memos, food_preference_memos
+ * 
+ * 유지 대상:
+ * - pets (고양이 정보)
+ * - subscription_state (구독 상태)
+ * - schema_migrations (마이그레이션 이력)
+ */
+export async function resetAllData(): Promise<void> {
+  const db = await getDatabase();
+
+  await db.execAsync(`
+    DELETE FROM daily_records;
+    DELETE FROM supplements;
+    DELETE FROM supplement_records;
+    DELETE FROM fluid_records;
+    DELETE FROM custom_metrics;
+    DELETE FROM custom_metric_records;
+    DELETE FROM medication_memos;
+    DELETE FROM food_preference_memos;
+  `);
+
+  console.log('[Database] All record data has been reset');
+}
+
