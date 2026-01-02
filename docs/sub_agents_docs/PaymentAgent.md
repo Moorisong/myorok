@@ -265,3 +265,86 @@ cancelLinkText: {
 ### 동작
 - Google Play 구독 관리 페이지로 이동
 - URL: `https://play.google.com/store/account/subscriptions`
+
+---
+
+## 환불 UI 구현 지침
+
+### 기본 원칙 ⚠️
+
+> [!CAUTION]
+> - 앱 내 환불 처리 ❌
+> - 앱 내 환불 요청 API ❌
+> - 환불은 **Google Play에서만 처리**
+> - 앱은 **안내 + 이동(UI)만 제공**
+
+### 위치
+- `apps/mobile/app/(tabs)/settings/pro.tsx` 페이지 하단
+- 구독 해지 링크 아래 또는 동일 영역
+
+### UI 구현
+```typescript
+// 환불 안내 섹션 (구독 해지 링크 아래에 추가)
+{isSubscribed && (
+    <View style={styles.refundSection}>
+        <Text style={styles.refundInfo}>
+            환불은 Google Play 정책에 따라 처리됩니다.
+        </Text>
+        <Pressable
+            onPress={() => Linking.openURL('https://play.google.com/store/account/subscriptions')}
+            style={styles.refundLink}
+        >
+            <Text style={styles.refundLinkText}>Google Play 구독 관리로 이동 →</Text>
+        </Pressable>
+    </View>
+)}
+```
+
+### 스타일
+```typescript
+refundSection: {
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+},
+refundInfo: {
+    fontSize: 13,
+    color: '#888',
+    marginBottom: 8,
+    textAlign: 'center',
+},
+refundLink: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    minHeight: 44, // 터치 영역 확보
+},
+refundLinkText: {
+    fontSize: 14,
+    color: '#888',
+    // textDecorationLine: 'underline', // 선택사항
+},
+```
+
+### 통합 옵션 (해지와 환불 통합 시)
+```typescript
+// 해지와 환불을 하나의 링크로 통합할 경우
+<Pressable
+    onPress={() => Linking.openURL('https://play.google.com/store/account/subscriptions')}
+    style={styles.cancelLink}
+>
+    <Text style={styles.cancelLinkText}>구독 해지·환불 관리 → Google Play 이동</Text>
+</Pressable>
+```
+
+### 하지 않는 것 (명확화)
+- ❌ 앱 내 환불 버튼
+- ❌ 환불 요청 폼
+- ❌ 고객센터 환불 접수
+- ❌ 외부 웹 결제/환불 링크 (Google Play 외)
+- ❌ 인앱 WebView
+
+### 심사 대응 문구
+```
+This app does not process refunds directly.
+Refunds are handled by Google Play according to their policies.
+```
