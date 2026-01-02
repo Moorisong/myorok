@@ -255,31 +255,54 @@ export function getTodayDateString(): string {
 }
 
 /**
- * 데이터 초기화 (하드 삭제)
- * 
+ * 특정 고양이의 데이터 초기화 (하드 삭제)
+ *
  * 삭제 대상:
  * - daily_records, supplements, supplement_records, fluid_records
  * - custom_metrics, custom_metric_records, medication_memos, food_preference_memos
- * 
+ *
  * 유지 대상:
  * - pets (고양이 정보)
  * - subscription_state (구독 상태)
  * - schema_migrations (마이그레이션 이력)
+ *
+ * @param petId - 초기화할 고양이의 ID
  */
-export async function resetAllData(): Promise<void> {
+export async function resetPetData(petId: string): Promise<void> {
   const db = await getDatabase();
 
-  await db.execAsync(`
-    DELETE FROM daily_records;
-    DELETE FROM supplements;
-    DELETE FROM supplement_records;
-    DELETE FROM fluid_records;
-    DELETE FROM custom_metrics;
-    DELETE FROM custom_metric_records;
-    DELETE FROM medication_memos;
-    DELETE FROM food_preference_memos;
-  `);
+  // 트랜잭션으로 안전하게 처리
+  await db.withTransactionAsync(async () => {
+    // petId를 직접 참조하는 테이블
+    await db.runAsync('DELETE FROM daily_records WHERE petId = ?', [petId]);
+    await db.runAsync('DELETE FROM fluid_records WHERE petId = ?', [petId]);
+    await db.runAsync('DELETE FROM medication_memos WHERE petId = ?', [petId]);
+    await db.runAsync('DELETE FROM food_preference_memos WHERE petId = ?', [petId]);
 
-  console.log('[Database] All record data has been reset');
+    // supplements와 연관된 supplement_records 삭제
+    await db.runAsync(
+      'DELETE FROM supplement_records WHERE supplementId IN (SELECT id FROM supplements WHERE petId = ?)',
+      [petId]
+    );
+    await db.runAsync('DELETE FROM supplements WHERE petId = ?', [petId]);
+
+    // custom_metrics와 연관된 custom_metric_records 삭제
+    await db.runAsync(
+      'DELETE FROM custom_metric_records WHERE metricId IN (SELECT id FROM custom_metrics WHERE petId = ?)',
+      [petId]
+    );
+    await db.runAsync('DELETE FROM custom_metrics WHERE petId = ?', [petId]);
+  });
+
+  console.log(`[Database] All record data for pet ${petId} has been reset`);
+}
+
+/**
+ * @deprecated Use resetPetData instead
+ * 이전 함수명과의 호환성을 위해 유지
+ */
+export async function resetAllData(): Promise<void> {
+  const petId = await getSelectedPetId();
+  await resetPetData(petId);
 }
 

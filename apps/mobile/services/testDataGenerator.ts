@@ -1,9 +1,9 @@
-import { getDatabase, generateId } from './database';
+import { getDatabase, generateId, getSelectedPetId } from './database';
 import { addPet, getAllPets } from './pets';
 import { getCurrentUserId } from './auth';
 
 /**
- * 1년간의 무작위 테스트 데이터 생성
+ * 1년간의 무작위 테스트 데이터 생성 (현재 선택된 고양이)
  * - 고양이가 없으면 1마리 생성
  * - 365일치 daily_records 생성
  * - 수분 섭취 기록 생성
@@ -24,7 +24,8 @@ export async function generateTestData(): Promise<{ petsCreated: number; records
         petsCreated = 1;
     }
 
-    const petId = pets[0].id;
+    // 현재 선택된 고양이의 데이터를 생성
+    const petId = await getSelectedPetId();
     const now = new Date();
     let recordsCreated = 0;
 

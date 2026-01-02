@@ -100,9 +100,10 @@ export default function SettingsScreen() {
     };
 
     const handleReset = () => {
+        const petName = selectedPet?.name || '현재 고양이';
         Alert.alert(
             '⚠️ 데이터 초기화',
-            '초기화를 진행하면 모든 기록이 삭제됩니다.\n\n구독 상태는 유지되며, 삭제된 데이터는 복구할 수 없습니다.\n\n정말 초기화하시겠습니까?',
+            `"${petName}"의 모든 기록이 삭제됩니다.\n\n다른 고양이의 기록은 영향을 받지 않으며, 구독 상태도 유지됩니다.\n\n삭제된 데이터는 복구할 수 없습니다.\n\n정말 초기화하시겠습니까?`,
             [
                 { text: '취소', style: 'cancel' },
                 {
@@ -112,7 +113,7 @@ export default function SettingsScreen() {
                         try {
                             const { resetAllData } = await import('../../../services/database');
                             await resetAllData();
-                            Alert.alert('완료', '모든 기록이 초기화되었습니다.');
+                            Alert.alert('완료', `"${petName}"의 모든 기록이 초기화되었습니다.`);
                         } catch (error) {
                             console.error('[Settings] Reset failed:', error);
                             Alert.alert('오류', '초기화에 실패했습니다. 다시 시도해 주세요.');
@@ -334,7 +335,7 @@ export default function SettingsScreen() {
                     <SettingItem
                         emoji="🗑️"
                         title="데이터 초기화"
-                        description="모든 기록을 삭제합니다"
+                        description={`${selectedPet?.name || '현재 고양이'}의 모든 기록 삭제`}
                         onPress={handleReset}
                         danger
                     />
