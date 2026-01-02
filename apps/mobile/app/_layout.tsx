@@ -2,6 +2,7 @@ import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { Platform } from 'react-native';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState, useRef } from 'react';
@@ -246,10 +247,19 @@ function AppContent() {
 
       console.log('[RootLayout] Opening OAuth URL...');
 
-      // Open browser for OAuth - the callback will be handled via deep link
-      await WebBrowser.openAuthSessionAsync(authUrl, 'myorok://');
-
-      console.log('[RootLayout] Browser session completed');
+      // Platform-specific browser handling for better 2FA experience
+      if (Platform.OS === 'android') {
+        // Android: Use external browser to prevent session loss during KakaoTalk 2FA
+        // External browser runs as separate app, so it persists when switching to KakaoTalk
+        await Linking.openURL(authUrl);
+        console.log('[RootLayout] External browser opened (Android)');
+      } else {
+        // iOS: Use in-app browser for better UX (iOS handles app switching better)
+        await WebBrowser.openBrowserAsync(authUrl, {
+          showInRecents: true,
+        });
+        console.log('[RootLayout] In-app browser opened (iOS)');
+      }
     } catch (error) {
       console.error('[RootLayout] Login prompt failed:', error);
     }
