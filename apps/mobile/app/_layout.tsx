@@ -26,9 +26,9 @@ function AppContent() {
   const { isLoggedIn, setIsLoggedIn, isLoggingIn, setIsLoggingIn, checkAuthStatus, subscriptionStatus } = useAuth();
   const [subscriptionBlocked, setSubscriptionBlocked] = useState(false);
   const router = useRouter();
-  const notificationListener = useRef<any>();
-  const responseListener = useRef<any>();
-  const NotificationsRef = useRef<any>();
+  const notificationListener = useRef<any>(null);
+  const responseListener = useRef<any>(null);
+  const NotificationsRef = useRef<any>(null);
 
   // Direct OAuth URL construction (bypasses expo-auth-session to avoid PKCE issues)
 

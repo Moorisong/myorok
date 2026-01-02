@@ -82,6 +82,23 @@ export async function getSubscriptionStatus(): Promise<SubscriptionState> {
     }
 
     if (status === 'active') {
+        // Active 구독 만료 체크
+        if (subscriptionExpiryDate) {
+            const expiryDate = new Date(subscriptionExpiryDate);
+            const now = new Date();
+
+            if (expiryDate < now) {
+                // 구독 만료됨
+                await setSubscriptionStatus('expired');
+                return {
+                    status: 'expired',
+                    subscriptionStartDate: subscriptionStartDate || undefined,
+                    subscriptionExpiryDate: subscriptionExpiryDate,
+                    daysRemaining: 0,
+                };
+            }
+        }
+
         return {
             status: 'active',
             subscriptionStartDate: subscriptionStartDate || undefined,

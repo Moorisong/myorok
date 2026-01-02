@@ -40,7 +40,7 @@ function SettingToggleItem({ emoji, title, description, value, onValueChange, di
                 onValueChange={onValueChange}
                 disabled={disabled}
                 trackColor={{ false: COLORS.border, true: COLORS.primary }}
-                thumbColor={value ? COLORS.white : COLORS.lightGray}
+                thumbColor={value ? COLORS.surface : COLORS.lightGray}
             />
         </View>
     );
