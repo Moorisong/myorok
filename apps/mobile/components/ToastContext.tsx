@@ -111,7 +111,7 @@ export function ToastProvider({ children }: ToastProviderProps) {
 const styles = StyleSheet.create({
     container: {
         position: 'absolute',
-        bottom: 80,
+        top: '45%',
         left: 20,
         right: 20,
         backgroundColor: 'rgba(46, 46, 46, 0.95)',
