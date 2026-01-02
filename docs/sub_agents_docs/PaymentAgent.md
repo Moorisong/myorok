@@ -213,3 +213,55 @@ useEffect(() => {
 - [ ] 결제 취소 처리
 - [ ] 앱 재설치 후 구독 복원
 - [ ] 에러 케이스 처리
+
+---
+
+## 구독 해지 UI 구현 지침
+
+### 위치
+- `apps/mobile/app/(tabs)/settings/pro.tsx` 페이지 하단
+
+### UI 구현
+```typescript
+// 구독 중일 때 하단에 해지 링크 추가
+{isSubscribed && (
+    <View style={styles.cancelSection}>
+        <Text style={styles.cancelInfo}>
+            ℹ️ 구독은 언제든지 취소할 수 있습니다.
+        </Text>
+        <Pressable
+            onPress={() => Linking.openURL('https://play.google.com/store/account/subscriptions')}
+            style={styles.cancelLink}
+        >
+            <Text style={styles.cancelLinkText}>구독 해지하기 →</Text>
+        </Pressable>
+    </View>
+)}
+```
+
+### 스타일
+```typescript
+cancelSection: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    paddingHorizontal: 16,
+},
+cancelInfo: {
+    fontSize: 13,
+    color: '#888',
+    marginBottom: 8,
+},
+cancelLink: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    minHeight: 44, // 터치 영역 확보
+},
+cancelLinkText: {
+    fontSize: 14,
+    color: '#888',
+},
+```
+
+### 동작
+- Google Play 구독 관리 페이지로 이동
+- URL: `https://play.google.com/store/account/subscriptions`
