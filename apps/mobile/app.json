@@ -9,7 +9,7 @@
     "newArchEnabled": true,
     "scheme": "myorok",
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/images/myorok_logo_big.png",
       "resizeMode": "contain",
       "backgroundColor": "#5DB075"
     },
