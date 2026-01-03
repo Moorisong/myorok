@@ -1,99 +1,228 @@
 # Comfort Agent Reference
 
-## Comfort Spec (COMFORT_SPEC.md)
-# 🏰 쉼터(Community) 탭 명세
+## COMFORT_SPEC.md (쉼터 탭 기획/설계 명세)
 
-> "아픈 아이를 돌보는 집사들의 안식처"
-> - 익명 기반
-> - 하루가 지나면 사라지는 글 (자정 삭제)
-> - 서로 응원하고 위로하는 공간
+# 쉼터 탭 기획/설계 명세 (v2)
+
+> 사랑과 희망으로 버틴 오늘, 환묘와 나 그리고 우리.
 
 ---
 
-## 1. UX 컨셉
+## 1. 개요
 
-- **휘발성**: 모든 글은 **자정(00:00)에 자동 삭제** or 작성 24시간 후 삭제
-- **익명성**: 닉네임 없음, 랜덤한 '고양이 종' 이름 부여 (예: 지나가는 치즈냥)
-- **따뜻함**: 비난/조언 금지, 오직 '공감'과 '위로'만 존재
-
----
-
-## 2. 기능 상세
-
-### 2.1 글쓰기
-- 텍스트 위주 (짧은 한탄, 기도, 다짐)
-- 배경색 선택 가능 (파스텔 톤)
-- 사진 1장 첨부 가능 (선택)
-
-### 2.2 리스트 (피드)
-- 최신순 정로
-- 무한 스크롤
-- **반응**: 좋아요(❤️), 기도해요(🙏), 쓰담쓰담(👋) - 아이콘 터치
-- **댓글**: 짧은 응원 문구만 가능
-
-### 2.3 제약 사항
-- **검색 불가**: 흘러가는 이야기
-- **프로필 불가**: 나를 드러내지 않음
-- **신고 기능**: 부적절한 글(광고, 욕설) 즉시 블라인드
+| 항목 | 내용 |
+|------|------|
+| 탭 이름 | 쉼터 |
+| 목적 | 환묘 집사들의 하루 경험/감정 공유, 위로와 응원 교환 |
+| 특성 | 당일 게시글만 유지 (자정에 삭제) |
+| 익명성 | 한글 닉네임 자동 생성 (예: 미르4832, 노을7291) |
 
 ---
 
-## 3. 데이터 구조 (Firebase/Supabase 활용 시)
+## 1.1 닉네임 생성
 
-```typescript
-interface Post {
-  id: string;
-  deviceId: string; // 식별용 (노출 X)
-  content: string;
-  emotion: 'sad' | 'hope' | 'tired';
-  background: string;
-  likes: number;
-  createdAt: Timestamp;
+### 구조
+```
+<단어><숫자>
+```
+- 단어: 50개 한글 단어 중 deviceId 해싱으로 선택
+- 숫자: 1000 ~ 9999 범위
+
+### 단어 리스트 (50개)
+```
+미르, 노을, 달토리, 소나기, 햇살비, 구름결, 별무리, 바람꽃, 조약돌, 물빛,
+솜사탕, 풀내음, 새벽별, 해님, 달그림자, 별하늘, 꽃샘, 바다빛, 달맞이, 노루발,
+햇살꽃잎, 봄바람결, 눈꽃송이, 달빛잔향, 포근함, 솜구름, 봄향기, 물안개꽃, 달빛노래, 푸른숲,
+노을빛, 달빛숲, 별빛샘, 햇살나래, 달빛송이, 푸른별, 봄눈, 별빛잔향, 햇살바람, 포근달빛,
+달빛바다, 별빛숲, 햇살빛나래, 눈빛, 바람결, 해무리, 달빛꽃, 솔향기, 별빛노래, 바람결빛
+```
+
+### 특징
+- 동일 기기는 항상 동일 닉네임 (deviceId 해싱)
+- 익명성 유지하면서 일관된 식별 가능
+
+---
+
+## 2. 주요 기능
+
+### 2.1 게시글 작성
+
+| 항목 | 설명 |
+|------|------|
+| 작성 제한 | 1시간에 1회 (서버 기준) |
+| 글 길이 | 최대 500자 |
+| 이모지 선택 | 글 작성 시 프로필 이모지 선택 가능 |
+| 욕설 필터 | `***` 마스킹 (클라이언트+서버) |
+| 자동 삭제 | 매일 자정 (createdAt 기준) |
+
+### 2.2 댓글
+
+| 항목 | 설명 |
+|------|------|
+| 다중 댓글 | 같은 게시글에 여러 댓글 작성 가능 ⭕ |
+| 작성 제한 | 시간 기반 빈도 제한 (Rate Limit) |
+| 최소 간격 | 30초 (userId + postId 기준) |
+| 단기 제한 | 5분 내 최대 3개 |
+| 댓글 길이 | 최대 300자 |
+| UI | 접기/펼치기 |
+| 삭제 시 | 게시글 삭제 시 함께 삭제 |
+
+#### 빈도 제한 정책 (Rate Limit)
+
+**정책 원칙**: 자연스러운 대화형 댓글 흐름 유지 + 스팸/도배 방지
+
+| 항목 | 값 |
+|------|------|
+| 기준 | userId + postId |
+| 최소 간격 | 30초 |
+| 단기 제한 | 5분 내 최대 3개 |
+
+**서버 검증**:
+- 마지막 댓글 작성 시점 < 현재 - 30초
+- 최근 5분 내 댓글 개수 ≤ 3
+- 조건 충족 시 댓글 생성, 초과 시 `429 Too Many Requests` 반환
+
+**에러 응답 (429)**:
+```json
+{
+  "code": "COMMENT_RATE_LIMIT",
+  "message": "댓글은 잠시 후 다시 작성할 수 있습니다.",
+  "retryAfter": 30
 }
+```
+
+**프론트엔드 UX**:
+- 댓글 작성 성공 후 입력창 비활성화 (30초 쿨타임)
+- 남은 시간 카운트다운 표시
+- 429 에러 수신 시 `retryAfter` 기준으로 타이머 동기화
+- 안내 문구: "잠시 후 다시 댓글을 작성할 수 있어요 (30초)"
+
+### 2.3 좋아요
+
+- 게시글에만 좋아요 가능
+- 토글 방식 (눌렀다 다시 누르면 취소)
+
+### 2.4 신고
+
+| 항목 | 설명 |
+|------|------|
+| 대상 | 게시글 |
+| 사유 | 부적절한 내용, 스팸/광고, 욕설 우회, 기타 |
+| UI | 커스텀 모달 (배경 탭 시 닫기 지원), 성공 시 Toast 알림 |
+| 자동 숨김 | 3회 이상 신고 시 |
+| 관리자 검토 | 없음 (자동 처리) |
+
+### 2.5 차단
+
+| 항목 | 설명 |
+|------|------|
+| 대상 | 디바이스 (익명 ID) |
+| 효과 | 차단한 사용자의 글/댓글 숨김 |
+| UI | '차단됨' placeholder 대신 완전 숨김 |
+
+### 2.6 정렬 (Filters)
+
+| 항목 | 설명 |
+|------|------|
+| 옵션 | 최신 순 (기본), 응원해요 순 |
+| 유지 | 페이지 이동/새로고침 시 유지 (URL 쿼리 권장) |
+
+**정렬 기준**:
+- **최신 순**: `createdAt DESC` (신규 글 우선)
+- **응원해요 순**: `cheerCount DESC`, `createdAt DESC` (공감 많은 글 우선)
+
+**의도**:
+- 사용자 참여 유도 (최신)
+- 공감/위로 가치 강화 (응원)
+
+---
+
+## 3. API 명세
+
+### 3.1 게시글
+
+```
+GET    /api/comfort/posts              - 목록 조회 (sort=latest|cheer)
+POST   /api/comfort/posts              - 작성
+PUT    /api/comfort/posts/:id          - 수정
+DELETE /api/comfort/posts/:id          - 삭제
+POST   /api/comfort/posts/:id/like     - 좋아요 토글
+```
+
+### 3.2 댓글
+
+```
+GET    /api/comfort/posts/:id/comments - 목록 조회
+POST   /api/comfort/posts/:id/comments - 작성
+PUT    /api/comfort/comments/:id       - 수정
+DELETE /api/comfort/comments/:id       - 삭제
+```
+
+#### POST /api/comfort/posts/:id/comments (댓글 작성)
+
+**Request Body**:
+```json
+{
+  "content": "string"
+}
+```
+
+**서버 처리 로직**:
+1. 인증 토큰에서 `userId` (또는 `deviceId`) 추출
+2. `userId + postId` 기준 최근 댓글 목록 조회
+3. 빈도 제한 검사:
+   - 마지막 댓글 작성 시점 < 현재 - 30초
+   - 최근 5분 내 댓글 개수 ≤ 3
+4. 조건 충족 시 댓글 생성
+5. 초과 시 요청 거절
+
+**응답 (성공)**:
+```http
+201 Created
+```
+
+**응답 (빈도 제한 초과)**:
+```http
+429 Too Many Requests
+```
+```json
+{
+  "code": "COMMENT_RATE_LIMIT",
+  "message": "댓글은 잠시 후 다시 작성할 수 있습니다.",
+  "retryAfter": 30
+}
+```
+
+### 3.3 신고/차단
+
+```
+POST   /api/comfort/report             - 신고
+GET    /api/comfort/block              - 차단 목록
+POST   /api/comfort/block              - 차단
+DELETE /api/comfort/block              - 차단 해제
+```
+
+### 3.4 디버그 (개발용)
+
+```
+POST   /api/comfort/debug              - 테스트 액션 수행
+       body: {
+         action: 'reset-cooldown' | 'create-sample' | 'time-travel' | 'reset-time',
+         ...params
+       }
 ```
 
 ---
 
-## 4. 운영 정책
-
-- **조언 금지**: "병원 가보세요", "이 약 써보세요" 등 의료적 조언 금지 (운영 피로도 ↓)
-- **오직 위로**: "힘드시겠어요", "오늘도 고생하셨어요" 식의 공감 문화 지향
-- 상단 고정 공지: "이곳은 조언보다 위로를 건네는 공간입니다."
-
----
-
-## 5. 서버 구현 (myorok-server)
-
-### 5.1 기술 스택
-
-- **Runtime**: Node.js (v20+)
-- **Framework**: Express or Fastify
-- **Database**: MongoDB (Atlas) - 유연한 스키마, TTL Index 활용
-- **Hosting**: Vercel or Railway
-
-### 5.2 API 명세 (Draft)
-
-#### GET /api/comfort/posts
-- **Query**: `cursor` (pagenation), `limit` (default 20)
-- **Response**: Post 목록
-
-#### POST /api/comfort/posts
-- **Body**: `{ content, background, emotion }`
-- **Rate Limit**: 1분에 1회 작성 제한 (도배 방지)
-
-#### POST /api/comfort/posts/:id/react
-- **Body**: `{ type: 'like' | 'pray' | 'pat' }`
-- **Logic**: 한 기기당 1회 제한 없음(무한 칭찬) or 1회 제한
-
-### 5.3 데이터 모델 (MongoDB)
+## 4. 데이터 구조
 
 ```typescript
-interface ComfortPost {
-  _id: ObjectId;
-  deviceId: string;       // 작성자 식별 (해시 처리 권장)
+interface Post {
+  id: string;
+  deviceId: string;
   content: string;
-  background: string;     // color code
-  emotion: string;
+  createdAt: string;
+  updatedAt: string;
   likes: string[];        // 좋아요한 deviceIds
   comments: Comment[];
   reportCount: number;
@@ -124,7 +253,7 @@ interface BlockedDevice {
 
 - 헤더: "오늘의 위로" + 서브타이틀
 - 자정 삭제 안내 배너 (항상 표시)
-- 게시글 목록 (최신순)
+- 게시글 목록 (최신 순 / 응원해요 순 토글)
 - FAB 글쓰기 버튼
 
 ### 5.2 빈 상태
@@ -134,7 +263,6 @@ interface BlockedDevice {
 
 ### 5.3 자동 갱신
 
-- 30초 폴링 (WebSocket 미사용)
 - 30초 폴링 (WebSocket 미사용)
 - Pull-to-refresh 지원
 
@@ -163,3 +291,76 @@ interface BlockedDevice {
 - [ ] 실시간 WebSocket 업데이트
 - [ ] 글쓰기 이미지 첨부
 - [ ] 관리자 대시보드
+- [ ] 동일 내용 반복 댓글 감지 (content hash)
+- [ ] 신고 누적 사용자 댓글 빈도 제한 강화
+- [ ] 관리자 계정 빈도 제한 제외
+- [ ] Redis 기반 인메모리 캐시로 빈도 제한 성능 향상
+
+---
+
+## AI 작업 지침
+
+### 목적
+쉼터 탭의 게시글, 댓글, 좋아요, 신고, 차단 기능을 구현하고 유지보수합니다. 특히 댓글 빈도 제한 정책을 서버와 클라이언트 양쪽에서 올바르게 구현하여 자연스러운 대화형 댓글 흐름과 스팸 방지를 동시에 달성합니다.
+
+### 작업 단계
+
+#### 1. 댓글 빈도 제한 구현 (백엔드)
+- `POST /api/comfort/posts/:id/comments` API에서 빈도 제한 로직 구현
+- userId + postId 기준으로 최근 댓글 조회
+- 마지막 댓글 작성 후 30초 미만이면 `429` 응답
+- 최근 5분 내 댓글이 3개 이상이면 `429` 응답
+- 429 응답 시 `retryAfter` 필드 포함
+- 서버 시간 기준으로 판단 (클라이언트 시간 신뢰 금지)
+
+#### 2. 댓글 빈도 제한 UX (프론트엔드)
+- 댓글 작성 성공 후 자동으로 입력창 비활성화 (30초 쿨타임)
+- 카운트다운 타이머 표시: "잠시 후 다시 댓글을 작성할 수 있어요 (30초)"
+- 429 에러 수신 시 서버의 `retryAfter` 값으로 타이머 동기화
+- 타이머 종료 후 입력창 자동 활성화
+
+#### 3. 게시글 정렬 기능
+- **백엔드**: `GET /api/comfort/posts`에 `sort` 쿼리 파라미터 처리
+  - `latest` (기본): `ORDER BY createdAt DESC`
+  - `cheer`: `ORDER BY cheerCount DESC, createdAt DESC`
+- **프론트엔드**: 상단 정렬 토글/드롭다운 UI 구현
+  - `최신 순` / `응원해요 순`
+  - 페이지 이동/새로고침 시 상태 유지 (URL Query 권장)
+
+#### 4. 기타 쉼터 기능 구현
+- 게시글 1시간 제한 (서버 기준)
+- 닉네임 자동 생성 (deviceId 해싱)
+- 욕설 필터 (클라이언트+서버 이중 적용)
+- 신고 3회 시 자동 숨김
+- 차단 기능 (완전 숨김 방식)
+- 자정 자동 삭제 (createdAt 기준)
+
+### 주의사항
+
+#### 데이터 정책
+- **데이터 삭제 금지**: 자정 삭제는 자동화된 정책, 수동 삭제 금지
+- **deviceId 기반**: 로그인 없이 디바이스 식별
+- **개인정보 수집 금지**: 닉네임, 이메일 등 수집 금지
+
+#### 빈도 제한 구현
+- **서버 기준 필수**: 클라이언트 시간은 보조 UX용, 서버 시간이 최종 판단
+- **프론트 제한은 UX용**: 서버 제한을 통과하지 못하면 의미 없음
+- **429 에러 필수**: 빈도 제한 초과 시 반드시 `429 Too Many Requests` 반환
+- **retryAfter 필수**: 429 응답에 `retryAfter` 필드 포함 필수
+
+#### Android 전용
+- iOS 관련 코드 금지
+- React Native 코드는 Android만 고려
+
+#### 일관성
+- 기존 코드 스타일 유지
+- COMFORT_SPEC.md와 불일치 시 명세 우선
+
+#### 성능 고려
+- Redis 등 인메모리 캐시 사용 권장 (추후 확장)
+- 빈도 제한 조회 시 인덱스 활용
+
+#### 모듈화
+- 댓글 빈도 제한 로직을 별도 함수로 분리
+- 재사용 가능한 구조로 설계
+- 게시글 빈도 제한과 동일한 패턴 활용

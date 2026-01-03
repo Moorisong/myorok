@@ -55,10 +55,43 @@
 
 | 항목 | 설명 |
 |------|------|
-| 작성 제한 | 없음 |
+| 다중 댓글 | 같은 게시글에 여러 댓글 작성 가능 ⭕ |
+| 작성 제한 | 시간 기반 빈도 제한 (Rate Limit) |
+| 최소 간격 | 30초 (userId + postId 기준) |
+| 단기 제한 | 5분 내 최대 3개 |
 | 댓글 길이 | 최대 300자 |
 | UI | 접기/펼치기 |
 | 삭제 시 | 게시글 삭제 시 함께 삭제 |
+
+#### 빈도 제한 정책 (Rate Limit)
+
+**정책 원칙**: 자연스러운 대화형 댓글 흐름 유지 + 스팸/도배 방지
+
+| 항목 | 값 |
+|------|------|
+| 기준 | userId + postId |
+| 최소 간격 | 30초 |
+| 단기 제한 | 5분 내 최대 3개 |
+
+**서버 검증**:
+- 마지막 댓글 작성 시점 < 현재 - 30초
+- 최근 5분 내 댓글 개수 ≤ 3
+- 조건 충족 시 댓글 생성, 초과 시 `429 Too Many Requests` 반환
+
+**에러 응답 (429)**:
+```json
+{
+  "code": "COMMENT_RATE_LIMIT",
+  "message": "댓글은 잠시 후 다시 작성할 수 있습니다.",
+  "retryAfter": 30
+}
+```
+
+**프론트엔드 UX**:
+- 댓글 작성 성공 후 입력창 비활성화 (30초 쿨타임)
+- 남은 시간 카운트다운 표시
+- 429 에러 수신 시 `retryAfter` 기준으로 타이머 동기화
+- 안내 문구: "잠시 후 다시 댓글을 작성할 수 있어요 (30초)"
 
 ### 2.3 좋아요
 
@@ -83,6 +116,21 @@
 | 효과 | 차단한 사용자의 글/댓글 숨김 |
 | UI | '차단됨' placeholder 대신 완전 숨김 |
 
+### 2.6 정렬 (Filters)
+
+| 항목 | 설명 |
+|------|------|
+| 옵션 | 최신 순 (기본), 응원해요 순 |
+| 유지 | 페이지 이동/새로고침 시 유지 (URL 쿼리 권장) |
+
+**정렬 기준**:
+- **최신 순**: `createdAt DESC` (신규 글 우선)
+- **응원해요 순**: `cheerCount DESC`, `createdAt DESC` (공감 많은 글 우선)
+
+**의도**:
+- 사용자 참여 유도 (최신)
+- 공감/위로 가치 강화 (응원)
+
 ---
 
 ## 3. API 명세
@@ -90,7 +138,7 @@
 ### 3.1 게시글
 
 ```
-GET    /api/comfort/posts              - 목록 조회
+GET    /api/comfort/posts              - 목록 조회 (sort=latest|cheer)
 POST   /api/comfort/posts              - 작성
 PUT    /api/comfort/posts/:id          - 수정
 DELETE /api/comfort/posts/:id          - 삭제
@@ -104,6 +152,41 @@ GET    /api/comfort/posts/:id/comments - 목록 조회
 POST   /api/comfort/posts/:id/comments - 작성
 PUT    /api/comfort/comments/:id       - 수정
 DELETE /api/comfort/comments/:id       - 삭제
+```
+
+#### POST /api/comfort/posts/:id/comments (댓글 작성)
+
+**Request Body**:
+```json
+{
+  "content": "string"
+}
+```
+
+**서버 처리 로직**:
+1. 인증 토큰에서 `userId` (또는 `deviceId`) 추출
+2. `userId + postId` 기준 최근 댓글 목록 조회
+3. 빈도 제한 검사:
+   - 마지막 댓글 작성 시점 < 현재 - 30초
+   - 최근 5분 내 댓글 개수 ≤ 3
+4. 조건 충족 시 댓글 생성
+5. 초과 시 요청 거절
+
+**응답 (성공)**:
+```http
+201 Created
+```
+
+**응답 (빈도 제한 초과)**:
+```http
+429 Too Many Requests
+```
+```json
+{
+  "code": "COMMENT_RATE_LIMIT",
+  "message": "댓글은 잠시 후 다시 작성할 수 있습니다.",
+  "retryAfter": 30
+}
 ```
 
 ### 3.3 신고/차단
@@ -166,7 +249,7 @@ interface BlockedDevice {
 
 - 헤더: "오늘의 위로" + 서브타이틀
 - 자정 삭제 안내 배너 (항상 표시)
-- 게시글 목록 (최신순)
+- 게시글 목록 (최신 순 / 응원해요 순 토글)
 - FAB 글쓰기 버튼
 
 ### 5.2 빈 상태
@@ -205,3 +288,7 @@ interface BlockedDevice {
 - [ ] 실시간 WebSocket 업데이트
 - [ ] 글쓰기 이미지 첨부
 - [ ] 관리자 대시보드
+- [ ] 동일 내용 반복 댓글 감지 (content hash)
+- [ ] 신고 누적 사용자 댓글 빈도 제한 강화
+- [ ] 관리자 계정 빈도 제한 제외
+- [ ] Redis 기반 인메모리 캐시로 빈도 제한 성능 향상
