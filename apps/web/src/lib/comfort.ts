@@ -25,6 +25,7 @@ export interface Post {
     reportCount: number;
     reportedBy: string[];
     hidden: boolean;
+    cheerCount: number;
 }
 
 // 프로필 이모지 리스트 (10개)
@@ -60,6 +61,7 @@ const PostSchema = new mongoose.Schema({
     reportCount: { type: Number, default: 0 },
     reportedBy: { type: [String], default: [] },
     hidden: { type: Boolean, default: false },
+    cheerCount: { type: Number, default: 0 },
 });
 
 const BlockedDeviceSchema = new mongoose.Schema({
@@ -120,7 +122,7 @@ export async function canPost(deviceId: string): Promise<{ canPost: boolean; wai
 }
 
 // Fetch posts tailored for a specific user (filtering blocks, hidden, etc)
-export async function getFilteredPosts(deviceId: string): Promise<Post[]> {
+export async function getFilteredPosts(deviceId: string, sort: 'latest' | 'cheer' = 'latest'): Promise<Post[]> {
     await dbConnect();
     const { PostModel, BlockedDeviceModel } = getModels();
 
@@ -130,10 +132,14 @@ export async function getFilteredPosts(deviceId: string): Promise<Post[]> {
 
     // 2. Fetch posts
     // conditions: hidden = false, deviceId NOT in blockedIds
+    const sortOption: any = sort === 'cheer'
+        ? { cheerCount: -1, createdAt: -1 }
+        : { createdAt: -1 };
+
     const posts = await PostModel.find({
         hidden: false,
         deviceId: { $nin: blockedIds }
-    }).sort({ createdAt: -1 }).lean();
+    }).sort(sortOption).lean();
 
     // 3. Transform and filter comments specifically
     // The generic lean() returns _id, we need to ensure it matches Post interface if acceptable.

@@ -116,20 +116,28 @@
 | 효과 | 차단한 사용자의 글/댓글 숨김 |
 | UI | '차단됨' placeholder 대신 완전 숨김 |
 
-### 2.6 정렬 (Filters)
+| UI | '차단됨' placeholder 대신 완전 숨김 |
+
+### 2.6 정렬 (Filters) - v2.1
 
 | 항목 | 설명 |
 |------|------|
 | 옵션 | 최신 순 (기본), 응원해요 순 |
+| UI | **Segmented Control (토글 버튼)** 형태 권장 |
 | 유지 | 페이지 이동/새로고침 시 유지 (URL 쿼리 권장) |
 
 **정렬 기준**:
-- **최신 순**: `createdAt DESC` (신규 글 우선)
-- **응원해요 순**: `cheerCount DESC`, `createdAt DESC` (공감 많은 글 우선)
+- **최신 순 (latest)**: `ORDER BY createdAt DESC`
+  - 가장 최근 글 상단 노출
+  - "오늘 이야기" 성격에 적합
+- **응원 많은 순 (cheer)**: `ORDER BY cheerCount DESC, createdAt DESC`
+  - 좋아요(응원해요) 많은 글 우선
+  - 위로/공감 가치 강화
 
 **의도**:
 - 사용자 참여 유도 (최신)
 - 공감/위로 가치 강화 (응원)
+- 단순한 UX로 정렬 기준 명확히 제공
 
 ---
 
@@ -219,6 +227,7 @@ interface Post {
   content: string;
   createdAt: string;
   updatedAt: string;
+  cheerCount: number;     // 좋아요 수 (성능 최적화용)
   likes: string[];        // 좋아요한 deviceIds
   comments: Comment[];
   reportCount: number;
@@ -249,7 +258,7 @@ interface BlockedDevice {
 
 - 헤더: "오늘의 위로" + 서브타이틀
 - 자정 삭제 안내 배너 (항상 표시)
-- 게시글 목록 (최신 순 / 응원해요 순 토글)
+- 게시글 목록 (최신 순 / 응원해요 순 Segmented Control)
 - FAB 글쓰기 버튼
 
 ### 5.2 빈 상태

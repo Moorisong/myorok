@@ -17,6 +17,7 @@ import { Feather } from '@expo/vector-icons';
 import { COLORS, COMFORT_MESSAGES } from '../../constants';
 import { ComfortPost, getPosts, createPost, updatePost, toggleLike, deletePost, blockUser, reportPost } from '../../services';
 import { ComfortPostCard, ComfortComposeModal, ComfortDebugModal, ComfortReportModal } from '../../components';
+import { SegmentedControl } from '../../components/segmented-control';
 import { useToast } from '../../components/ToastContext';
 
 export default function ComfortScreen() {
@@ -32,6 +33,7 @@ export default function ComfortScreen() {
     const [showDebugModal, setShowDebugModal] = useState(false);
     const [reportModalVisible, setReportModalVisible] = useState(false);
     const [reportingPostId, setReportingPostId] = useState<string | null>(null);
+    const [sortOrder, setSortOrder] = useState<'latest' | 'cheer'>('latest');
     const { showToast } = useToast();
 
     const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -40,7 +42,7 @@ export default function ComfortScreen() {
         if (showLoading) setIsLoading(true);
 
         try {
-            const response = await getPosts();
+            const response = await getPosts(sortOrder);
 
             if (response.success && response.data) {
                 setPosts(response.data.posts);
@@ -56,7 +58,7 @@ export default function ComfortScreen() {
             setIsLoading(false);
             setIsRefreshing(false);
         }
-    }, []);
+    }, [sortOrder]);
 
     useFocusEffect(
         useCallback(() => {
@@ -216,6 +218,14 @@ export default function ComfortScreen() {
                     )}
                 </View>
                 <Text style={styles.headerSubtitle}>{COMFORT_MESSAGES.TAB_SUBTITLE}</Text>
+
+                <View style={styles.filterContainer}>
+                    <SegmentedControl
+                        options={['최신순', '응원 많은 순']}
+                        selectedIndex={sortOrder === 'latest' ? 0 : 1}
+                        onChange={(index) => setSortOrder(index === 0 ? 'latest' : 'cheer')}
+                    />
+                </View>
             </View>
 
             {/* 자정 삭제 안내 배너 */}
@@ -323,7 +333,7 @@ const styles = StyleSheet.create({
     header: {
         paddingHorizontal: 20,
         paddingTop: 8,
-        paddingBottom: 12,
+        paddingBottom: 4,
     },
     headerRow: {
         flexDirection: 'row',
@@ -428,4 +438,8 @@ const styles = StyleSheet.create({
     topSpacer: {
         height: 29, // Same as petIndicatorRow (paddingTop: 12 + paddingVertical: 5 + fontSize: 12 approximate)
     },
+    filterContainer: {
+        marginTop: 12,
+        marginBottom: 4,
+    }
 });

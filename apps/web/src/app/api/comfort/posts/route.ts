@@ -29,7 +29,11 @@ export async function GET(request: NextRequest) {
         await cleanupOldPosts();
 
         // MongoDB에서 차단/숨김 처리된 필터링된 목록 조회 (Async)
-        const posts = await getFilteredPosts(deviceId);
+        // sort 파라미터 처리 (latest | cheer)
+        const sort = searchParams.get('sort') as 'latest' | 'cheer' | null;
+        const validSort = (sort === 'latest' || sort === 'cheer') ? sort : 'latest';
+
+        const posts = await getFilteredPosts(deviceId, validSort);
 
         // View용 데이터 가공 (isOwner, isLiked 등)
         const formattedPosts = posts.map(post => ({
@@ -125,6 +129,7 @@ export async function POST(request: NextRequest) {
             reportCount: 0,
             reportedBy: [],
             hidden: false,
+            cheerCount: 0,
         };
 
         // 데이터베이스 저장 (Async)
@@ -139,6 +144,7 @@ export async function POST(request: NextRequest) {
                     isLiked: false,
                     likeCount: 0,
                     commentCount: 0,
+                    cheerCount: 0,
                     displayId: generateNickname(deviceId),
                 },
             },
