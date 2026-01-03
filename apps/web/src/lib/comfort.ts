@@ -131,15 +131,23 @@ export async function getFilteredPosts(deviceId: string, sort: 'latest' | 'cheer
     const blockedIds = blockedEntries.map((b: any) => b.blockedDeviceId);
 
     // 2. Fetch posts
-    // conditions: hidden = false, deviceId NOT in blockedIds
-    const sortOption: any = sort === 'cheer'
-        ? { cheerCount: -1, createdAt: -1 }
-        : { createdAt: -1 };
+    // 2. Fetch posts using Aggregate to handle dynamic cheerCount from likes array size
+    const pipeline: any[] = [
+        { $match: { hidden: false, deviceId: { $nin: blockedIds } } },
+        {
+            $addFields: {
+                computedCheerCount: { $size: { $ifNull: ["$likes", []] } }
+            }
+        }
+    ];
 
-    const posts = await PostModel.find({
-        hidden: false,
-        deviceId: { $nin: blockedIds }
-    }).sort(sortOption).lean();
+    if (sort === 'cheer') {
+        pipeline.push({ $sort: { computedCheerCount: -1, createdAt: -1 } });
+    } else {
+        pipeline.push({ $sort: { createdAt: -1 } });
+    }
+
+    const posts = await PostModel.aggregate(pipeline);
 
     // 3. Transform and filter comments specifically
     // The generic lean() returns _id, we need to ensure it matches Post interface if acceptable.
