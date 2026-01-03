@@ -92,6 +92,7 @@ export async function POST(request: NextRequest) {
                     reportCount: 0,
                     reportedBy: [],
                     hidden: false,
+                    cheerCount: 0,
                 };
                 createdPosts.push(newPost);
             }
