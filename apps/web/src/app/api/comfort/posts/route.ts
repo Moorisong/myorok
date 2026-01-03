@@ -29,9 +29,9 @@ export async function GET(request: NextRequest) {
         await cleanupOldPosts();
 
         // MongoDB에서 차단/숨김 처리된 필터링된 목록 조회 (Async)
-        // sort 파라미터 처리 (latest | cheer)
-        const sort = searchParams.get('sort') as 'latest' | 'cheer' | null;
-        const validSort = (sort === 'latest' || sort === 'cheer') ? sort : 'latest';
+        // sort 파라미터 처리 (latest | cheer | comment)
+        const sort = searchParams.get('sort') as 'latest' | 'cheer' | 'comment' | null;
+        const validSort = (sort === 'latest' || sort === 'cheer' || sort === 'comment') ? sort : 'latest';
 
         const posts = await getFilteredPosts(deviceId, validSort);
 

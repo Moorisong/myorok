@@ -328,13 +328,14 @@ interface BlockedDevice {
 - 429 에러 수신 시 서버의 `retryAfter` 값으로 타이머 동기화
 - 타이머 종료 후 입력창 자동 활성화
 
-#### 3. 게시글 정렬 기능 (v2.1)
+#### 3. 게시글 정렬 기능 (v2.2)
 - **백엔드**: `GET /api/comfort/posts`에 `sort` 쿼리 파라미터 처리
   - **최신 순 (latest)**: `ORDER BY createdAt DESC` (기본값)
   - **응원 많은 순 (cheer)**: `ORDER BY cheerCount DESC, createdAt DESC`
-  - `cheerCount` 필드를 DB 모델에 추가하여 정렬 성능 최적화
+  - **댓글 많은 순 (comment)**: `ORDER BY commentCount DESC, createdAt DESC`
+  - `cheerCount`, `commentCount`는 Aggegation Pipeline에서 `$size`로 동적 계산하거나 필드로 유지
 - **프론트엔드**: 상단 **Segmented Control** UI 구현
-  - `[최신순]` / `[응원해요 순]`
+  - `[최신순]` / `[응원 많은 순]` / `[댓글 많은 순]`
   - 선택 시 즉시 목록 재조회
   - 페이지 이동/새로고침 시 상태 유지 (URL Query `?sort=...` 권장)
 

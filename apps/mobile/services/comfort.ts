@@ -70,7 +70,7 @@ async function apiCall<T>(
 }
 
 // 게시글 목록 조회
-export async function getPosts(sort: 'latest' | 'cheer' = 'latest'): Promise<ApiResponse<PostsResponse>> {
+export async function getPosts(sort: 'latest' | 'cheer' | 'comment' = 'latest'): Promise<ApiResponse<PostsResponse>> {
     const deviceId = await getDeviceId();
     return apiCall<PostsResponse>(`/api/comfort/posts?deviceId=${encodeURIComponent(deviceId)}&sort=${sort}`);
 }

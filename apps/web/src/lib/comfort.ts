@@ -122,7 +122,7 @@ export async function canPost(deviceId: string): Promise<{ canPost: boolean; wai
 }
 
 // Fetch posts tailored for a specific user (filtering blocks, hidden, etc)
-export async function getFilteredPosts(deviceId: string, sort: 'latest' | 'cheer' = 'latest'): Promise<Post[]> {
+export async function getFilteredPosts(deviceId: string, sort: 'latest' | 'cheer' | 'comment' = 'latest'): Promise<Post[]> {
     await dbConnect();
     const { PostModel, BlockedDeviceModel } = getModels();
 
@@ -130,19 +130,21 @@ export async function getFilteredPosts(deviceId: string, sort: 'latest' | 'cheer
     const blockedEntries = await BlockedDeviceModel.find({ deviceId }).lean();
     const blockedIds = blockedEntries.map((b: any) => b.blockedDeviceId);
 
-    // 2. Fetch posts
-    // 2. Fetch posts using Aggregate to handle dynamic cheerCount from likes array size
+    // 2. Fetch posts using Aggregate to handle dynamic cheerCount/commentCount
     const pipeline: any[] = [
         { $match: { hidden: false, deviceId: { $nin: blockedIds } } },
         {
             $addFields: {
-                computedCheerCount: { $size: { $ifNull: ["$likes", []] } }
+                computedCheerCount: { $size: { $ifNull: ["$likes", []] } },
+                computedCommentCount: { $size: { $ifNull: ["$comments", []] } }
             }
         }
     ];
 
     if (sort === 'cheer') {
         pipeline.push({ $sort: { computedCheerCount: -1, createdAt: -1 } });
+    } else if (sort === 'comment') {
+        pipeline.push({ $sort: { computedCommentCount: -1, createdAt: -1 } });
     } else {
         pipeline.push({ $sort: { createdAt: -1 } });
     }
@@ -156,7 +158,7 @@ export async function getFilteredPosts(deviceId: string, sort: 'latest' | 'cheer
     return posts.map((p: any) => ({
         ...p,
         _id: undefined, // remove mongoose id if not needed, or keep it
-        comments: p.comments.filter((c: any) => !blockedIds.includes(c.deviceId))
+        comments: (p.comments || []).filter((c: any) => !blockedIds.includes(c.deviceId))
     })) as Post[];
 }
 

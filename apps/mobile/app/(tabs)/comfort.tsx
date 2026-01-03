@@ -33,7 +33,7 @@ export default function ComfortScreen() {
     const [showDebugModal, setShowDebugModal] = useState(false);
     const [reportModalVisible, setReportModalVisible] = useState(false);
     const [reportingPostId, setReportingPostId] = useState<string | null>(null);
-    const [sortOrder, setSortOrder] = useState<'latest' | 'cheer'>('latest');
+    const [sortOrder, setSortOrder] = useState<'latest' | 'cheer' | 'comment'>('latest');
     const { showToast } = useToast();
 
     const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -219,13 +219,6 @@ export default function ComfortScreen() {
                 </View>
                 <Text style={styles.headerSubtitle}>{COMFORT_MESSAGES.TAB_SUBTITLE}</Text>
 
-                <View style={styles.filterContainer}>
-                    <SegmentedControl
-                        options={['최신순', '응원 많은 순']}
-                        selectedIndex={sortOrder === 'latest' ? 0 : 1}
-                        onChange={(index) => setSortOrder(index === 0 ? 'latest' : 'cheer')}
-                    />
-                </View>
             </View>
 
             {/* 자정 삭제 안내 배너 */}
@@ -235,6 +228,18 @@ export default function ComfortScreen() {
 
             {/* 신고 자동숨김 안내 */}
             <Text style={styles.reportNotice}>신고 3회 이상 시 자동 숨김</Text>
+
+            <View style={styles.filterContainer}>
+                <SegmentedControl
+                    options={['최신순', '응원 많은 순', '댓글 많은 순']}
+                    selectedIndex={sortOrder === 'latest' ? 0 : sortOrder === 'cheer' ? 1 : 2}
+                    onChange={(index) => {
+                        if (index === 0) setSortOrder('latest');
+                        else if (index === 1) setSortOrder('cheer');
+                        else setSortOrder('comment');
+                    }}
+                />
+            </View>
 
             {isLoading ? (
                 <View style={styles.loadingContainer}>
@@ -360,6 +365,7 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: COLORS.textSecondary,
         marginTop: 4,
+        marginBottom: 15,
     },
     noticeBanner: {
         backgroundColor: '#E8F5E9',
@@ -439,7 +445,7 @@ const styles = StyleSheet.create({
         height: 29, // Same as petIndicatorRow (paddingTop: 12 + paddingVertical: 5 + fontSize: 12 approximate)
     },
     filterContainer: {
-        marginTop: 12,
-        marginBottom: 4,
+        marginTop: 15,
+        paddingHorizontal: 16,
     }
 });

@@ -122,22 +122,20 @@
 
 | 항목 | 설명 |
 |------|------|
-| 옵션 | 최신 순 (기본), 응원해요 순 |
+| 옵션 | 최신 순 (기본), 응원 많은 순, **댓글 많은 순 (New)** |
 | UI | **Segmented Control (토글 버튼)** 형태 권장 |
 | 유지 | 페이지 이동/새로고침 시 유지 (URL 쿼리 권장) |
 
 **정렬 기준**:
 - **최신 순 (latest)**: `ORDER BY createdAt DESC`
-  - 가장 최근 글 상단 노출
-  - "오늘 이야기" 성격에 적합
 - **응원 많은 순 (cheer)**: `ORDER BY cheerCount DESC, createdAt DESC`
-  - 좋아요(응원해요) 많은 글 우선
-  - 위로/공감 가치 강화
+- **댓글 많은 순 (comment)**: `ORDER BY commentCount DESC, createdAt DESC`
+  - 대화가 활발한 글 우선 노출
 
 **의도**:
 - 사용자 참여 유도 (최신)
 - 공감/위로 가치 강화 (응원)
-- 단순한 UX로 정렬 기준 명확히 제공
+- **소통 활성화 (댓글)**
 
 ---
 
@@ -146,7 +144,7 @@
 ### 3.1 게시글
 
 ```
-GET    /api/comfort/posts              - 목록 조회 (sort=latest|cheer)
+GET    /api/comfort/posts              - 목록 조회 (sort=latest|cheer|comment)
 POST   /api/comfort/posts              - 작성
 PUT    /api/comfort/posts/:id          - 수정
 DELETE /api/comfort/posts/:id          - 삭제
