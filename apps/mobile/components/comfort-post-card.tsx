@@ -102,7 +102,9 @@ export default function ComfortPostCard({
             const response = await updateComment(editingCommentId, editingCommentText.trim());
             if (response.success && response.data) {
                 setComments(prev => prev.map(c =>
-                    c.id === editingCommentId ? response.data!.comment : c
+                    c.id === editingCommentId
+                        ? { ...response.data!.comment, isOwner: c.isOwner }
+                        : c
                 ));
                 setEditingCommentId(null);
                 setEditingCommentText('');
@@ -242,27 +244,29 @@ export default function ComfortPostCard({
                             {editingCommentId === comment.id ? (
                                 /* 댓글 수정 모드 */
                                 <View style={styles.commentEditContainer}>
-                                    <TextInput
-                                        style={styles.commentEditInput}
-                                        value={editingCommentText}
-                                        onChangeText={setEditingCommentText}
-                                        placeholder="댓글을 입력하세요"
-                                        placeholderTextColor={COLORS.textSecondary}
-                                        maxLength={300}
-                                        multiline
-                                        autoFocus
-                                    />
-                                    <View style={styles.commentEditActions}>
-                                        <Pressable onPress={handleCancelEdit} style={styles.commentEditButton}>
-                                            <Text style={styles.commentEditButtonTextCancel}>취소</Text>
-                                        </Pressable>
-                                        <Pressable
-                                            onPress={handleSaveEdit}
-                                            style={[styles.commentEditButton, !editingCommentText.trim() && styles.commentEditButtonDisabled]}
-                                            disabled={!editingCommentText.trim() || isSubmitting}
-                                        >
-                                            <Text style={[styles.commentEditButtonTextSave, !editingCommentText.trim() && styles.commentEditButtonTextDisabled]}>저장</Text>
-                                        </Pressable>
+                                    <View style={styles.commentEditRow}>
+                                        <TextInput
+                                            style={styles.commentEditInput}
+                                            value={editingCommentText}
+                                            onChangeText={setEditingCommentText}
+                                            placeholder="댓글을 입력하세요"
+                                            placeholderTextColor={COLORS.textSecondary}
+                                            maxLength={300}
+                                            multiline
+                                            autoFocus
+                                        />
+                                        <View style={styles.commentEditActions}>
+                                            <Pressable onPress={handleCancelEdit} style={styles.commentEditButton}>
+                                                <Feather name="x" size={18} color={COLORS.textSecondary} />
+                                            </Pressable>
+                                            <Pressable
+                                                onPress={handleSaveEdit}
+                                                style={[styles.commentEditButton, !editingCommentText.trim() && styles.commentEditButtonDisabled]}
+                                                disabled={!editingCommentText.trim() || isSubmitting}
+                                            >
+                                                <Feather name="check" size={18} color={editingCommentText.trim() && !isSubmitting ? COLORS.primary : COLORS.textSecondary} />
+                                            </Pressable>
+                                        </View>
                                     </View>
                                 </View>
                             ) : (
@@ -492,7 +496,13 @@ const styles = StyleSheet.create({
     commentEditContainer: {
         flex: 1,
     },
+    commentEditRow: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: 8,
+    },
     commentEditInput: {
+        flex: 1,
         backgroundColor: COLORS.background,
         borderRadius: 12,
         paddingHorizontal: 12,
@@ -504,9 +514,8 @@ const styles = StyleSheet.create({
     },
     commentEditActions: {
         flexDirection: 'row',
-        justifyContent: 'flex-end',
-        gap: 12,
-        marginTop: 8,
+        alignItems: 'center',
+        gap: 4,
     },
     commentEditButton: {
         paddingVertical: 6,
