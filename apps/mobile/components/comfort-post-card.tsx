@@ -29,6 +29,7 @@ export default function ComfortPostCard({
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
     const [editingCommentText, setEditingCommentText] = useState('');
+    const [localCommentCount, setLocalCommentCount] = useState(post.commentCount);
 
     const formatTime = (dateString: string) => {
         const date = new Date(dateString);
@@ -72,6 +73,7 @@ export default function ComfortPostCard({
             const response = await createComment(post.id, commentText.trim());
             if (response.success && response.data) {
                 setComments(prev => [...prev, response.data!.comment]);
+                setLocalCommentCount(prev => prev + 1);
                 setCommentText('');
                 Keyboard.dismiss();
             } else if (response.error) {
@@ -147,6 +149,7 @@ export default function ComfortPostCard({
                         const response = await deleteComment(commentId);
                         if (response.success) {
                             setComments(prev => prev.filter(c => c.id !== commentId));
+                            setLocalCommentCount(prev => Math.max(0, prev - 1));
                         }
                     },
                 },
@@ -231,7 +234,7 @@ export default function ComfortPostCard({
                 >
                     <Feather name="message-circle" size={18} color={COLORS.textSecondary} />
                     <Text style={styles.actionText}>
-                        {post.commentCount > 0 ? COMFORT_MESSAGES.SHOW_COMMENTS(post.commentCount) : '댓글'}
+                        {localCommentCount > 0 ? COMFORT_MESSAGES.SHOW_COMMENTS(localCommentCount) : '댓글'}
                     </Text>
                 </Pressable>
             </View>
@@ -274,6 +277,11 @@ export default function ComfortPostCard({
                                 <>
                                     <View style={styles.commentHeader}>
                                         <Text style={styles.commentAuthor}>{comment.displayId || '익명'}</Text>
+                                        {comment.isOwner && (
+                                            <View style={styles.myCommentBadge}>
+                                                <Text style={styles.myCommentBadgeText}>내 댓글</Text>
+                                            </View>
+                                        )}
                                         <Text style={styles.commentTime}>{formatTime(comment.createdAt)}</Text>
                                         {comment.isOwner && (
                                             <Pressable
@@ -440,6 +448,17 @@ const styles = StyleSheet.create({
         fontSize: 12,
         fontWeight: '600',
         color: COLORS.textPrimary,
+    },
+    myCommentBadge: {
+        backgroundColor: COLORS.primary + '20',
+        paddingHorizontal: 5,
+        paddingVertical: 1,
+        borderRadius: 3,
+    },
+    myCommentBadgeText: {
+        fontSize: 9,
+        fontWeight: '600',
+        color: COLORS.primary,
     },
     commentTime: {
         fontSize: 11,
