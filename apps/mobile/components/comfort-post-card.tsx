@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Pressable, Alert, TextInput, Keyboard } from 'r
 import { Feather } from '@expo/vector-icons';
 
 import { COLORS, COMFORT_MESSAGES } from '../constants';
-import { ComfortPost, ComfortComment, getComments, createComment, deleteComment } from '../services';
+import { ComfortPost, ComfortComment, getComments, createComment, updateComment, deleteComment } from '../services';
 
 interface ComfortPostCardProps {
     post: ComfortPost;
@@ -27,6 +27,8 @@ export default function ComfortPostCard({
     const [isLoadingComments, setIsLoadingComments] = useState(false);
     const [commentText, setCommentText] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+    const [editingCommentText, setEditingCommentText] = useState('');
 
     const formatTime = (dateString: string) => {
         const date = new Date(dateString);
@@ -44,6 +46,7 @@ export default function ComfortPostCard({
     const handleToggleComments = async () => {
         if (showComments) {
             setShowComments(false);
+            setEditingCommentId(null);
             return;
         }
 
@@ -79,6 +82,54 @@ export default function ComfortPostCard({
         } finally {
             setIsSubmitting(false);
         }
+    };
+
+    const handleEditComment = (comment: ComfortComment) => {
+        setEditingCommentId(comment.id);
+        setEditingCommentText(comment.content);
+    };
+
+    const handleCancelEdit = () => {
+        setEditingCommentId(null);
+        setEditingCommentText('');
+    };
+
+    const handleSaveEdit = async () => {
+        if (!editingCommentId || !editingCommentText.trim() || isSubmitting) return;
+
+        setIsSubmitting(true);
+        try {
+            const response = await updateComment(editingCommentId, editingCommentText.trim());
+            if (response.success && response.data) {
+                setComments(prev => prev.map(c =>
+                    c.id === editingCommentId ? response.data!.comment : c
+                ));
+                setEditingCommentId(null);
+                setEditingCommentText('');
+                Keyboard.dismiss();
+            } else if (response.error) {
+                Alert.alert('알림', response.error.message || '댓글 수정에 실패했습니다.');
+            }
+        } catch {
+            Alert.alert('오류', '댓글 수정에 실패했습니다.');
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleCommentMenu = (comment: ComfortComment) => {
+        if (!comment.isOwner) return;
+
+        Alert.alert(
+            '댓글 관리',
+            undefined,
+            [
+                { text: COMFORT_MESSAGES.EDIT, onPress: () => handleEditComment(comment) },
+                { text: COMFORT_MESSAGES.DELETE, onPress: () => handleDeleteComment(comment.id), style: 'destructive' },
+                { text: '취소', style: 'cancel' },
+            ],
+            { cancelable: true }
+        );
     };
 
     const handleDeleteComment = async (commentId: string) => {
@@ -188,20 +239,51 @@ export default function ComfortPostCard({
                 <View style={styles.commentsSection}>
                     {comments.map((comment, index) => (
                         <View key={comment.id || `comment-${index}`} style={styles.commentItem}>
-                            <View style={styles.commentHeader}>
-                                <Text style={styles.commentAuthor}>{comment.displayId || '익명'}</Text>
-                                <Text style={styles.commentTime}>{formatTime(comment.createdAt)}</Text>
-                                {comment.isOwner && (
-                                    <Pressable
-                                        onPress={() => handleDeleteComment(comment.id)}
-                                        hitSlop={8}
-                                        style={styles.commentDeleteButton}
-                                    >
-                                        <Feather name="x" size={14} color={COLORS.textSecondary} />
-                                    </Pressable>
-                                )}
-                            </View>
-                            <Text style={styles.commentContent}>{comment.content || ''}</Text>
+                            {editingCommentId === comment.id ? (
+                                /* 댓글 수정 모드 */
+                                <View style={styles.commentEditContainer}>
+                                    <TextInput
+                                        style={styles.commentEditInput}
+                                        value={editingCommentText}
+                                        onChangeText={setEditingCommentText}
+                                        placeholder="댓글을 입력하세요"
+                                        placeholderTextColor={COLORS.textSecondary}
+                                        maxLength={300}
+                                        multiline
+                                        autoFocus
+                                    />
+                                    <View style={styles.commentEditActions}>
+                                        <Pressable onPress={handleCancelEdit} style={styles.commentEditButton}>
+                                            <Text style={styles.commentEditButtonTextCancel}>취소</Text>
+                                        </Pressable>
+                                        <Pressable
+                                            onPress={handleSaveEdit}
+                                            style={[styles.commentEditButton, !editingCommentText.trim() && styles.commentEditButtonDisabled]}
+                                            disabled={!editingCommentText.trim() || isSubmitting}
+                                        >
+                                            <Text style={[styles.commentEditButtonTextSave, !editingCommentText.trim() && styles.commentEditButtonTextDisabled]}>저장</Text>
+                                        </Pressable>
+                                    </View>
+                                </View>
+                            ) : (
+                                /* 댓글 보기 모드 */
+                                <>
+                                    <View style={styles.commentHeader}>
+                                        <Text style={styles.commentAuthor}>{comment.displayId || '익명'}</Text>
+                                        <Text style={styles.commentTime}>{formatTime(comment.createdAt)}</Text>
+                                        {comment.isOwner && (
+                                            <Pressable
+                                                onPress={() => handleCommentMenu(comment)}
+                                                hitSlop={8}
+                                                style={styles.commentMenuButton}
+                                            >
+                                                <Feather name="more-horizontal" size={14} color={COLORS.textSecondary} />
+                                            </Pressable>
+                                        )}
+                                    </View>
+                                    <Text style={styles.commentContent}>{comment.content || ''}</Text>
+                                </>
+                            )}
                         </View>
                     ))}
 
@@ -401,6 +483,48 @@ const styles = StyleSheet.create({
     },
     commentInputText: {
         fontSize: 13,
+        color: COLORS.textSecondary,
+    },
+    commentMenuButton: {
+        marginLeft: 'auto',
+        padding: 4,
+    },
+    commentEditContainer: {
+        flex: 1,
+    },
+    commentEditInput: {
+        backgroundColor: COLORS.background,
+        borderRadius: 12,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        fontSize: 13,
+        color: COLORS.textPrimary,
+        minHeight: 40,
+        maxHeight: 100,
+    },
+    commentEditActions: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        gap: 12,
+        marginTop: 8,
+    },
+    commentEditButton: {
+        paddingVertical: 6,
+        paddingHorizontal: 12,
+    },
+    commentEditButtonDisabled: {
+        opacity: 0.5,
+    },
+    commentEditButtonTextCancel: {
+        fontSize: 13,
+        color: COLORS.textSecondary,
+    },
+    commentEditButtonTextSave: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: COLORS.primary,
+    },
+    commentEditButtonTextDisabled: {
         color: COLORS.textSecondary,
     },
 });
