@@ -159,7 +159,6 @@ export async function activateSubscription(expiryDate?: string): Promise<void> {
 
     // Cancel trial end notification
     await cancelTrialEndNotification();
-    console.log('[Subscription] Trial end notification cancelled due to subscription activation');
 }
 
 /**
@@ -213,20 +212,17 @@ export async function resetSubscription(): Promise<void> {
         await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS);
         await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_START_DATE);
         await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_EXPIRY_DATE);
-        console.log('[Subscription] Cleared AsyncStorage');
 
         // Clear database
         const db = await getDatabase();
         await db.execAsync('DELETE FROM subscription_state');
-        console.log('[Subscription] Cleared database');
 
         // Re-initialize
         await initializeSubscription();
-        console.log('[Subscription] Re-initialized subscription');
 
         // Verify
         const status = await getSubscriptionStatus();
-        console.log('[Subscription] New status:', status);
+        console.log('[Subscription] Reset complete, new status:', status);
     } catch (error) {
         console.error('[Subscription] Reset failed:', error);
         throw error;
@@ -331,8 +327,6 @@ export async function startTrialForUser(userId: string): Promise<void> {
                 [userId, now, 'trial', now, now]
             );
         }
-
-        console.log('[Subscription] Trial started for user:', userId);
     } catch (error) {
         console.error('[Subscription] Start trial failed:', error);
         throw error;
@@ -357,8 +351,6 @@ export async function activateSubscriptionForUser(
              WHERE userId = ?`,
             ['active', startDate, expiryDate, now, userId]
         );
-
-        console.log('[Subscription] Subscription activated for user:', userId);
     } catch (error) {
         console.error('[Subscription] Activate subscription failed:', error);
         throw error;
@@ -377,8 +369,6 @@ export async function expireSubscriptionForUser(userId: string): Promise<void> {
             `UPDATE subscription_state SET subscriptionStatus = ?, updatedAt = ? WHERE userId = ?`,
             ['expired', now, userId]
         );
-
-        console.log('[Subscription] Subscription expired for user:', userId);
     } catch (error) {
         console.error('[Subscription] Expire subscription failed:', error);
         throw error;
@@ -402,7 +392,6 @@ async function scheduleTrialEndNotificationIfNeeded(trialStartDate: string): Pro
 
         // If already sent, skip
         if (record?.lastTrialPushAt) {
-            console.log('[Subscription] Trial end notification already sent, skipping');
             return;
         }
 
@@ -423,10 +412,7 @@ async function scheduleTrialEndNotificationIfNeeded(trialStartDate: string): Pro
                     `UPDATE subscription_state SET nextTrialPushAt = ?, updatedAt = ? WHERE id = 1`,
                     [pushDate.toISOString(), now.toISOString()]
                 );
-                console.log('[Subscription] Trial end notification scheduled for', pushDate.toISOString());
             }
-        } else {
-            console.log('[Subscription] Trial end notification date has passed, skipping');
         }
     } catch (error) {
         console.error('[Subscription] Failed to schedule trial end notification:', error);
@@ -445,8 +431,6 @@ export async function markTrialNotificationAsSent(): Promise<void> {
             `UPDATE subscription_state SET lastTrialPushAt = ?, updatedAt = ? WHERE id = 1`,
             [now, now]
         );
-
-        console.log('[Subscription] Marked trial notification as sent');
     } catch (error) {
         console.error('[Subscription] Failed to mark trial notification as sent:', error);
     }

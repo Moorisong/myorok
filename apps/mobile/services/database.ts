@@ -20,9 +20,6 @@ export function getDatabase(): Promise<SQLite.SQLiteDatabase> {
     await runMigrationSystem(db, migrations, DB_NAME, {
       createBackup: true,
       useTransaction: true,
-      onProgress: (current, total, name) => {
-        console.log(`Running migration ${current}/${total}: ${name}`);
-      },
     });
     // Keep legacy migrations for backward compatibility
     await runLegacyMigrations(db);
@@ -155,11 +152,9 @@ async function runLegacyMigrations(db: SQLite.SQLiteDatabase) {
     const hasWaterIntake = tableInfo.some(col => col.name === 'waterIntake');
 
     if (!hasWaterIntake) {
-      console.log('Adding waterIntake column to daily_records table...');
       await db.execAsync(`
         ALTER TABLE daily_records ADD COLUMN waterIntake INTEGER DEFAULT 0;
       `);
-      console.log('waterIntake column added successfully');
     }
 
     // Check if deletedAt column exists in supplements
@@ -170,11 +165,9 @@ async function runLegacyMigrations(db: SQLite.SQLiteDatabase) {
     const hasSupplementsDeletedAt = supplementsInfo.some(col => col.name === 'deletedAt');
 
     if (!hasSupplementsDeletedAt) {
-      console.log('Adding deletedAt column to supplements table...');
       await db.execAsync(`
         ALTER TABLE supplements ADD COLUMN deletedAt TEXT;
       `);
-      console.log('deletedAt column added successfully');
     }
 
     // Check if deletedAt column exists in pets
@@ -185,11 +178,9 @@ async function runLegacyMigrations(db: SQLite.SQLiteDatabase) {
     const hasPetsDeletedAt = petsInfo.some(col => col.name === 'deletedAt');
 
     if (!hasPetsDeletedAt) {
-      console.log('Adding deletedAt column to pets table...');
       await db.execAsync(`
         ALTER TABLE pets ADD COLUMN deletedAt TEXT;
       `);
-      console.log('deletedAt column added to pets successfully');
     }
   } catch (error) {
     console.error('Legacy migration error:', error);
@@ -293,8 +284,6 @@ export async function resetPetData(petId: string): Promise<void> {
     );
     await db.runAsync('DELETE FROM custom_metrics WHERE petId = ?', [petId]);
   });
-
-  console.log(`[Database] All record data for pet ${petId} has been reset`);
 }
 
 /**

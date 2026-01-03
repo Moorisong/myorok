@@ -21,7 +21,6 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 // TODO: Move this to a dedicated service
 async function mockFetchSubscriptionStatus(userId: string): Promise<SubscriptionStatus> {
     // Simulate API call
-    console.log('[AuthContext] Fetching subscription status for', userId);
     return 'active'; // Default to active for now
 }
 
@@ -56,7 +55,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setUserId(null);
             setIsLoggedIn(false);
             setSubscriptionStatus(null);
-            console.log('[AuthContext] Logout complete, state updated');
         } catch (error) {
             console.error('[AuthContext] Logout failed:', error);
             // Still update state even on error
