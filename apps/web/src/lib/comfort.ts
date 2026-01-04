@@ -11,6 +11,9 @@ export interface Comment {
     content: string;
     createdAt: string;
     updatedAt: string;
+    reportCount: number;
+    reportedBy: string[];
+    hidden: boolean;
 }
 
 export interface Post {
@@ -47,6 +50,9 @@ const CommentSchema = new mongoose.Schema({
     content: { type: String, required: true },
     createdAt: { type: String, required: true }, // Keeping as String to match ISO format usage
     updatedAt: { type: String, required: true },
+    reportCount: { type: Number, default: 0 },
+    reportedBy: { type: [String], default: [] },
+    hidden: { type: Boolean, default: false },
 });
 
 const PostSchema = new mongoose.Schema({
@@ -158,7 +164,7 @@ export async function getFilteredPosts(deviceId: string, sort: 'latest' | 'cheer
     return posts.map((p: any) => ({
         ...p,
         _id: undefined, // remove mongoose id if not needed, or keep it
-        comments: (p.comments || []).filter((c: any) => !blockedIds.includes(c.deviceId))
+        comments: (p.comments || []).filter((c: any) => !blockedIds.includes(c.deviceId) && !c.hidden)
     })) as Post[];
 }
 

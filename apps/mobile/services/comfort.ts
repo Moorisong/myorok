@@ -153,6 +153,15 @@ export async function reportPost(postId: string, reason: string): Promise<ApiRes
     });
 }
 
+// 댓글 신고
+export async function reportComment(commentId: string, reason: string): Promise<ApiResponse> {
+    const deviceId = await getDeviceId();
+    return apiCall(`/api/comfort/comments/${commentId}/report`, {
+        method: 'POST',
+        body: JSON.stringify({ deviceId, reason }),
+    });
+}
+
 // 사용자 차단
 export async function blockUser(blockedDeviceId: string): Promise<ApiResponse> {
     const deviceId = await getDeviceId();

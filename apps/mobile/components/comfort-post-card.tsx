@@ -4,6 +4,7 @@ import { Feather } from '@expo/vector-icons';
 
 import { COLORS, COMFORT_MESSAGES } from '../constants';
 import { ComfortPost, ComfortComment, getComments, createComment, updateComment, deleteComment } from '../services';
+import ComfortCommentReportModal from './comfort-comment-report-modal';
 
 interface ComfortPostCardProps {
     post: ComfortPost;
@@ -30,6 +31,8 @@ export default function ComfortPostCard({
     const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
     const [editingCommentText, setEditingCommentText] = useState('');
     const [localCommentCount, setLocalCommentCount] = useState(post.commentCount);
+    const [commentReportModalVisible, setCommentReportModalVisible] = useState(false);
+    const [reportingCommentId, setReportingCommentId] = useState<string | null>(null);
 
     const formatTime = (dateString: string) => {
         const date = new Date(dateString);
@@ -122,18 +125,35 @@ export default function ComfortPostCard({
     };
 
     const handleCommentMenu = (comment: ComfortComment) => {
-        if (!comment.isOwner) return;
+        if (comment.isOwner) {
+            // 본인 댓글: 수정, 삭제
+            Alert.alert(
+                '댓글 관리',
+                undefined,
+                [
+                    { text: COMFORT_MESSAGES.EDIT, onPress: () => handleEditComment(comment) },
+                    { text: COMFORT_MESSAGES.DELETE, onPress: () => handleDeleteComment(comment.id), style: 'destructive' },
+                    { text: '취소', style: 'cancel' },
+                ],
+                { cancelable: true }
+            );
+        } else {
+            // 타인 댓글: 신고
+            Alert.alert(
+                '댓글 관리',
+                undefined,
+                [
+                    { text: COMFORT_MESSAGES.REPORT, onPress: () => handleReportComment(comment.id) },
+                    { text: '취소', style: 'cancel' },
+                ],
+                { cancelable: true }
+            );
+        }
+    };
 
-        Alert.alert(
-            '댓글 관리',
-            undefined,
-            [
-                { text: COMFORT_MESSAGES.EDIT, onPress: () => handleEditComment(comment) },
-                { text: COMFORT_MESSAGES.DELETE, onPress: () => handleDeleteComment(comment.id), style: 'destructive' },
-                { text: '취소', style: 'cancel' },
-            ],
-            { cancelable: true }
-        );
+    const handleReportComment = (commentId: string) => {
+        setReportingCommentId(commentId);
+        setCommentReportModalVisible(true);
     };
 
     const handleDeleteComment = async (commentId: string) => {
@@ -283,15 +303,13 @@ export default function ComfortPostCard({
                                             </View>
                                         )}
                                         <Text style={styles.commentTime}>{formatTime(comment.createdAt)}</Text>
-                                        {comment.isOwner && (
-                                            <Pressable
-                                                onPress={() => handleCommentMenu(comment)}
-                                                hitSlop={8}
-                                                style={styles.commentMenuButton}
-                                            >
-                                                <Feather name="more-horizontal" size={14} color={COLORS.textSecondary} />
-                                            </Pressable>
-                                        )}
+                                        <Pressable
+                                            onPress={() => handleCommentMenu(comment)}
+                                            hitSlop={8}
+                                            style={styles.commentMenuButton}
+                                        >
+                                            <Feather name="more-horizontal" size={14} color={COLORS.textSecondary} />
+                                        </Pressable>
                                     </View>
                                     <Text style={styles.commentContent}>{comment.content || ''}</Text>
                                 </>
@@ -330,6 +348,16 @@ export default function ComfortPostCard({
                     </View>
                 </View>
             )}
+
+            {/* 댓글 신고 모달 */}
+            <ComfortCommentReportModal
+                visible={commentReportModalVisible}
+                commentId={reportingCommentId}
+                onClose={() => {
+                    setCommentReportModalVisible(false);
+                    setReportingCommentId(null);
+                }}
+            />
         </View>
     );
 }

@@ -38,7 +38,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         const blockedDeviceIds = blockedEntries.map((b: any) => b.blockedDeviceId);
 
         const comments = post.comments
-            .filter((c: any) => !blockedDeviceIds.includes(c.deviceId))
+            .filter((c: any) => !blockedDeviceIds.includes(c.deviceId) && !c.hidden)
             .map((c: any) => ({
                 id: c.id || c._id?.toString(),
                 deviceId: c.deviceId,
