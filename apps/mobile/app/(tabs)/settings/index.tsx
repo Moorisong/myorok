@@ -214,53 +214,21 @@ export default function SettingsScreen() {
                 <Card style={styles.card}>
                     <SettingItem
                         emoji="⏰"
-                        title="체험 종료 알림 테스트 (Dev)"
-                        description="10초 뒤 체험 종료 알림 발송"
+                        title="무료 체험 24시간 남음 (Dev)"
+                        description="체험 상태를 24시간 전으로 설정"
                         onPress={async () => {
                             try {
-                                const Constants = await import('expo-constants');
-
-                                // Check for Expo Go
-                                if (Constants.default.executionEnvironment === 'storeClient') {
-                                    Alert.alert('알림', 'Expo Go에서는 로컬 알림이 지원되지 않습니다.');
-                                    return;
-                                }
-
-                                const Notifications = require('expo-notifications');
-
-                                // Cancel existing trial end notifications
-                                const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
-                                for (const notification of scheduledNotifications) {
-                                    if (notification.content?.data?.type === 'TRIAL_END') {
-                                        await Notifications.cancelScheduledNotificationAsync(notification.identifier);
-                                    }
-                                }
-
-                                // Schedule test notification in 10 seconds
-                                await Notifications.scheduleNotificationAsync({
-                                    content: {
-                                        title: '무료 체험이 곧 종료됩니다!',
-                                        body: '무료 체험 기간 동안 기록을 즐겨보셨나요? 체험이 내일 종료됩니다. 계속 사용하려면 구독이 필요합니다.',
-                                        sound: 'default',
-                                        data: {
-                                            type: 'TRIAL_END',
-                                            action: 'GO_TO_SUBSCRIBE',
-                                        },
-                                    },
-                                    trigger: {
-                                        type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-                                        seconds: 10,
-                                    },
-                                });
-
+                                const { setTrialExpiringTestMode } = await import('../../../services');
+                                await setTrialExpiringTestMode();
+                                await loadSubscriptionStatus();
                                 Alert.alert(
-                                    '테스트 알림 예약 완료',
-                                    '10초 뒤 체험 종료 알림이 발송됩니다.\n\n알림을 탭하면 구독 화면으로 이동하고,\nlastTrialPushAt이 DB에 기록됩니다.',
+                                    '테스트 모드 설정 완료',
+                                    '무료 체험이 24시간 남은 상태로 설정되었습니다.\n\n10초 후 체험 종료 알림이 자동으로 스케줄링됩니다.',
                                     [{ text: '확인' }]
                                 );
                             } catch (error) {
-                                console.error('[Settings] Trial notification test failed:', error);
-                                Alert.alert('오류', '알림 예약에 실패했습니다.');
+                                console.error('[Settings] Set trial expiring test mode failed:', error);
+                                Alert.alert('오류', '테스트 모드 설정에 실패했습니다.');
                             }
                         }}
                     />
