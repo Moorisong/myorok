@@ -156,17 +156,21 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
         // 푸시 알림 전송 (본인 글이 아닐 경우)
         if (post.deviceId !== deviceId) {
-            sendPushNotification(
-                post.deviceId,
-                '새 댓글이 달렸어요 💬',
-                '짧은 시간에 댓글이 많을 경우, 알림은 한 번만 보내드려요.',
-                { type: 'COMMENT', postId: id, commentId: newComment.id },
-                {
-                    cooldownMs: 3 * 60 * 60 * 1000,
-                    type: 'COMFORT_COMMENT',
-                    notificationCategory: 'comments'
-                }
-            ).catch(err => console.error('Push Error:', err));
+            try {
+                await sendPushNotification(
+                    post.deviceId,
+                    '새 댓글이 달렸어요 💬',
+                    '짧은 시간에 댓글이 많을 경우, 알림은 한 번만 보내드려요.',
+                    { type: 'COMMENT', postId: id, commentId: newComment.id },
+                    {
+                        cooldownMs: 3 * 60 * 60 * 1000,
+                        type: 'COMFORT_COMMENT',
+                        notificationCategory: 'comments'
+                    }
+                );
+            } catch (err) {
+                console.error('[Comment] Push notification failed:', err);
+            }
         }
 
         return NextResponse.json({

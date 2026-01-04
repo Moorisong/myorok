@@ -10,6 +10,7 @@ import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { COLORS } from '../constants';
+import { CONFIG } from '../constants/config';
 import { PetProvider } from '../hooks/use-selected-pet';
 import { AuthProvider, useAuth } from '../hooks/useAuth';
 import { ToastProvider } from '../components/ToastContext';
@@ -65,10 +66,9 @@ function AppContent() {
         // Check inactivity notification setting before scheduling
         const { getDeviceId } = await import('../services/device');
         const deviceId = await getDeviceId();
-        const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001';
 
         try {
-          const response = await fetch(`${API_URL}/api/device/register`, {
+          const response = await fetch(`${CONFIG.API_BASE_URL}/api/device/register`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ deviceId }),

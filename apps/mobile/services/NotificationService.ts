@@ -2,9 +2,9 @@ import * as Device from 'expo-device';
 // import * as Notifications from 'expo-notifications'; // Removed for Expo Go compatibility
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import { CONFIG } from '../constants/config';
 
-// Fallback to localhost if not defined
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001';
+const API_URL = CONFIG.API_BASE_URL;
 
 // Notifications handler setup moved to register function to allow conditional require
 let Notifications: any;

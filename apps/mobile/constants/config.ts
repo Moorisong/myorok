@@ -8,5 +8,5 @@ export const CONFIG = {
     PIN_LENGTH: 4,                  // PIN 길이
 
     // API 설정
-    API_BASE_URL: process.env.EXPO_PUBLIC_API_URL || 'https://api.myorok.app',
+    API_BASE_URL: process.env.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_SERVER_URL || 'https://myorok.haroo.site',
 } as const;
