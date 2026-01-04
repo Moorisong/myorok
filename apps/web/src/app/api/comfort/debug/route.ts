@@ -245,6 +245,55 @@ export async function POST(request: NextRequest) {
             });
         }
 
+        if (action === 'add-test-comment') {
+            // 가장 최신 글에 다른 계정이 쓴 댓글 1개 추가
+            const latestPost = await PostModel.findOne({}).sort({ createdAt: -1 });
+
+            if (!latestPost) {
+                return NextResponse.json({ success: false, error: '게시글이 없습니다.' }, { status: 404 });
+            }
+
+            // 다른 계정 ID 생성 (글 작성자와 다르게)
+            const testDeviceId = `test-commenter-${Math.random().toString(36).substring(7)}`;
+
+            const newComment = {
+                id: generateId(),
+                deviceId: testDeviceId,
+                content: '테스트 댓글입니다 🧪',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+            };
+
+            latestPost.comments.push(newComment);
+            await latestPost.save();
+
+            return NextResponse.json({
+                success: true,
+                message: '테스트 댓글이 추가되었습니다.',
+                postId: latestPost.id,
+                comment: newComment
+            });
+        }
+
+        if (action === 'reset-comment-cooldown') {
+            // 댓글 알림 쿨타임 초기화 (COMFORT_COMMENT 타입)
+            await NotificationState.findOneAndUpdate(
+                { deviceId, type: 'COMFORT_COMMENT' },
+                {
+                    $set: {
+                        lastSentAt: null,
+                        unreadCount: 0
+                    }
+                },
+                { upsert: true }
+            );
+
+            return NextResponse.json({
+                success: true,
+                message: '댓글 알림 쿨타임이 초기화되었습니다.'
+            });
+        }
+
         return NextResponse.json({ success: false, error: '알 수 없는 액션입니다.' }, { status: 400 });
 
     } catch (error) {

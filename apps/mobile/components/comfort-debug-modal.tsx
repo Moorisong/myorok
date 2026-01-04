@@ -74,6 +74,22 @@ export default function ComfortDebugModal({
                 {/* 메뉴 목록 */}
                 <View style={styles.content}>
                     <DebugButton
+                        icon="message-circle"
+                        title="최신 글에 댓글 추가"
+                        description="다른 계정이 쓴 테스트 댓글 추가"
+                        onPress={() => handleAction('add-test-comment')}
+                        isLoading={isLoading}
+                    />
+
+                    <DebugButton
+                        icon="bell-off"
+                        title="댓글 알림 쿨타임 초기화"
+                        description="댓글 알림 쿨타임(3시간) 제거"
+                        onPress={() => handleAction('reset-comment-cooldown')}
+                        isLoading={isLoading}
+                    />
+
+                    <DebugButton
                         icon="refresh-cw"
                         title="쿨타임 리셋"
                         description="글쓰기 제한을 즉시 해제합니다."

@@ -213,12 +213,6 @@ export default function SettingsScreen() {
 
                 <Card style={styles.card}>
                     <SettingItem
-                        emoji="🧪"
-                        title="알림 테스트 (Dev)"
-                        description="푸시 알림 로직 검증"
-                        onPress={() => handleNavigate('/settings/notification-test')}
-                    />
-                    <SettingItem
                         emoji="⏰"
                         title="체험 종료 알림 테스트 (Dev)"
                         description="10초 뒤 체험 종료 알림 발송"
