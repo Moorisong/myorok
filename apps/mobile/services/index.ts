@@ -38,6 +38,7 @@ export {
     updateComment,
     deleteComment,
     reportPost,
+    reportComment,
     blockUser,
     unblockUser,
     getBlockedUsers,
