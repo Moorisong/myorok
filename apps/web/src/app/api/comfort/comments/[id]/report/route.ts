@@ -22,15 +22,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             );
         }
 
-        // reason 검증
-        const validReasons = ['INAPPROPRIATE', 'SPAM', 'ABUSE', 'EVASION', 'OTHER'];
-        if (!reason || !validReasons.includes(reason)) {
-            return NextResponse.json(
-                { success: false, error: { code: 'INVALID_REASON', message: '유효하지 않은 신고 사유입니다.' } },
-                { status: 400 }
-            );
-        }
-
         // 댓글이 포함된 게시글 찾기
         const { PostModel } = await getModelsAsync();
         const post = await PostModel.findOne({ 'comments.id': commentId });
