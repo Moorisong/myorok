@@ -208,14 +208,12 @@ export default function ComfortScreen() {
             <View style={styles.header}>
                 <View style={styles.headerRow}>
                     <Text style={styles.headerTitle}>{COMFORT_MESSAGES.TAB_TITLE}</Text>
-                    {__DEV__ && (
-                        <Pressable
-                            style={styles.devButton}
-                            onPress={() => setShowDebugModal(true)}
-                        >
-                            <Text style={styles.devButtonText}>🧪 테스트</Text>
-                        </Pressable>
-                    )}
+                    <Pressable
+                        style={styles.devButton}
+                        onPress={() => setShowDebugModal(true)}
+                    >
+                        <Text style={styles.devButtonText}>🧪 테스트</Text>
+                    </Pressable>
                 </View>
                 <Text style={styles.headerSubtitle}>{COMFORT_MESSAGES.TAB_SUBTITLE}</Text>
 
