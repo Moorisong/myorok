@@ -1,5 +1,43 @@
 # Comfort Agent Reference
 
+> 쉼터 탭 전반적인 기능 담당 에이전트
+
+## 관련 모듈화 에이전트
+
+복잡한 기능은 별도 에이전트로 분리하여 병렬 개발 가능:
+
+- **[ComfortNicknameAgent.md](file:///Users/shkim/Desktop/Project/myorok/docs/sub_agents_docs/comfort/ComfortNicknameAgent.md)** - 닉네임 자동 생성
+  - deviceId 해싱 알고리즘
+  - 50개 한글 단어 리스트
+  - 일관성 보장
+
+- **[ComfortCommentRateLimitAgent.md](file:///Users/shkim/Desktop/Project/myorok/docs/sub_agents_docs/comfort/ComfortCommentRateLimitAgent.md)** - 댓글 빈도 제한
+  - 30초 최소 간격
+  - 5분 내 최대 3개
+  - 쿨타임 UI/UX
+
+- **[ComfortPostReportAgent.md](file:///Users/shkim/Desktop/Project/myorok/docs/sub_agents_docs/comfort/ComfortPostReportAgent.md)** - 게시글 신고
+  - 신고 사유 선택
+  - 3회 자동 숨김
+  - 관리자 개입 없음
+
+- **[ComfortCommentReportAgent.md](file:///Users/shkim/Desktop/Project/myorok/docs/sub_agents_docs/comfort/ComfortCommentReportAgent.md)** - 댓글 신고
+  - 게시글 신고와 동일 정책
+  - 자동 정화 시스템
+  - 완전 숨김 처리
+
+- **[ComfortSortingAgent.md](file:///Users/shkim/Desktop/Project/myorok/docs/sub_agents_docs/comfort/ComfortSortingAgent.md)** - 게시글 정렬
+  - 최신순/응원많은순/댓글많은순
+  - Segmented Control UI
+  - URL 상태 관리
+
+- **[ComfortBlockAgent.md](file:///Users/shkim/Desktop/Project/myorok/docs/sub_agents_docs/comfort/ComfortBlockAgent.md)** - 차단 기능
+  - 디바이스 기반 차단
+  - 글/댓글 완전 숨김
+  - 차단 목록 관리
+
+---
+
 ## COMFORT_SPEC.md (쉼터 탭 기획/설계 명세)
 
 # 쉼터 탭 기획/설계 명세 (v2)
@@ -106,11 +144,44 @@
 
 | 항목 | 설명 |
 |------|------|
-| 대상 | 게시글 |
-| 사유 | 부적절한 내용, 스팸/광고, 욕설 우회, 기타 |
+| 대상 | 게시글, 댓글 |
+| 사유 | 부적절한 내용(INAPPROPRIATE), 스팸/광고(SPAM), 욕설/공격적 표현(ABUSE), 욕설 우회(EVASION), 기타(OTHER) |
 | UI | 커스텀 모달 (배경 탭 시 닫기 지원), 성공 시 Toast 알림 |
 | 자동 숨김 | 3회 이상 신고 시 |
 | 관리자 검토 | 없음 (자동 처리) |
+| 복구 | 불가 (자동 처리) |
+
+#### 2.4.1 게시글 신고
+
+**UI 진입**
+- 게시글 우측 상단 `⋯` (More) 버튼 → '신고하기' 메뉴
+
+**신고 플로우**
+1. `⋯` 버튼 탭
+2. `신고하기` 선택
+3. 신고 사유 선택 모달 표시
+4. 확인 시 서버로 신고 요청
+5. 성공 시 Toast: "신고가 접수되었습니다."
+6. 중복 신고 시: "이미 신고한 게시글입니다."
+
+#### 2.4.2 댓글 신고
+
+**UI 진입**
+- 댓글 우측 상단 `⋯` (More) 버튼 → '신고하기' 메뉴
+- 본인 댓글 제외 (선택)
+
+**신고 플로우**
+1. 댓글 `⋯` 버튼 탭
+2. `신고하기` 선택
+3. 신고 사유 선택 모달 표시: "이 댓글을 신고하는 이유를 선택해 주세요."
+4. 확인 시 서버로 신고 요청
+5. 성공 시 Toast: "신고가 접수되었습니다."
+6. 중복 신고 시: "이미 신고한 댓글입니다."
+
+**자동 처리**
+- 신고 횟수 ≥ 3: 댓글 자동 숨김
+- 댓글 데이터는 삭제하지 않음 (`hidden: true` 처리)
+- 클라이언트에 완전 미노출 ("신고로 숨김됨" placeholder ❌)
 
 ### 2.5 차단
 
@@ -126,22 +197,20 @@
 
 | 항목 | 설명 |
 |------|------|
-| 옵션 | 최신 순 (기본), 응원해요 순 |
+| 옵션 | 최신 순 (기본), 응원 많은 순, **댓글 많은 순 (New)** |
 | UI | **Segmented Control (토글 버튼)** 형태 권장 |
 | 유지 | 페이지 이동/새로고침 시 유지 (URL 쿼리 권장) |
 
 **정렬 기준**:
 - **최신 순 (latest)**: `ORDER BY createdAt DESC`
-  - 가장 최근 글 상단 노출
-  - "오늘 이야기" 성격에 적합
 - **응원 많은 순 (cheer)**: `ORDER BY cheerCount DESC, createdAt DESC`
-  - 좋아요(응원해요) 많은 글 우선
-  - 위로/공감 가치 강화
+- **댓글 많은 순 (comment)**: `ORDER BY commentCount DESC, createdAt DESC`
+  - 대화가 활발한 글 우선 노출
 
 **의도**:
 - 사용자 참여 유도 (최신)
 - 공감/위로 가치 강화 (응원)
-- 단순한 UX로 정렬 기준 명확히 제공
+- **소통 활성화 (댓글)**
 
 ---
 
@@ -150,7 +219,7 @@
 ### 3.1 게시글
 
 ```
-GET    /api/comfort/posts              - 목록 조회 (sort=latest|cheer)
+GET    /api/comfort/posts              - 목록 조회 (sort=latest|cheer|comment)
 POST   /api/comfort/posts              - 작성
 PUT    /api/comfort/posts/:id          - 수정
 DELETE /api/comfort/posts/:id          - 삭제
@@ -164,6 +233,7 @@ GET    /api/comfort/posts/:id/comments - 목록 조회
 POST   /api/comfort/posts/:id/comments - 작성
 PUT    /api/comfort/comments/:id       - 수정
 DELETE /api/comfort/comments/:id       - 삭제
+POST   /api/comfort/comments/:id/report - 신고
 ```
 
 #### POST /api/comfort/posts/:id/comments (댓글 작성)
@@ -200,6 +270,43 @@ DELETE /api/comfort/comments/:id       - 삭제
   "retryAfter": 30
 }
 ```
+
+#### POST /api/comfort/comments/:id/report (댓글 신고)
+
+**Request Body**:
+```json
+{
+  "reason": "INAPPROPRIATE | SPAM | ABUSE | EVASION | OTHER"
+}
+```
+
+**서버 처리 로직**:
+1. 인증 토큰 또는 헤더에서 `deviceId` 추출
+2. 해당 댓글 조회
+3. 이미 신고한 `deviceId`인지 검사
+   - 이미 존재 시 `409 Conflict` 반환
+4. 신고 정보 반영:
+   - `reportedBy.push(deviceId)`
+   - `reportCount += 1`
+   - `reportCount >= 3` → `hidden = true`
+5. 결과 반환
+
+**응답 (성공)**:
+```http
+200 OK
+```
+
+**응답 (중복 신고)**:
+```http
+409 Conflict
+```
+```json
+{
+  "code": "ALREADY_REPORTED",
+  "message": "이미 신고한 댓글입니다."
+}
+```
+
 
 ### 3.3 신고/차단
 
@@ -241,10 +348,14 @@ interface Post {
 
 interface Comment {
   id: string;
+  postId: string;
   deviceId: string;
   content: string;
   createdAt: string;
   updatedAt: string;
+  reportCount: number;     // 신고 횟수
+  reportedBy: string[];    // 신고한 deviceIds
+  hidden: boolean;         // 3회 이상 신고 시 true
 }
 
 interface BlockedDevice {
@@ -296,7 +407,7 @@ interface BlockedDevice {
 
 ## 7. 추후 확장 고려
 
-- [ ] 댓글 신고 기능
+- [x] 댓글 신고 기능 (v2.2 완료)
 - [ ] 실시간 WebSocket 업데이트
 - [ ] 글쓰기 이미지 첨부
 - [ ] 관리자 대시보드
@@ -339,7 +450,21 @@ interface BlockedDevice {
   - 선택 시 즉시 목록 재조회
   - 페이지 이동/새로고침 시 상태 유지 (URL Query `?sort=...` 권장)
 
-#### 4. 기타 쉼터 기능 구현
+#### 4. 댓글 신고 기능 (v2.2)
+- **백엔드**: `POST /api/comfort/comments/:id/report` API 구현
+  - deviceId 기반 중복 신고 방지
+  - 신고 3회 이상 시 `hidden: true` 자동 처리
+  - `reportedBy` 배열에 deviceId 추가
+  - `reportCount` 증가
+  - 중복 신고 시 `409 Conflict` 응답
+- **프론트엔드**: 댓글 신고 UI 구현
+  - 댓글 `⋯` 버튼 → "신고하기" 메뉴
+  - 신고 사유 선택 모달: 게시글 신고와 동일한 사유 리스트
+  - 성공 Toast: "신고가 접수되었습니다."
+  - 중복 신고 Toast: "이미 신고한 댓글입니다."
+  - `hidden: true` 댓글은 목록에서 완전 제외 (미노출)
+
+#### 5. 기타 쉼터 기능 구현
 - 게시글 1시간 제한 (서버 기준)
 - 닉네임 자동 생성 (deviceId 해싱)
 - 욕설 필터 (클라이언트+서버 이중 적용)
