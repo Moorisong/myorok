@@ -438,14 +438,17 @@ export async function markTrialNotificationAsSent(): Promise<void> {
 
 /**
  * Set trial to expire in 24 hours (for testing)
- * Sets trial start date to 6 days ago
+ * Adjusts trial start date so notification will be scheduled naturally by the system
  */
 export async function setTrialExpiringTestMode(): Promise<void> {
     try {
         const now = new Date();
-        // 6일 전 + 5분 (여유) 설정 -> 만료까지 약 23시간 55분 남음
-        const sixDaysAgo = new Date(now.getTime() - (6 * 24 * 60 * 60 * 1000) + (5 * 60 * 1000));
-        const trialStart = sixDaysAgo.toISOString();
+
+        // Set trial start to (6 days - 10 seconds) ago
+        // This makes push date = start + 6 days = now + 10 seconds (future!)
+        // So the system will naturally schedule the notification
+        const trialStartTime = now.getTime() - (6 * 24 * 60 * 60 * 1000) + (10 * 1000);
+        const trialStart = new Date(trialStartTime).toISOString();
 
         await AsyncStorage.setItem(SUBSCRIPTION_KEYS.TRIAL_START_DATE, trialStart);
         await AsyncStorage.setItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS, 'trial');
@@ -470,14 +473,15 @@ export async function setTrialExpiringTestMode(): Promise<void> {
             );
         }
 
-        // 알림 재스케줄링 (이미 보냈다고 표시된게 있다면 초기화 필요할 수 있음)
-        // 테스트를 위해 lastTrialPushAt 초기화
+        // 테스트를 위해 lastTrialPushAt 초기화 (알림을 다시 보낼 수 있도록)
         await db.runAsync(
             `UPDATE subscription_state SET lastTrialPushAt = NULL WHERE id = 1`
         );
 
+        // Let the system naturally schedule the notification
         await scheduleTrialEndNotificationIfNeeded(trialStart);
 
+        console.log('[Subscription] Trial expiring test mode - trial start set to:', trialStart);
     } catch (error) {
         console.error('[Subscription] Set trial expiring test mode failed:', error);
         throw error;

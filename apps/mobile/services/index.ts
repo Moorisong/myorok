@@ -80,6 +80,8 @@ export {
     startTrialForUser,
     activateSubscriptionForUser,
     expireSubscriptionForUser,
+    // Test mode functions
+    setTrialExpiringTestMode,
 } from './subscription';
 export type { SubscriptionStatus, SubscriptionState } from './subscription';
 
