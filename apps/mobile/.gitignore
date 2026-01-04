@@ -34,6 +34,7 @@ yarn-error.*
 .env
 .env*.local
 credentials.json
+myorok-ff3d1-*.json
 
 # typescript
 *.tsbuildinfo
