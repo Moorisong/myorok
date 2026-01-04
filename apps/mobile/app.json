@@ -29,7 +29,14 @@
     "plugins": [
       "expo-sqlite",
       "expo-router",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/adaptive-icon.png",
+          "color": "#5DB075"
+        }
+      ]
     ],
     "extra": {
       "router": {},

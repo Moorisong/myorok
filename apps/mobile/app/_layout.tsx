@@ -114,6 +114,24 @@ function AppContent() {
                 console.error('[Notification] Navigation failed:', error);
               }
             }
+
+            // Handle inactivity notification
+            if (data?.type === 'INACTIVITY') {
+              try {
+                router.push('/(tabs)');
+              } catch (error) {
+                console.error('[Notification] Navigation failed:', error);
+              }
+            }
+
+            // Handle comment notification
+            if (data?.type === 'COMMENT') {
+              try {
+                router.push('/(tabs)/comfort');
+              } catch (error) {
+                console.error('[Notification] Navigation failed:', error);
+              }
+            }
           });
         }
       } catch (e) {
