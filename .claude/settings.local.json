@@ -9,7 +9,9 @@
       "Bash(npx tsc:*)",
       "Bash(npx react-native:*)",
       "Bash(npm uninstall:*)",
-      "Bash(git restore:*)"
+      "Bash(git restore:*)",
+      "Bash(curl:*)",
+      "Bash(npm install:*)"
     ]
   }
 }

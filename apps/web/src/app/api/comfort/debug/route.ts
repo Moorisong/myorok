@@ -62,6 +62,31 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ success: true, message: '작성한 게시글이 없어 쿨타임 리셋이 필요하지 않습니다.' });
         }
 
+        if (action === 'set-inactivity-3days') {
+            const lastPost = await PostModel.findOne({ deviceId }).sort({ createdAt: -1 });
+            if (!lastPost) {
+                return NextResponse.json({ success: false, error: '작성한 게시글이 없습니다. 먼저 글을 작성해주세요.' }, { status: 404 });
+            }
+
+            // 3일 1시간 전으로 설정 (INACTIVITY 기준 충족)
+            const threeDaysAgo = new Date(Date.now() - (73 * 60 * 60 * 1000)).toISOString();
+            lastPost.createdAt = threeDaysAgo;
+            await lastPost.save();
+
+            // 알림 상태 초기화 (INACTIVITY)
+            await NotificationState.findOneAndUpdate(
+                { deviceId, type: 'INACTIVITY' },
+                { $set: { lastSentAt: null, unreadCount: 0 } },
+                { upsert: true }
+            );
+
+            return NextResponse.json({ success: true, message: '마지막 글 작성 시간을 3일 전으로 설정했습니다.' });
+        }
+
+        if (action === 'set-trial-expiring') {
+            return NextResponse.json({ success: false, error: '구독 기능이 아직 활성화되지 않았거나 DB 모델을 찾을 수 없습니다.' }, { status: 501 });
+        }
+
         if (action === 'create-sample') {
             // 랜덤 닉네임, 욕설 포함 샘플 글 생성
             const count = body.count || 1;
@@ -102,32 +127,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ success: true, message: `${count}개의 샘플 게시글이 생성되었습니다.`, data: createdPosts });
         }
 
-        if (action === 'time-travel') {
-            // 시간 이동 (최근 게시글 시간을 N시간 전으로 이동)
-            if (!hours) {
-                return NextResponse.json({ success: false, error: '시간을 입력해주세요.' }, { status: 400 });
-            }
 
-            const lastPost = await PostModel.findOne({ deviceId }).sort({ createdAt: -1 });
-            if (lastPost) {
-                const pastTime = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
-                lastPost.createdAt = pastTime;
-                await lastPost.save();
-                return NextResponse.json({ success: true, message: `${hours}시간 전으로 이동했습니다.` });
-            }
-            return NextResponse.json({ success: false, error: '작성한 게시글이 없습니다.' }, { status: 404 });
-        }
-
-        if (action === 'reset-time') {
-            // 작성 시간을 현재로 리셋 (쿨타임 다시 적용)
-            const lastPost = await PostModel.findOne({ deviceId }).sort({ createdAt: -1 });
-            if (lastPost) {
-                lastPost.createdAt = new Date().toISOString();
-                await lastPost.save();
-                return NextResponse.json({ success: true, message: '작성 시간이 현재로 리셋되었습니다. (쿨타임 적용)' });
-            }
-            return NextResponse.json({ success: false, error: '작성한 게시글이 없습니다.' }, { status: 404 });
-        }
 
         if (action === 'get-notification-state') {
             const { type } = body;

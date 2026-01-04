@@ -42,6 +42,13 @@ export interface BlockedDevice {
     createdAt: string;
 }
 
+export interface Subscription {
+    deviceId: string;
+    status: 'free' | 'premium';
+    startedAt: Date;
+    expiredAt: Date | null;
+}
+
 // --- Mongoose Schemas & Models ---
 
 const CommentSchema = new mongoose.Schema({
@@ -76,11 +83,19 @@ const BlockedDeviceSchema = new mongoose.Schema({
     createdAt: { type: String, required: true },
 });
 
+const SubscriptionSchema = new mongoose.Schema({
+    deviceId: { type: String, required: true },
+    status: { type: String, required: true, enum: ['free', 'premium'], default: 'free' },
+    startedAt: { type: Date, required: true, default: Date.now },
+    expiredAt: { type: Date, default: null },
+});
+
 // Helper to get models (prevents OverwriteModelError in dev)
 export const getModels = () => {
     const PostModel = mongoose.models.Post || mongoose.model('Post', PostSchema);
     const BlockedDeviceModel = mongoose.models.BlockedDevice || mongoose.model('BlockedDevice', BlockedDeviceSchema);
-    return { PostModel, BlockedDeviceModel };
+    const SubscriptionModel = mongoose.models.Subscription || mongoose.model('Subscription', SubscriptionSchema);
+    return { PostModel, BlockedDeviceModel, SubscriptionModel };
 };
 
 // --- Helper Functions ---

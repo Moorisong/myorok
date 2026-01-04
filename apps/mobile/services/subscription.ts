@@ -435,3 +435,51 @@ export async function markTrialNotificationAsSent(): Promise<void> {
         console.error('[Subscription] Failed to mark trial notification as sent:', error);
     }
 }
+
+/**
+ * Set trial to expire in 24 hours (for testing)
+ * Sets trial start date to 6 days ago
+ */
+export async function setTrialExpiringTestMode(): Promise<void> {
+    try {
+        const now = new Date();
+        // 6일 전 + 5분 (여유) 설정 -> 만료까지 약 23시간 55분 남음
+        const sixDaysAgo = new Date(now.getTime() - (6 * 24 * 60 * 60 * 1000) + (5 * 60 * 1000));
+        const trialStart = sixDaysAgo.toISOString();
+
+        await AsyncStorage.setItem(SUBSCRIPTION_KEYS.TRIAL_START_DATE, trialStart);
+        await AsyncStorage.setItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS, 'trial');
+
+        const db = await getDatabase();
+
+        // id=1이 없을 수도 있으므로 upsert 처리
+        const existing = await db.getFirstAsync<{ id: number }>('SELECT id FROM subscription_state WHERE id = 1');
+
+        if (existing) {
+            await db.runAsync(
+                `UPDATE subscription_state 
+                 SET trialStartDate = ?, subscriptionStatus = 'trial', updatedAt = ?
+                 WHERE id = 1`,
+                [trialStart, now.toISOString()]
+            );
+        } else {
+            await db.runAsync(
+                `INSERT INTO subscription_state (id, trialStartDate, subscriptionStatus, createdAt, updatedAt)
+                 VALUES (1, ?, 'trial', ?, ?)`,
+                [trialStart, now.toISOString(), now.toISOString()]
+            );
+        }
+
+        // 알림 재스케줄링 (이미 보냈다고 표시된게 있다면 초기화 필요할 수 있음)
+        // 테스트를 위해 lastTrialPushAt 초기화
+        await db.runAsync(
+            `UPDATE subscription_state SET lastTrialPushAt = NULL WHERE id = 1`
+        );
+
+        await scheduleTrialEndNotificationIfNeeded(trialStart);
+
+    } catch (error) {
+        console.error('[Subscription] Set trial expiring test mode failed:', error);
+        throw error;
+    }
+}
