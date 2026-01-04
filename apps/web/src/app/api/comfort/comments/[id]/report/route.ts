@@ -67,6 +67,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             comment.hidden = true;
         }
 
+        // Mongoose가 subdocument 변경을 감지하도록 명시
+        post.markModified('comments');
+
         // 변경사항 저장
         await post.save();
 

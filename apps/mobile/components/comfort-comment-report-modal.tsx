@@ -33,13 +33,16 @@ export default function ComfortCommentReportModal({
         setIsLoading(true);
         try {
             const response = await reportComment(commentId, reason);
+            console.log('[댓글 신고 응답]', response);
             if (response.success) {
                 showToast(COMFORT_MESSAGES.REPORT_SUCCESS);
                 onClose();
             } else {
+                console.error('[댓글 신고 실패]', response.error);
                 showToast(response.error?.message || '신고 접수에 실패했습니다.', { variant: 'error' });
             }
-        } catch {
+        } catch (error) {
+            console.error('[댓글 신고 예외]', error);
             showToast('신고 접수 중 문제가 발생했습니다.', { variant: 'error' });
         } finally {
             setIsLoading(false);
