@@ -9,6 +9,8 @@ import {
     generateNickname,
     type Post,
 } from '@/lib/comfort';
+import dbConnect from '@/lib/mongodb';
+import Device from '@/models/Device';
 
 export const dynamic = 'force-dynamic';
 
@@ -134,6 +136,28 @@ export async function POST(request: NextRequest) {
 
         // 데이터베이스 저장 (Async)
         await createPost(newPost);
+
+        // 디바이스 등록 (푸시 알림을 위해)
+        try {
+            await dbConnect();
+            await Device.findOneAndUpdate(
+                { deviceId },
+                {
+                    $set: { updatedAt: new Date() },
+                    $setOnInsert: {
+                        settings: {
+                            marketing: true,
+                            comments: true,
+                            inactivity: true,
+                        }
+                    }
+                },
+                { upsert: true, new: true }
+            );
+        } catch (error) {
+            console.error('[Post] Failed to register device:', error);
+            // 디바이스 등록 실패해도 게시글은 작성됨
+        }
 
         return NextResponse.json({
             success: true,

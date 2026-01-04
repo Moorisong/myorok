@@ -84,10 +84,28 @@ export async function sendPushNotification(
 
     try {
         const chunks = expo.chunkPushNotifications(messages);
+        const tickets = [];
+
         for (const chunk of chunks) {
-            await expo.sendPushNotificationsAsync(chunk);
+            const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
+            tickets.push(...ticketChunk);
         }
-        console.log(`[Push] Sent successfully to ${deviceId}`);
+
+        // Check for errors in tickets
+        for (const ticket of tickets) {
+            if (ticket.status === 'error') {
+                console.error(`[Push] Error sending to ${deviceId}:`, {
+                    message: ticket.message,
+                    details: ticket.details
+                });
+                return {
+                    status: 'error',
+                    message: `전송 실패: ${ticket.message || '알 수 없는 오류'}`
+                };
+            }
+        }
+
+        console.log(`[Push] Sent successfully to ${deviceId}`, { tickets });
 
         // Log to DB
         await Notification.create({

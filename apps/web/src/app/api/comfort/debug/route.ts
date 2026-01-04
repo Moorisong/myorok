@@ -190,8 +190,8 @@ export async function POST(request: NextRequest) {
             const { title, body: pushBody } = body;
             const result = await sendPushNotification(
                 deviceId,
-                title || '댓글 알림 테스트',
-                pushBody || '새로운 댓글이 달렸습니다!',
+                title || '새 댓글이 달렸어요 💬',
+                pushBody || '짧은 시간에 댓글이 많을 경우, 알림은 한 번만 보내드려요.',
                 { type: 'COMFORT_COMMENT', action: 'OPEN_COMFORT' },
                 { cooldownMs: 0, type: 'COMFORT_COMMENT' }
             );
@@ -207,6 +207,41 @@ export async function POST(request: NextRequest) {
                     pushToken: device.pushToken,
                     hasToken: !!device.pushToken
                 } : null
+            });
+        }
+
+        if (action === 'migrate-post-authors') {
+            // 모든 게시글 작성자들을 Device 컬렉션에 등록
+            const allPosts = await PostModel.find({}).lean();
+            const uniqueDeviceIds = [...new Set(allPosts.map((p: any) => p.deviceId))];
+
+            let registered = 0;
+            let skipped = 0;
+
+            for (const deviceId of uniqueDeviceIds) {
+                const existing = await Device.findOne({ deviceId });
+                if (!existing) {
+                    await Device.create({
+                        deviceId,
+                        settings: {
+                            marketing: true,
+                            comments: true,
+                            inactivity: true,
+                        },
+                        updatedAt: new Date()
+                    });
+                    registered++;
+                } else {
+                    skipped++;
+                }
+            }
+
+            return NextResponse.json({
+                success: true,
+                message: `${registered}개 디바이스 등록, ${skipped}개 스킵`,
+                registered,
+                skipped,
+                total: uniqueDeviceIds.length
             });
         }
 
