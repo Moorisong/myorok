@@ -138,6 +138,62 @@ export async function restorePurchases(): Promise<boolean> {
   }
 }
 
+export interface SubscriptionDetails {
+  isActive: boolean;
+  autoRenewing: boolean;  // true면 구독중, false면 해지 예정
+  transactionDate?: string;  // 마지막 결제일
+  expiryDate?: string;  // 만료 예정일 (다음 결제일)
+}
+
+/**
+ * 구독 상세 정보 조회 (해지 예정 여부 포함)
+ */
+export async function getSubscriptionDetails(): Promise<SubscriptionDetails> {
+  try {
+    const purchases = await getAvailablePurchases();
+    const subscription = purchases.find(
+      (purchase: Purchase) => purchase.productId === PRODUCT_ID
+    );
+
+    if (!subscription) {
+      return { isActive: false, autoRenewing: false };
+    }
+
+    // autoRenewingAndroid: 자동 갱신 여부 (해지하면 false)
+    const autoRenewing = (subscription as any).autoRenewingAndroid ?? true;
+
+    // transactionDate: 마지막 결제 시간 (밀리초)
+    const transactionDate = subscription.transactionDate
+      ? new Date(subscription.transactionDate).toISOString()
+      : undefined;
+
+    // 만료일 계산: 마지막 결제일 + 30일 (월간 구독 기준)
+    let expiryDate: string | undefined;
+    if (subscription.transactionDate) {
+      const expiry = new Date(subscription.transactionDate);
+      expiry.setDate(expiry.getDate() + 30);
+      expiryDate = expiry.toISOString();
+    }
+
+    console.log('[PaymentService] Subscription details:', {
+      autoRenewing,
+      transactionDate,
+      expiryDate
+    });
+
+    return {
+      isActive: true,
+      autoRenewing,
+      transactionDate,
+      expiryDate,
+    };
+  } catch (error) {
+    console.error('Failed to get subscription details:', error);
+    return { isActive: false, autoRenewing: false };
+  }
+}
+
+
 /**
  * 결제 시스템 연결 해제
  */
