@@ -64,8 +64,10 @@ function AppContent() {
                 await handleSubscriptionSuccess();
                 console.log('Purchase processing completed');
 
-                // 성공 토스트 표시 (ToastProvider에서 전역으로 표시)
-                // Note: Toast는 앱 전체에서 보이므로 pro.tsx에서도 보임
+                // Auth context 업데이트하여 구독 상태 갱신
+                await checkAuthStatus();
+
+                // 성공 토스트 표시
                 setTimeout(() => {
                   const { showToast } = require('../utils/toast');
                   showToast('구독이 활성화되었습니다', 'success');
@@ -88,6 +90,36 @@ function AppContent() {
                   const { showToast } = require('../utils/toast');
                   showToast('상품이 Google Play Console에 등록되지 않았습니다', 'error');
                 }, 100);
+                return;
+              }
+
+              // 이미 구독 중인 경우 (already-owned) - 구독 상태 동기화
+              if (error.code === 'already-owned') {
+                (async () => {
+                  try {
+                    setTimeout(() => {
+                      const { showToast } = require('../utils/toast');
+                      showToast('구독 상태 확인 중...', 'info');
+                    }, 100);
+
+                    // Google Play에서 구독 복원
+                    await checkAndRestoreSubscription();
+
+                    // Auth context 업데이트하여 화면 갱신
+                    await checkAuthStatus();
+
+                    setTimeout(() => {
+                      const { showToast } = require('../utils/toast');
+                      showToast('이미 구독 중입니다', 'success');
+                    }, 300);
+                  } catch (restoreError) {
+                    console.error('Failed to restore subscription:', restoreError);
+                    setTimeout(() => {
+                      const { showToast } = require('../utils/toast');
+                      showToast('구독 상태 확인 실패', 'error');
+                    }, 100);
+                  }
+                })();
                 return;
               }
 
