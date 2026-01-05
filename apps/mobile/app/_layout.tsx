@@ -21,6 +21,8 @@ import { initializeSubscription, isAppAccessAllowed, markTrialNotificationAsSent
 import { loginWithKakao } from '../services/auth';
 import { KAKAO_CLIENT_ID, KAKAO_REDIRECT_URI } from '../services/auth/kakaoAuth';
 import { getCurrentUserId } from '../services/auth';
+import { initializePayment, disconnectPayment } from '../services/paymentService';
+import { checkAndRestoreSubscription } from '../services/subscription';
 
 // Main app content that uses auth context
 function AppContent() {
@@ -41,6 +43,80 @@ function AppContent() {
       try {
         // Check login status first using context
         await checkAuthStatus();
+
+        // Initialize payment system
+        try {
+          console.log('Initializing payment system...');
+
+          // 1. Google Play 결제 시스템 연결
+          await initializePayment();
+
+          // 2. Purchase listener 설정
+          const { setupPurchaseListeners, completePurchase } = await import('../services/paymentService');
+          const { handlePurchaseSuccess: handleSubscriptionSuccess } = await import('../services/subscription');
+
+          const cleanupListeners = setupPurchaseListeners(
+            async (purchase) => {
+              // 결제 완료 처리
+              try {
+                console.log('Purchase successful, processing...');
+                await completePurchase(purchase);
+                await handleSubscriptionSuccess();
+                console.log('Purchase processing completed');
+
+                // 성공 토스트 표시 (ToastProvider에서 전역으로 표시)
+                // Note: Toast는 앱 전체에서 보이므로 pro.tsx에서도 보임
+                setTimeout(() => {
+                  const { showToast } = require('../utils/toast');
+                  showToast('구독이 활성화되었습니다', 'success');
+                }, 100);
+              } catch (error) {
+                console.error('Failed to process purchase:', error);
+                setTimeout(() => {
+                  const { showToast } = require('../utils/toast');
+                  showToast('결제 처리 중 오류가 발생했습니다', 'error');
+                }, 100);
+              }
+            },
+            (error) => {
+              // 결제 에러 처리
+              console.error('Purchase error:', error);
+
+              // SKU not found 에러 처리
+              if (error.code === 'sku-not-found') {
+                setTimeout(() => {
+                  const { showToast } = require('../utils/toast');
+                  showToast('상품이 Google Play Console에 등록되지 않았습니다', 'error');
+                }, 100);
+                return;
+              }
+
+              // 사용자 취소가 아닌 경우에만 에러 토스트 표시
+              if (!error.message?.includes('cancel') && !error.message?.includes('Cancel')) {
+                setTimeout(() => {
+                  const { showToast } = require('../utils/toast');
+                  showToast('결제 중 오류가 발생했습니다', 'error');
+                }, 100);
+              } else {
+                setTimeout(() => {
+                  const { showToast } = require('../utils/toast');
+                  showToast('결제가 취소되었습니다', 'info');
+                }, 100);
+              }
+            }
+          );
+
+          // Cleanup 함수를 subscription 변수에 할당하여 나중에 제거
+          subscription = { remove: cleanupListeners };
+
+          // 3. 기존 구독 복원 (재설치 시)
+          await checkAndRestoreSubscription();
+
+          console.log('Payment system initialized successfully');
+        } catch (error) {
+          console.error('Failed to initialize payment system:', error);
+          // 초기화 실패해도 앱은 계속 실행
+        }
 
         // Initialize subscription on first launch
         await initializeSubscription();
@@ -213,6 +289,11 @@ function AppContent() {
     });
 
     return () => {
+      // Cleanup: 앱 종료 시 결제 시스템 연결 해제
+      disconnectPayment().catch(error => {
+        console.error('Failed to disconnect payment system:', error);
+      });
+
       if (subscription) {
         subscription.remove();
       }

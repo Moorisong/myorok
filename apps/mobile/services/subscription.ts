@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getDatabase } from './database';
 import { scheduleTrialEndNotification, cancelTrialEndNotification } from './NotificationService';
+import { handleLicenseResponse, checkLicenseAfterPurchase } from './licenseChecker';
+import { restorePurchases } from './paymentService';
 
 const SUBSCRIPTION_KEYS = {
     TRIAL_START_DATE: 'trial_start_date',
@@ -173,7 +175,7 @@ function getDefaultExpiryDate(): string {
 /**
  * Set subscription status manually (for testing)
  */
-async function setSubscriptionStatus(status: SubscriptionStatus): Promise<void> {
+export async function setSubscriptionStatus(status: SubscriptionStatus): Promise<void> {
     const now = new Date().toISOString();
     await AsyncStorage.setItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS, status);
 
@@ -486,4 +488,77 @@ export async function setTrialExpiringTestMode(): Promise<void> {
         console.error('[Subscription] Set trial expiring test mode failed:', error);
         throw error;
     }
+}
+
+// ============================================================
+// Payment-related functions
+// ============================================================
+
+/**
+ * 결제 성공 후 처리
+ */
+export async function handlePurchaseSuccess(): Promise<void> {
+    console.log('Handling purchase success');
+
+    // License 확인
+    const { checkLicenseAfterPurchase, handleLicenseResponse } = await import('./licenseChecker');
+    const licenseResponse = await checkLicenseAfterPurchase();
+
+    // License Response 처리
+    await handleLicenseResponse(licenseResponse);
+}
+
+/**
+ * 앱 시작 시 구독 복원 및 확인
+ */
+export async function checkAndRestoreSubscription(): Promise<void> {
+    console.log('Checking and restoring subscription');
+
+    // Google Play에서 구독 내역 조회
+    const { restorePurchases } = await import('./paymentService');
+    const { handleLicenseResponse } = await import('./licenseChecker');
+    const hasActive = await restorePurchases();
+
+    if (hasActive) {
+        // 활성 구독 있음
+        await handleLicenseResponse('LICENSED');
+    } else {
+        // 활성 구독 없음
+        await handleLicenseResponse('NOT_LICENSED');
+    }
+}
+
+/**
+ * 무료 체험 시작
+ */
+export async function startTrialSubscription(): Promise<void> {
+    const now = new Date().toISOString();
+    await AsyncStorage.setItem(SUBSCRIPTION_KEYS.TRIAL_START_DATE, now);
+    await AsyncStorage.setItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS, 'trial');
+
+    // Database에도 저장
+    const db = await getDatabase();
+    await db.runAsync(
+        `INSERT OR REPLACE INTO subscription_state (id, trialStartDate, subscriptionStatus, createdAt, updatedAt)
+         VALUES (1, ?, ?, ?, ?)`,
+        [now, 'trial', now, now]
+    );
+
+    // Schedule trial end notification
+    await scheduleTrialEndNotificationIfNeeded(now);
+}
+
+/**
+ * 구독 상태 조회 (단순 버전)
+ */
+export async function getSubscriptionState(): Promise<'free' | 'trial' | 'active' | 'expired'> {
+    const status = await getSubscriptionStatus();
+    return status.status === 'trial' ? 'trial' : status.status === 'active' ? 'active' : 'expired';
+}
+
+/**
+ * 구독 비활성화
+ */
+export async function deactivateSubscription(): Promise<void> {
+    await setSubscriptionStatus('expired');
 }
