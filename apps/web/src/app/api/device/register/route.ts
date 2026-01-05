@@ -29,12 +29,16 @@ export async function POST(request: NextRequest) {
             inactivity: true,
         };
 
+        // Conditionally structure the update query to prevent conflicts
+        // If settings are being updated, don't use $setOnInsert for settings
+        const updateQuery: any = { $set: updateData };
+        if (settings === undefined) {
+            updateQuery.$setOnInsert = { settings: defaultSettings };
+        }
+
         const device = await Device.findOneAndUpdate(
             { deviceId },
-            {
-                $set: updateData,
-                $setOnInsert: { settings: defaultSettings }
-            },
+            updateQuery,
             { upsert: true, new: true }
         );
 
