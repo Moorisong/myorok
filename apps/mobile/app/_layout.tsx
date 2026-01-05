@@ -10,6 +10,7 @@ import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { COLORS } from '../constants';
+import { CONFIG } from '../constants/config';
 import { PetProvider } from '../hooks/use-selected-pet';
 import { AuthProvider, useAuth } from '../hooks/useAuth';
 import { ToastProvider } from '../components/ToastContext';
@@ -33,8 +34,6 @@ function AppContent() {
   // Direct OAuth URL construction (bypasses expo-auth-session to avoid PKCE issues)
 
   useEffect(() => {
-    console.log('redirectUri =', KAKAO_REDIRECT_URI);
-    console.log('ClientId loaded check:', KAKAO_CLIENT_ID ? `Yes (${KAKAO_CLIENT_ID.slice(0, 4)}...)` : 'No');
     let subscription: any;
     let linkingSubscription: ReturnType<typeof Linking.addEventListener> | undefined;
 
@@ -62,16 +61,14 @@ function AppContent() {
           const { sendTokenToBackend } = await import('../services/NotificationService');
           const deviceId = await getDeviceId();
           await sendTokenToBackend(deviceId, token);
-          console.log('[App] Push token registered:', deviceId);
         }
 
         // Check inactivity notification setting before scheduling
         const { getDeviceId } = await import('../services/device');
         const deviceId = await getDeviceId();
-        const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001';
 
         try {
-          const response = await fetch(`${API_URL}/api/device/register`, {
+          const response = await fetch(`${CONFIG.API_BASE_URL}/api/device/register`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ deviceId }),
@@ -82,9 +79,6 @@ function AppContent() {
           const inactivityEnabled = data.device?.settings?.inactivity !== false;
           if (inactivityEnabled) {
             await scheduleInactivityNotification();
-            console.log('[App] Inactivity notification scheduled (enabled by user)');
-          } else {
-            console.log('[App] Inactivity notification skipped (disabled by user)');
           }
         } catch (error) {
           console.error('[App] Failed to check notification settings:', error);
@@ -99,18 +93,16 @@ function AppContent() {
 
           // Foreground notification listener
           notificationListener.current = Notifications.addNotificationReceivedListener((notification: any) => {
-            console.log('[Notification] Foreground notification received:', notification);
+            // Notification received in foreground
           });
 
           // Notification response listener (when user taps notification)
           responseListener.current = Notifications.addNotificationResponseReceivedListener(async (response: any) => {
-            console.log('[Notification] User tapped notification:', response);
 
             const data = response.notification.request.content.data;
 
             // Handle trial end notification
             if (data?.type === 'TRIAL_END' && data?.action === 'GO_TO_SUBSCRIBE') {
-              console.log('[Notification] Trial end notification tapped, navigating to subscription');
 
               // Mark notification as sent
               await markTrialNotificationAsSent();
@@ -118,6 +110,24 @@ function AppContent() {
               // Navigate to subscription preview screen
               try {
                 router.push('/(tabs)/settings/subscription-preview');
+              } catch (error) {
+                console.error('[Notification] Navigation failed:', error);
+              }
+            }
+
+            // Handle inactivity notification
+            if (data?.type === 'INACTIVITY') {
+              try {
+                router.push('/(tabs)');
+              } catch (error) {
+                console.error('[Notification] Navigation failed:', error);
+              }
+            }
+
+            // Handle comment notification
+            if (data?.type === 'COMMENT') {
+              try {
+                router.push('/(tabs)/comfort');
               } catch (error) {
                 console.error('[Notification] Navigation failed:', error);
               }
@@ -132,7 +142,6 @@ function AppContent() {
     // Handle deep links for OAuth callback
     const handleDeepLink = async (event: Linking.EventType) => {
       const url = event.url;
-      console.log('[DeepLink] Received URL:', url);
 
       // Parse myorok://?token=xxx&user=xxx (root path with query params)
       if (url.includes('token=') && url.includes('user=')) {
@@ -141,12 +150,10 @@ function AppContent() {
         const userString = queryParams?.user as string;
 
         if (token && userString) {
-          console.log('[DeepLink] JWT token and user info received');
           setIsLoggingIn(true); // Prevent login screen flash during processing
           try {
             // Parse user info
             const user = JSON.parse(decodeURIComponent(userString));
-            console.log('[DeepLink] User info:', { id: user.id, nickname: user.nickname });
 
             // Store JWT token and user info in AsyncStorage
             await AsyncStorage.setItem('jwt_token', token);
@@ -171,7 +178,6 @@ function AppContent() {
                 [user.id, user.nickname, user.profileImage || null, now, now]
               );
               await startTrialForUser(user.id);
-              console.log('[DeepLink] New user created in DB');
 
               // Migrate legacy data (data created before login)
               await migrateLegacyDataToUser(user.id);
@@ -188,7 +194,6 @@ function AppContent() {
             await checkAuthStatus();
 
             setIsLoggingIn(false);
-            console.log('[DeepLink] Login successful via deep link');
           } catch (error) {
             console.error('[DeepLink] Failed to save token:', error);
             setIsLoggingIn(false);
@@ -214,7 +219,7 @@ function AppContent() {
       if (linkingSubscription) {
         linkingSubscription.remove();
       }
-      if (NotificationsRef.current) {
+      if (NotificationsRef.current?.removeNotificationSubscription) {
         if (notificationListener.current) {
           NotificationsRef.current.removeNotificationSubscription(notificationListener.current);
         }
@@ -228,9 +233,6 @@ function AppContent() {
   // Note: Login response is now handled via deep link in the useEffect above
 
   const handleLogin = async () => {
-    console.log('[RootLayout] handleLogin called');
-    console.log('[RootLayout] KAKAO_CLIENT_ID:', KAKAO_CLIENT_ID ? `${KAKAO_CLIENT_ID.slice(0, 4)}...` : 'undefined');
-
     if (!KAKAO_CLIENT_ID) {
       console.error('[RootLayout] KAKAO_CLIENT_ID is not defined');
       return;
@@ -245,20 +247,16 @@ function AppContent() {
         `&response_type=code` +
         `&scope=profile_nickname,profile_image`;
 
-      console.log('[RootLayout] Opening OAuth URL...');
-
       // Platform-specific browser handling for better 2FA experience
       if (Platform.OS === 'android') {
         // Android: Use external browser to prevent session loss during KakaoTalk 2FA
         // External browser runs as separate app, so it persists when switching to KakaoTalk
         await Linking.openURL(authUrl);
-        console.log('[RootLayout] External browser opened (Android)');
       } else {
         // iOS: Use in-app browser for better UX (iOS handles app switching better)
         await WebBrowser.openBrowserAsync(authUrl, {
           showInRecents: true,
         });
-        console.log('[RootLayout] In-app browser opened (iOS)');
       }
     } catch (error) {
       console.error('[RootLayout] Login prompt failed:', error);

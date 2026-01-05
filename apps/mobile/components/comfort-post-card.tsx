@@ -3,7 +3,8 @@ import { View, Text, StyleSheet, Pressable, Alert, TextInput, Keyboard } from 'r
 import { Feather } from '@expo/vector-icons';
 
 import { COLORS, COMFORT_MESSAGES } from '../constants';
-import { ComfortPost, ComfortComment, getComments, createComment, deleteComment } from '../services';
+import { ComfortPost, ComfortComment, getComments, createComment, updateComment, deleteComment } from '../services';
+import ComfortCommentReportModal from './comfort-comment-report-modal';
 
 interface ComfortPostCardProps {
     post: ComfortPost;
@@ -27,6 +28,11 @@ export default function ComfortPostCard({
     const [isLoadingComments, setIsLoadingComments] = useState(false);
     const [commentText, setCommentText] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+    const [editingCommentText, setEditingCommentText] = useState('');
+    const [localCommentCount, setLocalCommentCount] = useState(post.commentCount);
+    const [commentReportModalVisible, setCommentReportModalVisible] = useState(false);
+    const [reportingCommentId, setReportingCommentId] = useState<string | null>(null);
 
     const formatTime = (dateString: string) => {
         const date = new Date(dateString);
@@ -44,6 +50,7 @@ export default function ComfortPostCard({
     const handleToggleComments = async () => {
         if (showComments) {
             setShowComments(false);
+            setEditingCommentId(null);
             return;
         }
 
@@ -69,6 +76,7 @@ export default function ComfortPostCard({
             const response = await createComment(post.id, commentText.trim());
             if (response.success && response.data) {
                 setComments(prev => [...prev, response.data!.comment]);
+                setLocalCommentCount(prev => prev + 1);
                 setCommentText('');
                 Keyboard.dismiss();
             } else if (response.error) {
@@ -79,6 +87,73 @@ export default function ComfortPostCard({
         } finally {
             setIsSubmitting(false);
         }
+    };
+
+    const handleEditComment = (comment: ComfortComment) => {
+        setEditingCommentId(comment.id);
+        setEditingCommentText(comment.content);
+    };
+
+    const handleCancelEdit = () => {
+        setEditingCommentId(null);
+        setEditingCommentText('');
+    };
+
+    const handleSaveEdit = async () => {
+        if (!editingCommentId || !editingCommentText.trim() || isSubmitting) return;
+
+        setIsSubmitting(true);
+        try {
+            const response = await updateComment(editingCommentId, editingCommentText.trim());
+            if (response.success && response.data) {
+                setComments(prev => prev.map(c =>
+                    c.id === editingCommentId
+                        ? { ...response.data!.comment, isOwner: c.isOwner }
+                        : c
+                ));
+                setEditingCommentId(null);
+                setEditingCommentText('');
+                Keyboard.dismiss();
+            } else if (response.error) {
+                Alert.alert('알림', response.error.message || '댓글 수정에 실패했습니다.');
+            }
+        } catch {
+            Alert.alert('오류', '댓글 수정에 실패했습니다.');
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleCommentMenu = (comment: ComfortComment) => {
+        if (comment.isOwner) {
+            // 본인 댓글: 수정, 삭제
+            Alert.alert(
+                '댓글 관리',
+                undefined,
+                [
+                    { text: COMFORT_MESSAGES.EDIT, onPress: () => handleEditComment(comment) },
+                    { text: COMFORT_MESSAGES.DELETE, onPress: () => handleDeleteComment(comment.id), style: 'destructive' },
+                    { text: '취소', style: 'cancel' },
+                ],
+                { cancelable: true }
+            );
+        } else {
+            // 타인 댓글: 신고
+            Alert.alert(
+                '댓글 관리',
+                undefined,
+                [
+                    { text: COMFORT_MESSAGES.REPORT, onPress: () => handleReportComment(comment.id) },
+                    { text: '취소', style: 'cancel' },
+                ],
+                { cancelable: true }
+            );
+        }
+    };
+
+    const handleReportComment = (commentId: string) => {
+        setReportingCommentId(commentId);
+        setCommentReportModalVisible(true);
     };
 
     const handleDeleteComment = async (commentId: string) => {
@@ -94,6 +169,7 @@ export default function ComfortPostCard({
                         const response = await deleteComment(commentId);
                         if (response.success) {
                             setComments(prev => prev.filter(c => c.id !== commentId));
+                            setLocalCommentCount(prev => Math.max(0, prev - 1));
                         }
                     },
                 },
@@ -136,7 +212,14 @@ export default function ComfortPostCard({
                         <Text style={styles.avatarText}>{post.emoji || '🐱'}</Text>
                     </View>
                     <View>
-                        <Text style={styles.displayId}>{post.displayId}</Text>
+                        <View style={styles.displayIdRow}>
+                            <Text style={styles.displayId}>{post.displayId}</Text>
+                            {post.isOwner && (
+                                <View style={styles.myBadge}>
+                                    <Text style={styles.myBadgeText}>내가 쓴 글</Text>
+                                </View>
+                            )}
+                        </View>
                         <Text style={styles.time}>{formatTime(post.createdAt)}</Text>
                     </View>
                 </View>
@@ -171,7 +254,7 @@ export default function ComfortPostCard({
                 >
                     <Feather name="message-circle" size={18} color={COLORS.textSecondary} />
                     <Text style={styles.actionText}>
-                        {post.commentCount > 0 ? COMFORT_MESSAGES.SHOW_COMMENTS(post.commentCount) : '댓글'}
+                        {localCommentCount > 0 ? COMFORT_MESSAGES.SHOW_COMMENTS(localCommentCount) : '댓글'}
                     </Text>
                 </Pressable>
             </View>
@@ -181,20 +264,56 @@ export default function ComfortPostCard({
                 <View style={styles.commentsSection}>
                     {comments.map((comment, index) => (
                         <View key={comment.id || `comment-${index}`} style={styles.commentItem}>
-                            <View style={styles.commentHeader}>
-                                <Text style={styles.commentAuthor}>{comment.displayId || '익명'}</Text>
-                                <Text style={styles.commentTime}>{formatTime(comment.createdAt)}</Text>
-                                {comment.isOwner && (
-                                    <Pressable
-                                        onPress={() => handleDeleteComment(comment.id)}
-                                        hitSlop={8}
-                                        style={styles.commentDeleteButton}
-                                    >
-                                        <Feather name="x" size={14} color={COLORS.textSecondary} />
-                                    </Pressable>
-                                )}
-                            </View>
-                            <Text style={styles.commentContent}>{comment.content || ''}</Text>
+                            {editingCommentId === comment.id ? (
+                                /* 댓글 수정 모드 */
+                                <View style={styles.commentEditContainer}>
+                                    <View style={styles.commentEditRow}>
+                                        <TextInput
+                                            style={styles.commentEditInput}
+                                            value={editingCommentText}
+                                            onChangeText={setEditingCommentText}
+                                            placeholder="댓글을 입력하세요"
+                                            placeholderTextColor={COLORS.textSecondary}
+                                            maxLength={300}
+                                            multiline
+                                            autoFocus
+                                        />
+                                        <View style={styles.commentEditActions}>
+                                            <Pressable onPress={handleCancelEdit} style={styles.commentEditButton}>
+                                                <Feather name="x" size={18} color={COLORS.textSecondary} />
+                                            </Pressable>
+                                            <Pressable
+                                                onPress={handleSaveEdit}
+                                                style={[styles.commentEditButton, !editingCommentText.trim() && styles.commentEditButtonDisabled]}
+                                                disabled={!editingCommentText.trim() || isSubmitting}
+                                            >
+                                                <Feather name="check" size={18} color={editingCommentText.trim() && !isSubmitting ? COLORS.primary : COLORS.textSecondary} />
+                                            </Pressable>
+                                        </View>
+                                    </View>
+                                </View>
+                            ) : (
+                                /* 댓글 보기 모드 */
+                                <>
+                                    <View style={styles.commentHeader}>
+                                        <Text style={styles.commentAuthor}>{comment.displayId || '익명'}</Text>
+                                        {comment.isOwner && (
+                                            <View style={styles.myCommentBadge}>
+                                                <Text style={styles.myCommentBadgeText}>내 댓글</Text>
+                                            </View>
+                                        )}
+                                        <Text style={styles.commentTime}>{formatTime(comment.createdAt)}</Text>
+                                        <Pressable
+                                            onPress={() => handleCommentMenu(comment)}
+                                            hitSlop={8}
+                                            style={styles.commentMenuButton}
+                                        >
+                                            <Feather name="more-horizontal" size={14} color={COLORS.textSecondary} />
+                                        </Pressable>
+                                    </View>
+                                    <Text style={styles.commentContent}>{comment.content || ''}</Text>
+                                </>
+                            )}
                         </View>
                     ))}
 
@@ -229,6 +348,16 @@ export default function ComfortPostCard({
                     </View>
                 </View>
             )}
+
+            {/* 댓글 신고 모달 */}
+            <ComfortCommentReportModal
+                visible={commentReportModalVisible}
+                commentId={reportingCommentId}
+                onClose={() => {
+                    setCommentReportModalVisible(false);
+                    setReportingCommentId(null);
+                }}
+            />
         </View>
     );
 }
@@ -268,10 +397,26 @@ const styles = StyleSheet.create({
     avatarText: {
         fontSize: 18,
     },
+    displayIdRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
     displayId: {
         fontSize: 14,
         fontWeight: '600',
         color: COLORS.textPrimary,
+    },
+    myBadge: {
+        backgroundColor: COLORS.primary + '20',
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 4,
+    },
+    myBadgeText: {
+        fontSize: 10,
+        fontWeight: '600',
+        color: COLORS.primary,
     },
     time: {
         fontSize: 12,
@@ -332,6 +477,17 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         color: COLORS.textPrimary,
     },
+    myCommentBadge: {
+        backgroundColor: COLORS.primary + '20',
+        paddingHorizontal: 5,
+        paddingVertical: 1,
+        borderRadius: 3,
+    },
+    myCommentBadgeText: {
+        fontSize: 9,
+        fontWeight: '600',
+        color: COLORS.primary,
+    },
     commentTime: {
         fontSize: 11,
         color: COLORS.textSecondary,
@@ -378,6 +534,53 @@ const styles = StyleSheet.create({
     },
     commentInputText: {
         fontSize: 13,
+        color: COLORS.textSecondary,
+    },
+    commentMenuButton: {
+        marginLeft: 'auto',
+        padding: 4,
+    },
+    commentEditContainer: {
+        flex: 1,
+    },
+    commentEditRow: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: 8,
+    },
+    commentEditInput: {
+        flex: 1,
+        backgroundColor: COLORS.background,
+        borderRadius: 12,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        fontSize: 13,
+        color: COLORS.textPrimary,
+        minHeight: 40,
+        maxHeight: 100,
+    },
+    commentEditActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+    },
+    commentEditButton: {
+        paddingVertical: 6,
+        paddingHorizontal: 12,
+    },
+    commentEditButtonDisabled: {
+        opacity: 0.5,
+    },
+    commentEditButtonTextCancel: {
+        fontSize: 13,
+        color: COLORS.textSecondary,
+    },
+    commentEditButtonTextSave: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: COLORS.primary,
+    },
+    commentEditButtonTextDisabled: {
         color: COLORS.textSecondary,
     },
 });

@@ -11,6 +11,9 @@ export interface Comment {
     content: string;
     createdAt: string;
     updatedAt: string;
+    reportCount: number;
+    reportedBy: string[];
+    hidden: boolean;
 }
 
 export interface Post {
@@ -25,6 +28,7 @@ export interface Post {
     reportCount: number;
     reportedBy: string[];
     hidden: boolean;
+    cheerCount: number;
 }
 
 // 프로필 이모지 리스트 (10개)
@@ -38,6 +42,13 @@ export interface BlockedDevice {
     createdAt: string;
 }
 
+export interface Subscription {
+    deviceId: string;
+    status: 'free' | 'premium';
+    startedAt: Date;
+    expiredAt: Date | null;
+}
+
 // --- Mongoose Schemas & Models ---
 
 const CommentSchema = new mongoose.Schema({
@@ -46,6 +57,9 @@ const CommentSchema = new mongoose.Schema({
     content: { type: String, required: true },
     createdAt: { type: String, required: true }, // Keeping as String to match ISO format usage
     updatedAt: { type: String, required: true },
+    reportCount: { type: Number, default: 0 },
+    reportedBy: { type: [String], default: [] },
+    hidden: { type: Boolean, default: false },
 });
 
 const PostSchema = new mongoose.Schema({
@@ -60,6 +74,7 @@ const PostSchema = new mongoose.Schema({
     reportCount: { type: Number, default: 0 },
     reportedBy: { type: [String], default: [] },
     hidden: { type: Boolean, default: false },
+    cheerCount: { type: Number, default: 0 },
 });
 
 const BlockedDeviceSchema = new mongoose.Schema({
@@ -68,11 +83,19 @@ const BlockedDeviceSchema = new mongoose.Schema({
     createdAt: { type: String, required: true },
 });
 
+const SubscriptionSchema = new mongoose.Schema({
+    deviceId: { type: String, required: true },
+    status: { type: String, required: true, enum: ['free', 'premium'], default: 'free' },
+    startedAt: { type: Date, required: true, default: Date.now },
+    expiredAt: { type: Date, default: null },
+});
+
 // Helper to get models (prevents OverwriteModelError in dev)
 export const getModels = () => {
     const PostModel = mongoose.models.Post || mongoose.model('Post', PostSchema);
     const BlockedDeviceModel = mongoose.models.BlockedDevice || mongoose.model('BlockedDevice', BlockedDeviceSchema);
-    return { PostModel, BlockedDeviceModel };
+    const SubscriptionModel = mongoose.models.Subscription || mongoose.model('Subscription', SubscriptionSchema);
+    return { PostModel, BlockedDeviceModel, SubscriptionModel };
 };
 
 // --- Helper Functions ---
@@ -120,7 +143,7 @@ export async function canPost(deviceId: string): Promise<{ canPost: boolean; wai
 }
 
 // Fetch posts tailored for a specific user (filtering blocks, hidden, etc)
-export async function getFilteredPosts(deviceId: string): Promise<Post[]> {
+export async function getFilteredPosts(deviceId: string, sort: 'latest' | 'cheer' | 'comment' = 'latest'): Promise<Post[]> {
     await dbConnect();
     const { PostModel, BlockedDeviceModel } = getModels();
 
@@ -128,12 +151,26 @@ export async function getFilteredPosts(deviceId: string): Promise<Post[]> {
     const blockedEntries = await BlockedDeviceModel.find({ deviceId }).lean();
     const blockedIds = blockedEntries.map((b: any) => b.blockedDeviceId);
 
-    // 2. Fetch posts
-    // conditions: hidden = false, deviceId NOT in blockedIds
-    const posts = await PostModel.find({
-        hidden: false,
-        deviceId: { $nin: blockedIds }
-    }).sort({ createdAt: -1 }).lean();
+    // 2. Fetch posts using Aggregate to handle dynamic cheerCount/commentCount
+    const pipeline: any[] = [
+        { $match: { hidden: false, deviceId: { $nin: blockedIds } } },
+        {
+            $addFields: {
+                computedCheerCount: { $size: { $ifNull: ["$likes", []] } },
+                computedCommentCount: { $size: { $ifNull: ["$comments", []] } }
+            }
+        }
+    ];
+
+    if (sort === 'cheer') {
+        pipeline.push({ $sort: { computedCheerCount: -1, createdAt: -1 } });
+    } else if (sort === 'comment') {
+        pipeline.push({ $sort: { computedCommentCount: -1, createdAt: -1 } });
+    } else {
+        pipeline.push({ $sort: { createdAt: -1 } });
+    }
+
+    const posts = await PostModel.aggregate(pipeline);
 
     // 3. Transform and filter comments specifically
     // The generic lean() returns _id, we need to ensure it matches Post interface if acceptable.
@@ -142,7 +179,7 @@ export async function getFilteredPosts(deviceId: string): Promise<Post[]> {
     return posts.map((p: any) => ({
         ...p,
         _id: undefined, // remove mongoose id if not needed, or keep it
-        comments: p.comments.filter((c: any) => !blockedIds.includes(c.deviceId))
+        comments: (p.comments || []).filter((c: any) => !blockedIds.includes(c.deviceId) && !c.hidden)
     })) as Post[];
 }
 

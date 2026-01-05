@@ -26,10 +26,20 @@ export default function Header({ title, showBack = false, showPetName = false }:
             )}
             <Text style={styles.title}>{title}</Text>
             {showPetName && selectedPet ? (
-                <View style={styles.petIndicator}>
-                    <Text style={styles.petEmoji}>🐱</Text>
-                    <Text style={styles.petName} numberOfLines={1}>{selectedPet.name}</Text>
-                </View>
+                <Pressable
+                    style={({ pressed }) => [
+                        styles.petIndicator,
+                        pressed && { opacity: 0.7 }
+                    ]}
+                    onPress={() => {
+                        console.log('Pet name pressed, navigating to pets management');
+                        router.push('/(tabs)/settings/pets');
+                    }}
+                    hitSlop={8}
+                >
+                    <Text style={styles.petEmoji} pointerEvents="none">🐱</Text>
+                    <Text style={styles.petName} numberOfLines={1} pointerEvents="none">{selectedPet.name}</Text>
+                </Pressable>
             ) : (
                 <View style={styles.placeholder} />
             )}

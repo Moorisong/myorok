@@ -233,9 +233,12 @@ export default function CalendarScreen() {
         <SafeAreaView style={styles.container} edges={['top']}>
             {/* Pet Indicator */}
             <View style={styles.petIndicatorRow}>
-                <View style={styles.petIndicator}>
-                    <Text style={styles.petName} numberOfLines={1}>{selectedPet?.name || ''}</Text>
-                </View>
+                <Pressable
+                    style={styles.petIndicator}
+                    onPress={() => router.push('/(tabs)/settings/pets')}
+                >
+                    <Text style={styles.petName} numberOfLines={1} pointerEvents="none">{selectedPet?.name || ''}</Text>
+                </Pressable>
             </View>
 
             <View style={styles.header}>

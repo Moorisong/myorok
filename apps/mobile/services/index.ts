@@ -38,6 +38,7 @@ export {
     updateComment,
     deleteComment,
     reportPost,
+    reportComment,
     blockUser,
     unblockUser,
     getBlockedUsers,
@@ -79,6 +80,8 @@ export {
     startTrialForUser,
     activateSubscriptionForUser,
     expireSubscriptionForUser,
+    // Test mode functions
+    setTrialExpiringTestMode,
 } from './subscription';
 export type { SubscriptionStatus, SubscriptionState } from './subscription';
 

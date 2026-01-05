@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPostById, savePost, generateId, filterBadWords, getModelsAsync, canComment, generateNickname } from '@/lib/comfort';
 import { sendPushNotification } from '@/lib/notification';
+import dbConnect from '@/lib/mongodb';
+import Device from '@/models/Device';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,7 +40,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         const blockedDeviceIds = blockedEntries.map((b: any) => b.blockedDeviceId);
 
         const comments = post.comments
-            .filter((c: any) => !blockedDeviceIds.includes(c.deviceId))
+            .filter((c: any) => !blockedDeviceIds.includes(c.deviceId) && !c.hidden)
             .map((c: any) => ({
                 id: c.id || c._id?.toString(),
                 deviceId: c.deviceId,
@@ -130,19 +132,45 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         post.comments.push(newComment);
         await savePost(post);
 
+        // 디바이스 등록 (푸시 알림을 위해)
+        try {
+            await dbConnect();
+            await Device.findOneAndUpdate(
+                { deviceId },
+                {
+                    $set: { updatedAt: new Date() },
+                    $setOnInsert: {
+                        settings: {
+                            marketing: true,
+                            comments: true,
+                            inactivity: true,
+                        }
+                    }
+                },
+                { upsert: true, new: true }
+            );
+        } catch (error) {
+            console.error('[Comment] Failed to register device:', error);
+            // 디바이스 등록 실패해도 댓글은 작성됨
+        }
+
         // 푸시 알림 전송 (본인 글이 아닐 경우)
         if (post.deviceId !== deviceId) {
-            sendPushNotification(
-                post.deviceId,
-                '새 댓글이 달렸어요 💬',
-                '작성하신 글에 새로운 댓글이 등록되었습니다.',
-                { type: 'COMMENT', postId: id, commentId: newComment.id },
-                {
-                    cooldownMs: 3 * 60 * 60 * 1000,
-                    type: 'COMFORT_COMMENT',
-                    notificationCategory: 'comments'
-                }
-            ).catch(err => console.error('Push Error:', err));
+            try {
+                await sendPushNotification(
+                    post.deviceId,
+                    '새 댓글이 달렸어요 💬',
+                    '짧은 시간에 댓글이 많을 경우, 알림은 한 번만 보내드려요.',
+                    { type: 'COMMENT', postId: id, commentId: newComment.id },
+                    {
+                        cooldownMs: 3 * 60 * 60 * 1000,
+                        type: 'COMFORT_COMMENT',
+                        notificationCategory: 'comments'
+                    }
+                );
+            } catch (err) {
+                console.error('[Comment] Push notification failed:', err);
+            }
         }
 
         return NextResponse.json({

@@ -111,24 +111,24 @@ export default function PartialDeleteGuide() {
           </div>
 
           <div className={styles.methodCard}>
-            <h3>4. 전체 데이터 삭제</h3>
+            <h3>4. 현재 고양이 데이터 초기화</h3>
             <div className={styles.steps}>
               <div className={styles.step}>
                 <span className={styles.stepNumber}>1</span>
-                <p>설정 탭 → "데이터 관리"를 선택합니다</p>
+                <p>설정 탭으로 이동합니다</p>
               </div>
               <div className={styles.step}>
                 <span className={styles.stepNumber}>2</span>
-                <p>"모든 데이터 삭제" 버튼을 탭합니다</p>
+                <p>하단의 "데이터 초기화" 항목을 탭합니다</p>
               </div>
               <div className={styles.step}>
                 <span className={styles.stepNumber}>3</span>
-                <p>경고 메시지를 확인하고 "삭제" 버튼을 탭합니다</p>
+                <p>경고 메시지를 확인하고 "확인" 버튼을 탭합니다</p>
               </div>
             </div>
             <p className={styles.warning}>
-              ⚠️ <strong>복구 불가능</strong>: 전체 데이터 삭제 시 기기의 모든 데이터가 영구 삭제되며,
-              복구할 수 없습니다. 신중하게 결정해 주세요.
+              ⚠️ <strong>복구 불가능</strong>: 데이터 초기화 시 현재 선택된 고양이의 모든 건강 기록이 영구 삭제됩니다.
+              다른 고양이의 기록은 영향을 받지 않으며, 구독 상태도 유지됩니다. 삭제된 데이터는 복구할 수 없으니 신중하게 결정해 주세요.
             </p>
           </div>
         </section>

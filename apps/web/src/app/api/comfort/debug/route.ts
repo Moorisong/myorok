@@ -62,6 +62,31 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ success: true, message: '작성한 게시글이 없어 쿨타임 리셋이 필요하지 않습니다.' });
         }
 
+        if (action === 'set-inactivity-3days') {
+            const lastPost = await PostModel.findOne({ deviceId }).sort({ createdAt: -1 });
+            if (!lastPost) {
+                return NextResponse.json({ success: false, error: '작성한 게시글이 없습니다. 먼저 글을 작성해주세요.' }, { status: 404 });
+            }
+
+            // 3일 1시간 전으로 설정 (INACTIVITY 기준 충족)
+            const threeDaysAgo = new Date(Date.now() - (73 * 60 * 60 * 1000)).toISOString();
+            lastPost.createdAt = threeDaysAgo;
+            await lastPost.save();
+
+            // 알림 상태 초기화 (INACTIVITY)
+            await NotificationState.findOneAndUpdate(
+                { deviceId, type: 'INACTIVITY' },
+                { $set: { lastSentAt: null, unreadCount: 0 } },
+                { upsert: true }
+            );
+
+            return NextResponse.json({ success: true, message: '마지막 글 작성 시간을 3일 전으로 설정했습니다.' });
+        }
+
+        if (action === 'set-trial-expiring') {
+            return NextResponse.json({ success: false, error: '구독 기능이 아직 활성화되지 않았거나 DB 모델을 찾을 수 없습니다.' }, { status: 501 });
+        }
+
         if (action === 'create-sample') {
             // 랜덤 닉네임, 욕설 포함 샘플 글 생성
             const count = body.count || 1;
@@ -92,6 +117,7 @@ export async function POST(request: NextRequest) {
                     reportCount: 0,
                     reportedBy: [],
                     hidden: false,
+                    cheerCount: 0,
                 };
                 createdPosts.push(newPost);
             }
@@ -101,32 +127,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ success: true, message: `${count}개의 샘플 게시글이 생성되었습니다.`, data: createdPosts });
         }
 
-        if (action === 'time-travel') {
-            // 시간 이동 (최근 게시글 시간을 N시간 전으로 이동)
-            if (!hours) {
-                return NextResponse.json({ success: false, error: '시간을 입력해주세요.' }, { status: 400 });
-            }
 
-            const lastPost = await PostModel.findOne({ deviceId }).sort({ createdAt: -1 });
-            if (lastPost) {
-                const pastTime = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
-                lastPost.createdAt = pastTime;
-                await lastPost.save();
-                return NextResponse.json({ success: true, message: `${hours}시간 전으로 이동했습니다.` });
-            }
-            return NextResponse.json({ success: false, error: '작성한 게시글이 없습니다.' }, { status: 404 });
-        }
-
-        if (action === 'reset-time') {
-            // 작성 시간을 현재로 리셋 (쿨타임 다시 적용)
-            const lastPost = await PostModel.findOne({ deviceId }).sort({ createdAt: -1 });
-            if (lastPost) {
-                lastPost.createdAt = new Date().toISOString();
-                await lastPost.save();
-                return NextResponse.json({ success: true, message: '작성 시간이 현재로 리셋되었습니다. (쿨타임 적용)' });
-            }
-            return NextResponse.json({ success: false, error: '작성한 게시글이 없습니다.' }, { status: 404 });
-        }
 
         if (action === 'get-notification-state') {
             const { type } = body;
@@ -189,8 +190,8 @@ export async function POST(request: NextRequest) {
             const { title, body: pushBody } = body;
             const result = await sendPushNotification(
                 deviceId,
-                title || '댓글 알림 테스트',
-                pushBody || '새로운 댓글이 달렸습니다!',
+                title || '새 댓글이 달렸어요 💬',
+                pushBody || '짧은 시간에 댓글이 많을 경우, 알림은 한 번만 보내드려요.',
                 { type: 'COMFORT_COMMENT', action: 'OPEN_COMFORT' },
                 { cooldownMs: 0, type: 'COMFORT_COMMENT' }
             );
@@ -206,6 +207,109 @@ export async function POST(request: NextRequest) {
                     pushToken: device.pushToken,
                     hasToken: !!device.pushToken
                 } : null
+            });
+        }
+
+        if (action === 'migrate-post-authors') {
+            // 모든 게시글 작성자들을 Device 컬렉션에 등록
+            const allPosts = await PostModel.find({}).lean();
+            const uniqueDeviceIds = [...new Set(allPosts.map((p: any) => p.deviceId))];
+
+            let registered = 0;
+            let skipped = 0;
+
+            for (const deviceId of uniqueDeviceIds) {
+                const existing = await Device.findOne({ deviceId });
+                if (!existing) {
+                    await Device.create({
+                        deviceId,
+                        settings: {
+                            marketing: true,
+                            comments: true,
+                            inactivity: true,
+                        },
+                        updatedAt: new Date()
+                    });
+                    registered++;
+                } else {
+                    skipped++;
+                }
+            }
+
+            return NextResponse.json({
+                success: true,
+                message: `${registered}개 디바이스 등록, ${skipped}개 스킵`,
+                registered,
+                skipped,
+                total: uniqueDeviceIds.length
+            });
+        }
+
+        if (action === 'add-test-comment') {
+            // 가장 최신 글에 다른 계정이 쓴 댓글 1개 추가
+            const latestPost = await PostModel.findOne({}).sort({ createdAt: -1 });
+
+            if (!latestPost) {
+                return NextResponse.json({ success: false, error: '게시글이 없습니다.' }, { status: 404 });
+            }
+
+            // 다른 계정 ID 생성 (글 작성자와 다르게)
+            const testDeviceId = `test-commenter-${Math.random().toString(36).substring(7)}`;
+
+            const newComment = {
+                id: generateId(),
+                deviceId: testDeviceId,
+                content: '테스트 댓글입니다 🧪',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+            };
+
+            latestPost.comments.push(newComment);
+            await latestPost.save();
+
+            // 푸시 알림 전송 (글 작성자에게)
+            let pushResult = null;
+            try {
+                pushResult = await sendPushNotification(
+                    latestPost.deviceId,
+                    '새 댓글이 달렸어요 💬',
+                    '짧은 시간에 댓글이 많을 경우, 알림은 한 번만 보내드려요.',
+                    { type: 'COMMENT', postId: latestPost.id, commentId: newComment.id },
+                    {
+                        cooldownMs: 3 * 60 * 60 * 1000,
+                        type: 'COMFORT_COMMENT',
+                        notificationCategory: 'comments'
+                    }
+                );
+            } catch (err) {
+                console.error('[DebugAPI] Push notification failed:', err);
+            }
+
+            return NextResponse.json({
+                success: true,
+                message: '테스트 댓글이 추가되었습니다.',
+                postId: latestPost.id,
+                comment: newComment,
+                pushResult
+            });
+        }
+
+        if (action === 'reset-comment-cooldown') {
+            // 댓글 알림 쿨타임 초기화 (COMFORT_COMMENT 타입)
+            await NotificationState.findOneAndUpdate(
+                { deviceId, type: 'COMFORT_COMMENT' },
+                {
+                    $set: {
+                        lastSentAt: null,
+                        unreadCount: 0
+                    }
+                },
+                { upsert: true }
+            );
+
+            return NextResponse.json({
+                success: true,
+                message: '댓글 알림 쿨타임이 초기화되었습니다.'
             });
         }
 

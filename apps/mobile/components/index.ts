@@ -16,6 +16,7 @@ export { default as ComfortPostCard } from './comfort-post-card';
 export { default as ComfortComposeModal } from './comfort-compose-modal';
 export { default as ComfortDebugModal } from './comfort-debug-modal';
 export { default as ComfortReportModal } from './comfort-report-modal';
+export { default as ComfortCommentReportModal } from './comfort-comment-report-modal';
 export { default as MemoEditModal } from './memo-edit-modal';
 export { default as SummaryOverallCards } from './summary-overall-cards';
 export { default as SummaryWeeklyCharts } from './summary-weekly-charts';

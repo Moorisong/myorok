@@ -1,3 +1,45 @@
+# Comfort Agent Reference
+
+> 쉼터 탭 전반적인 기능 담당 에이전트
+
+## 관련 모듈화 에이전트
+
+복잡한 기능은 별도 에이전트로 분리하여 병렬 개발 가능:
+
+- **[ComfortNicknameAgent.md](file:///Users/shkim/Desktop/Project/myorok/docs/sub_agents_docs/comfort/ComfortNicknameAgent.md)** - 닉네임 자동 생성
+  - deviceId 해싱 알고리즘
+  - 50개 한글 단어 리스트
+  - 일관성 보장
+
+- **[ComfortCommentRateLimitAgent.md](file:///Users/shkim/Desktop/Project/myorok/docs/sub_agents_docs/comfort/ComfortCommentRateLimitAgent.md)** - 댓글 빈도 제한
+  - 30초 최소 간격
+  - 5분 내 최대 3개
+  - 쿨타임 UI/UX
+
+- **[ComfortPostReportAgent.md](file:///Users/shkim/Desktop/Project/myorok/docs/sub_agents_docs/comfort/ComfortPostReportAgent.md)** - 게시글 신고
+  - 신고 사유 선택
+  - 3회 자동 숨김
+  - 관리자 개입 없음
+
+- **[ComfortCommentReportAgent.md](file:///Users/shkim/Desktop/Project/myorok/docs/sub_agents_docs/comfort/ComfortCommentReportAgent.md)** - 댓글 신고
+  - 게시글 신고와 동일 정책
+  - 자동 정화 시스템
+  - 완전 숨김 처리
+
+- **[ComfortSortingAgent.md](file:///Users/shkim/Desktop/Project/myorok/docs/sub_agents_docs/comfort/ComfortSortingAgent.md)** - 게시글 정렬
+  - 최신순/응원많은순/댓글많은순
+  - Segmented Control UI
+  - URL 상태 관리
+
+- **[ComfortBlockAgent.md](file:///Users/shkim/Desktop/Project/myorok/docs/sub_agents_docs/comfort/ComfortBlockAgent.md)** - 차단 기능
+  - 디바이스 기반 차단
+  - 글/댓글 완전 숨김
+  - 차단 목록 관리
+
+---
+
+## COMFORT_SPEC.md (쉼터 탭 기획/설계 명세)
+
 # 쉼터 탭 기획/설계 명세 (v2)
 
 > 사랑과 희망으로 버틴 오늘, 환묘와 나 그리고 우리.
@@ -342,7 +384,6 @@ interface BlockedDevice {
 ### 5.3 자동 갱신
 
 - 30초 폴링 (WebSocket 미사용)
-- 30초 폴링 (WebSocket 미사용)
 - Pull-to-refresh 지원
 
 ### 5.4 테스트 모드 (개발 환경)
@@ -374,3 +415,89 @@ interface BlockedDevice {
 - [ ] 신고 누적 사용자 댓글 빈도 제한 강화
 - [ ] 관리자 계정 빈도 제한 제외
 - [ ] Redis 기반 인메모리 캐시로 빈도 제한 성능 향상
+
+---
+
+## AI 작업 지침
+
+### 목적
+쉼터 탭의 게시글, 댓글, 좋아요, 신고, 차단 기능을 구현하고 유지보수합니다. 특히 댓글 빈도 제한 정책을 서버와 클라이언트 양쪽에서 올바르게 구현하여 자연스러운 대화형 댓글 흐름과 스팸 방지를 동시에 달성합니다.
+
+### 작업 단계
+
+#### 1. 댓글 빈도 제한 구현 (백엔드)
+- `POST /api/comfort/posts/:id/comments` API에서 빈도 제한 로직 구현
+- userId + postId 기준으로 최근 댓글 조회
+- 마지막 댓글 작성 후 30초 미만이면 `429` 응답
+- 최근 5분 내 댓글이 3개 이상이면 `429` 응답
+- 429 응답 시 `retryAfter` 필드 포함
+- 서버 시간 기준으로 판단 (클라이언트 시간 신뢰 금지)
+
+#### 2. 댓글 빈도 제한 UX (프론트엔드)
+- 댓글 작성 성공 후 자동으로 입력창 비활성화 (30초 쿨타임)
+- 카운트다운 타이머 표시: "잠시 후 다시 댓글을 작성할 수 있어요 (30초)"
+- 429 에러 수신 시 서버의 `retryAfter` 값으로 타이머 동기화
+- 타이머 종료 후 입력창 자동 활성화
+
+#### 3. 게시글 정렬 기능 (v2.2)
+- **백엔드**: `GET /api/comfort/posts`에 `sort` 쿼리 파라미터 처리
+  - **최신 순 (latest)**: `ORDER BY createdAt DESC` (기본값)
+  - **응원 많은 순 (cheer)**: `ORDER BY cheerCount DESC, createdAt DESC`
+  - **댓글 많은 순 (comment)**: `ORDER BY commentCount DESC, createdAt DESC`
+  - `cheerCount`, `commentCount`는 Aggegation Pipeline에서 `$size`로 동적 계산하거나 필드로 유지
+- **프론트엔드**: 상단 **Segmented Control** UI 구현
+  - `[최신순]` / `[응원 많은 순]` / `[댓글 많은 순]`
+  - 선택 시 즉시 목록 재조회
+  - 페이지 이동/새로고침 시 상태 유지 (URL Query `?sort=...` 권장)
+
+#### 4. 댓글 신고 기능 (v2.2)
+- **백엔드**: `POST /api/comfort/comments/:id/report` API 구현
+  - deviceId 기반 중복 신고 방지
+  - 신고 3회 이상 시 `hidden: true` 자동 처리
+  - `reportedBy` 배열에 deviceId 추가
+  - `reportCount` 증가
+  - 중복 신고 시 `409 Conflict` 응답
+- **프론트엔드**: 댓글 신고 UI 구현
+  - 댓글 `⋯` 버튼 → "신고하기" 메뉴
+  - 신고 사유 선택 모달: 게시글 신고와 동일한 사유 리스트
+  - 성공 Toast: "신고가 접수되었습니다."
+  - 중복 신고 Toast: "이미 신고한 댓글입니다."
+  - `hidden: true` 댓글은 목록에서 완전 제외 (미노출)
+
+#### 5. 기타 쉼터 기능 구현
+- 게시글 1시간 제한 (서버 기준)
+- 닉네임 자동 생성 (deviceId 해싱)
+- 욕설 필터 (클라이언트+서버 이중 적용)
+- 신고 3회 시 자동 숨김
+- 차단 기능 (완전 숨김 방식)
+- 자정 자동 삭제 (createdAt 기준)
+
+### 주의사항
+
+#### 데이터 정책
+- **데이터 삭제 금지**: 자정 삭제는 자동화된 정책, 수동 삭제 금지
+- **deviceId 기반**: 로그인 없이 디바이스 식별
+- **개인정보 수집 금지**: 닉네임, 이메일 등 수집 금지
+
+#### 빈도 제한 구현
+- **서버 기준 필수**: 클라이언트 시간은 보조 UX용, 서버 시간이 최종 판단
+- **프론트 제한은 UX용**: 서버 제한을 통과하지 못하면 의미 없음
+- **429 에러 필수**: 빈도 제한 초과 시 반드시 `429 Too Many Requests` 반환
+- **retryAfter 필수**: 429 응답에 `retryAfter` 필드 포함 필수
+
+#### Android 전용
+- iOS 관련 코드 금지
+- React Native 코드는 Android만 고려
+
+#### 일관성
+- 기존 코드 스타일 유지
+- COMFORT_SPEC.md와 불일치 시 명세 우선
+
+#### 성능 고려
+- Redis 등 인메모리 캐시 사용 권장 (추후 확장)
+- 빈도 제한 조회 시 인덱스 활용
+
+#### 모듈화
+- 댓글 빈도 제한 로직을 별도 함수로 분리
+- 재사용 가능한 구조로 설계
+- 게시글 빈도 제한과 동일한 패턴 활용

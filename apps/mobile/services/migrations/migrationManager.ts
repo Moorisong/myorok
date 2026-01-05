@@ -111,7 +111,6 @@ async function createDatabaseBackup(dbName: string): Promise<string> {
       to: backupPath,
     });
 
-    console.log(`Database backup created: ${backupPath}`);
     return backupPath;
   } catch (error) {
     console.error('Error creating database backup:', error);
@@ -133,7 +132,6 @@ async function executeMigration(
       await migration.up(db);
       await recordMigration(db, migration);
       await db.execAsync('COMMIT;');
-      console.log(`Migration ${migration.version} (${migration.name}) applied successfully`);
     } catch (error) {
       await db.execAsync('ROLLBACK;');
       console.error(`Migration ${migration.version} (${migration.name}) failed:`, error);
@@ -142,7 +140,6 @@ async function executeMigration(
   } else {
     await migration.up(db);
     await recordMigration(db, migration);
-    console.log(`Migration ${migration.version} (${migration.name}) applied successfully`);
   }
 }
 
@@ -160,7 +157,6 @@ async function rollbackMigration(
       await migration.down(db);
       await removeMigrationRecord(db, migration.version);
       await db.execAsync('COMMIT;');
-      console.log(`Migration ${migration.version} (${migration.name}) rolled back successfully`);
     } catch (error) {
       await db.execAsync('ROLLBACK;');
       console.error(`Rollback of migration ${migration.version} (${migration.name}) failed:`, error);
@@ -169,7 +165,6 @@ async function rollbackMigration(
   } else {
     await migration.down(db);
     await removeMigrationRecord(db, migration.version);
-    console.log(`Migration ${migration.version} (${migration.name}) rolled back successfully`);
   }
 }
 
@@ -200,7 +195,6 @@ export async function runMigrations(
 
     // Get current version
     const currentVersion = await getCurrentVersion(db);
-    console.log(`Current database version: ${currentVersion}`);
 
     // Filter pending migrations
     const pendingMigrations = migrations
@@ -208,11 +202,9 @@ export async function runMigrations(
       .sort((a, b) => a.version - b.version);
 
     if (pendingMigrations.length === 0) {
-      console.log('No pending migrations to run');
       return results;
     }
 
-    console.log(`Found ${pendingMigrations.length} pending migrations`);
 
     // Create backup before migrations
     if (createBackup && pendingMigrations.length > 0) {
@@ -255,7 +247,6 @@ export async function runMigrations(
       }
     }
 
-    console.log(`All ${pendingMigrations.length} migrations completed successfully`);
     return results;
   } catch (error) {
     console.error('Migration process failed:', error);
@@ -284,7 +275,6 @@ export async function rollbackMigrations(
     const appliedMigrations = await getAppliedMigrations(db);
 
     if (appliedMigrations.length === 0) {
-      console.log('No migrations to roll back');
       return results;
     }
 
@@ -294,8 +284,6 @@ export async function rollbackMigrations(
       .reverse()
       .map((record) => migrations.find((m) => m.version === record.version))
       .filter((m): m is Migration => m !== undefined);
-
-    console.log(`Rolling back ${migrationsToRollback.length} migrations`);
 
     // Roll back each migration
     for (const migration of migrationsToRollback) {
@@ -321,7 +309,6 @@ export async function rollbackMigrations(
       }
     }
 
-    console.log(`Rolled back ${migrationsToRollback.length} migrations successfully`);
     return results;
   } catch (error) {
     console.error('Rollback process failed:', error);

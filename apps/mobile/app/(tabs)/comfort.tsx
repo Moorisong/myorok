@@ -17,6 +17,7 @@ import { Feather } from '@expo/vector-icons';
 import { COLORS, COMFORT_MESSAGES } from '../../constants';
 import { ComfortPost, getPosts, createPost, updatePost, toggleLike, deletePost, blockUser, reportPost } from '../../services';
 import { ComfortPostCard, ComfortComposeModal, ComfortDebugModal, ComfortReportModal } from '../../components';
+import { SegmentedControl } from '../../components/segmented-control';
 import { useToast } from '../../components/ToastContext';
 
 export default function ComfortScreen() {
@@ -32,6 +33,7 @@ export default function ComfortScreen() {
     const [showDebugModal, setShowDebugModal] = useState(false);
     const [reportModalVisible, setReportModalVisible] = useState(false);
     const [reportingPostId, setReportingPostId] = useState<string | null>(null);
+    const [sortOrder, setSortOrder] = useState<'latest' | 'cheer' | 'comment'>('latest');
     const { showToast } = useToast();
 
     const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -40,7 +42,7 @@ export default function ComfortScreen() {
         if (showLoading) setIsLoading(true);
 
         try {
-            const response = await getPosts();
+            const response = await getPosts(sortOrder);
 
             if (response.success && response.data) {
                 setPosts(response.data.posts);
@@ -56,7 +58,7 @@ export default function ComfortScreen() {
             setIsLoading(false);
             setIsRefreshing(false);
         }
-    }, []);
+    }, [sortOrder]);
 
     useFocusEffect(
         useCallback(() => {
@@ -206,16 +208,15 @@ export default function ComfortScreen() {
             <View style={styles.header}>
                 <View style={styles.headerRow}>
                     <Text style={styles.headerTitle}>{COMFORT_MESSAGES.TAB_TITLE}</Text>
-                    {__DEV__ && (
-                        <Pressable
-                            style={styles.devButton}
-                            onPress={() => setShowDebugModal(true)}
-                        >
-                            <Text style={styles.devButtonText}>🧪 테스트</Text>
-                        </Pressable>
-                    )}
+                    <Pressable
+                        style={styles.devButton}
+                        onPress={() => setShowDebugModal(true)}
+                    >
+                        <Text style={styles.devButtonText}>🧪 테스트</Text>
+                    </Pressable>
                 </View>
                 <Text style={styles.headerSubtitle}>{COMFORT_MESSAGES.TAB_SUBTITLE}</Text>
+
             </View>
 
             {/* 자정 삭제 안내 배너 */}
@@ -225,6 +226,18 @@ export default function ComfortScreen() {
 
             {/* 신고 자동숨김 안내 */}
             <Text style={styles.reportNotice}>신고 3회 이상 시 자동 숨김</Text>
+
+            <View style={styles.filterContainer}>
+                <SegmentedControl
+                    options={['최신순', '응원 많은 순', '댓글 많은 순']}
+                    selectedIndex={sortOrder === 'latest' ? 0 : sortOrder === 'cheer' ? 1 : 2}
+                    onChange={(index) => {
+                        if (index === 0) setSortOrder('latest');
+                        else if (index === 1) setSortOrder('cheer');
+                        else setSortOrder('comment');
+                    }}
+                />
+            </View>
 
             {isLoading ? (
                 <View style={styles.loadingContainer}>
@@ -323,7 +336,7 @@ const styles = StyleSheet.create({
     header: {
         paddingHorizontal: 20,
         paddingTop: 8,
-        paddingBottom: 12,
+        paddingBottom: 4,
     },
     headerRow: {
         flexDirection: 'row',
@@ -350,6 +363,7 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: COLORS.textSecondary,
         marginTop: 4,
+        marginBottom: 15,
     },
     noticeBanner: {
         backgroundColor: '#E8F5E9',
@@ -428,4 +442,8 @@ const styles = StyleSheet.create({
     topSpacer: {
         height: 29, // Same as petIndicatorRow (paddingTop: 12 + paddingVertical: 5 + fontSize: 12 approximate)
     },
+    filterContainer: {
+        marginTop: 15,
+        paddingHorizontal: 16,
+    }
 });

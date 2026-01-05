@@ -4,9 +4,10 @@ import { Stack, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { COLORS } from '../../../constants';
+import { CONFIG } from '../../../constants/config';
 import { Card } from '../../../components';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001';
+const API_URL = CONFIG.API_BASE_URL;
 
 interface NotificationSettings {
     marketing: boolean;

@@ -70,9 +70,9 @@ async function apiCall<T>(
 }
 
 // 게시글 목록 조회
-export async function getPosts(): Promise<ApiResponse<PostsResponse>> {
+export async function getPosts(sort: 'latest' | 'cheer' | 'comment' = 'latest'): Promise<ApiResponse<PostsResponse>> {
     const deviceId = await getDeviceId();
-    return apiCall<PostsResponse>(`/api/comfort/posts?deviceId=${encodeURIComponent(deviceId)}`);
+    return apiCall<PostsResponse>(`/api/comfort/posts?deviceId=${encodeURIComponent(deviceId)}&sort=${sort}`);
 }
 
 // 게시글 작성
@@ -150,6 +150,15 @@ export async function reportPost(postId: string, reason: string): Promise<ApiRes
     return apiCall('/api/comfort/report', {
         method: 'POST',
         body: JSON.stringify({ deviceId, targetId: postId, targetType: 'post', reason }),
+    });
+}
+
+// 댓글 신고
+export async function reportComment(commentId: string, reason: string): Promise<ApiResponse> {
+    const deviceId = await getDeviceId();
+    return apiCall(`/api/comfort/comments/${commentId}/report`, {
+        method: 'POST',
+        body: JSON.stringify({ deviceId, reason }),
     });
 }
 

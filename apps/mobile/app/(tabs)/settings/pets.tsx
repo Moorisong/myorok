@@ -208,7 +208,7 @@ export default function PetsManagementScreen() {
 
             <ScrollView style={styles.scrollView}>
                 <Card style={styles.card}>
-                    <Text style={styles.sectionTitle}>활성 고양이</Text>
+                    <Text style={styles.sectionTitle}>고양이 목록</Text>
                     {pets.map((pet, index) => (
                         <PetItem
                             key={pet.id}

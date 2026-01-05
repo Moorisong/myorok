@@ -9,6 +9,8 @@ import {
     generateNickname,
     type Post,
 } from '@/lib/comfort';
+import dbConnect from '@/lib/mongodb';
+import Device from '@/models/Device';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,7 +31,11 @@ export async function GET(request: NextRequest) {
         await cleanupOldPosts();
 
         // MongoDB에서 차단/숨김 처리된 필터링된 목록 조회 (Async)
-        const posts = await getFilteredPosts(deviceId);
+        // sort 파라미터 처리 (latest | cheer | comment)
+        const sort = searchParams.get('sort') as 'latest' | 'cheer' | 'comment' | null;
+        const validSort = (sort === 'latest' || sort === 'cheer' || sort === 'comment') ? sort : 'latest';
+
+        const posts = await getFilteredPosts(deviceId, validSort);
 
         // View용 데이터 가공 (isOwner, isLiked 등)
         const formattedPosts = posts.map(post => ({
@@ -125,10 +131,33 @@ export async function POST(request: NextRequest) {
             reportCount: 0,
             reportedBy: [],
             hidden: false,
+            cheerCount: 0,
         };
 
         // 데이터베이스 저장 (Async)
         await createPost(newPost);
+
+        // 디바이스 등록 (푸시 알림을 위해)
+        try {
+            await dbConnect();
+            await Device.findOneAndUpdate(
+                { deviceId },
+                {
+                    $set: { updatedAt: new Date() },
+                    $setOnInsert: {
+                        settings: {
+                            marketing: true,
+                            comments: true,
+                            inactivity: true,
+                        }
+                    }
+                },
+                { upsert: true, new: true }
+            );
+        } catch (error) {
+            console.error('[Post] Failed to register device:', error);
+            // 디바이스 등록 실패해도 게시글은 작성됨
+        }
 
         return NextResponse.json({
             success: true,
@@ -139,6 +168,7 @@ export async function POST(request: NextRequest) {
                     isLiked: false,
                     likeCount: 0,
                     commentCount: 0,
+                    cheerCount: 0,
                     displayId: generateNickname(deviceId),
                 },
             },

@@ -100,9 +100,10 @@ export default function SettingsScreen() {
     };
 
     const handleReset = () => {
+        const petName = selectedPet?.name || '현재 고양이';
         Alert.alert(
             '⚠️ 데이터 초기화',
-            '초기화를 진행하면 모든 기록이 삭제됩니다.\n\n구독 상태는 유지되며, 삭제된 데이터는 복구할 수 없습니다.\n\n정말 초기화하시겠습니까?',
+            `"${petName}"의 모든 기록이 삭제됩니다.\n\n다른 고양이의 기록은 영향을 받지 않으며, 구독 상태도 유지됩니다.\n\n삭제된 데이터는 복구할 수 없습니다.\n\n정말 초기화하시겠습니까?`,
             [
                 { text: '취소', style: 'cancel' },
                 {
@@ -112,7 +113,7 @@ export default function SettingsScreen() {
                         try {
                             const { resetAllData } = await import('../../../services/database');
                             await resetAllData();
-                            Alert.alert('완료', '모든 기록이 초기화되었습니다.');
+                            Alert.alert('완료', `"${petName}"의 모든 기록이 초기화되었습니다.`);
                         } catch (error) {
                             console.error('[Settings] Reset failed:', error);
                             Alert.alert('오류', '초기화에 실패했습니다. 다시 시도해 주세요.');
@@ -144,9 +145,12 @@ export default function SettingsScreen() {
             <ScrollView style={styles.scrollView}>
                 {/* Pet Indicator */}
                 <View style={styles.petIndicatorRow}>
-                    <View style={styles.petIndicator}>
-                        <Text style={styles.petName} numberOfLines={1}>{selectedPet?.name || ''}</Text>
-                    </View>
+                    <Pressable
+                        style={styles.petIndicator}
+                        onPress={() => router.push('/(tabs)/settings/pets')}
+                    >
+                        <Text style={styles.petName} numberOfLines={1} pointerEvents="none">{selectedPet?.name || ''}</Text>
+                    </Pressable>
                 </View>
 
                 <View style={styles.header}>
@@ -209,60 +213,22 @@ export default function SettingsScreen() {
 
                 <Card style={styles.card}>
                     <SettingItem
-                        emoji="🧪"
-                        title="알림 테스트 (Dev)"
-                        description="푸시 알림 로직 검증"
-                        onPress={() => handleNavigate('/settings/notification-test')}
-                    />
-                    <SettingItem
                         emoji="⏰"
-                        title="체험 종료 알림 테스트 (Dev)"
-                        description="10초 뒤 체험 종료 알림 발송"
+                        title="무료 체험 24시간 남음 (Dev)"
+                        description="체험 상태를 24시간 전으로 설정"
                         onPress={async () => {
                             try {
-                                const Constants = await import('expo-constants');
-
-                                // Check for Expo Go
-                                if (Constants.default.executionEnvironment === 'storeClient') {
-                                    Alert.alert('알림', 'Expo Go에서는 로컬 알림이 지원되지 않습니다.');
-                                    return;
-                                }
-
-                                const Notifications = require('expo-notifications');
-
-                                // Cancel existing trial end notifications
-                                const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
-                                for (const notification of scheduledNotifications) {
-                                    if (notification.content?.data?.type === 'TRIAL_END') {
-                                        await Notifications.cancelScheduledNotificationAsync(notification.identifier);
-                                    }
-                                }
-
-                                // Schedule test notification in 10 seconds
-                                await Notifications.scheduleNotificationAsync({
-                                    content: {
-                                        title: '무료 체험이 곧 종료됩니다!',
-                                        body: '무료 체험 기간 동안 기록을 즐겨보셨나요? 체험이 내일 종료됩니다. 계속 사용하려면 구독이 필요합니다.',
-                                        sound: 'default',
-                                        data: {
-                                            type: 'TRIAL_END',
-                                            action: 'GO_TO_SUBSCRIBE',
-                                        },
-                                    },
-                                    trigger: {
-                                        type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-                                        seconds: 10,
-                                    },
-                                });
-
+                                const { setTrialExpiringTestMode } = await import('../../../services');
+                                await setTrialExpiringTestMode();
+                                await loadSubscriptionStatus();
                                 Alert.alert(
-                                    '테스트 알림 예약 완료',
-                                    '10초 뒤 체험 종료 알림이 발송됩니다.\n\n알림을 탭하면 구독 화면으로 이동하고,\nlastTrialPushAt이 DB에 기록됩니다.',
+                                    '테스트 모드 설정 완료',
+                                    '무료 체험이 24시간 남은 상태로 설정되었습니다.\n\n10초 후 체험 종료 알림이 자동으로 스케줄링됩니다.',
                                     [{ text: '확인' }]
                                 );
                             } catch (error) {
-                                console.error('[Settings] Trial notification test failed:', error);
-                                Alert.alert('오류', '알림 예약에 실패했습니다.');
+                                console.error('[Settings] Set trial expiring test mode failed:', error);
+                                Alert.alert('오류', '테스트 모드 설정에 실패했습니다.');
                             }
                         }}
                     />
@@ -334,7 +300,7 @@ export default function SettingsScreen() {
                     <SettingItem
                         emoji="🗑️"
                         title="데이터 초기화"
-                        description="모든 기록을 삭제합니다"
+                        description={`${selectedPet?.name || '현재 고양이'}의 모든 기록 삭제`}
                         onPress={handleReset}
                         danger
                     />

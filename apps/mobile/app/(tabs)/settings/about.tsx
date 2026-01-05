@@ -48,13 +48,13 @@ export default function AboutScreen() {
                     <View style={styles.policyItem}>
                         <Text style={styles.policyEmoji}>💾</Text>
                         <Text style={styles.policyText}>
-                            모든 기록은 기기에 안전하게 저장됩니다
+                            모든 기록은 사용자의 기기에 로컬로 저장됩니다
                         </Text>
                     </View>
                     <View style={styles.policyItem}>
                         <Text style={styles.policyEmoji}>🔒</Text>
                         <Text style={styles.policyText}>
-                            데이터는 삭제되지 않습니다
+                            앱을 삭제하면 기기에 저장된 모든 기록 데이터는 함께 삭제되며 복구되지 않습니다
                         </Text>
                     </View>
                 </Card>

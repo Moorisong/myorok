@@ -2,9 +2,9 @@ import * as Device from 'expo-device';
 // import * as Notifications from 'expo-notifications'; // Removed for Expo Go compatibility
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import { CONFIG } from '../constants/config';
 
-// Fallback to localhost if not defined
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001';
+const API_URL = CONFIG.API_BASE_URL;
 
 // Notifications handler setup moved to register function to allow conditional require
 let Notifications: any;
@@ -18,7 +18,6 @@ export async function registerForPushNotificationsAsync() {
 
     // Check for Expo Go
     if (Constants.executionEnvironment === 'storeClient') {
-        console.log("Dev Note: Running in Expo Go. Push Notifications are not supported in SDK 53+. Using mock/no-op.");
         return;
     }
 
@@ -54,19 +53,16 @@ export async function registerForPushNotificationsAsync() {
                 finalStatus = status;
             }
             if (finalStatus !== 'granted') {
-                console.log('Permission not granted');
                 return;
             }
 
             try {
                 const projectId = Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId;
                 if (!projectId) {
-                    console.log("Warning: No Project ID found in config. Attempting default fetch...");
                     token = (await Notifications.getExpoPushTokenAsync()).data;
                 } else {
                     token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
                 }
-                console.log("Expo Push Token:", token);
             } catch (e: any) {
                 // Handle "No projectId found" specifically
                 if (e.message?.includes('No "projectId" found')) {
@@ -90,7 +86,6 @@ export async function registerForPushNotificationsAsync() {
 export async function sendTokenToBackend(deviceId: string, token: string | undefined) {
     if (!token) return;
     try {
-        console.log(`Sending token to ${API_URL}/api/device/register`);
         const response = await fetch(`${API_URL}/api/device/register`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -99,8 +94,7 @@ export async function sendTokenToBackend(deviceId: string, token: string | undef
                 pushToken: token,
             })
         });
-        const json = await response.json();
-        console.log('Token register response:', json);
+        await response.json();
     } catch (e) {
         console.error("Failed to register token", e);
     }
@@ -135,8 +129,6 @@ export async function scheduleInactivityNotification() {
             seconds: 3 * 24 * 60 * 60, // 3 days
         },
     });
-
-    console.log("Scheduled inactivity notification for 3 days later");
 }
 
 export async function scheduleTestNotification(seconds: number) {
@@ -156,10 +148,8 @@ export async function scheduleTestNotification(seconds: number) {
                 seconds
             },
         });
-        console.log(`[Local] Scheduled test notification in ${seconds}s, ID: ${identifier}`);
         return identifier;
     } catch (error) {
-        console.log('Error scheduling test notification:', error);
         throw error;
     }
 }
@@ -172,7 +162,6 @@ export async function scheduleTestNotification(seconds: number) {
 export async function scheduleTrialEndNotification(trialStartDate: string): Promise<string | null> {
     // Check for Expo Go
     if (Constants.executionEnvironment === 'storeClient') {
-        console.log('[TrialNotification] Skipped in Expo Go');
         return null;
     }
 
@@ -191,7 +180,6 @@ export async function scheduleTrialEndNotification(trialStartDate: string): Prom
 
         // Check if push date is in the past
         if (pushDate <= now) {
-            console.log('[TrialNotification] Push date is in the past, skipping');
             return null;
         }
 
@@ -200,7 +188,6 @@ export async function scheduleTrialEndNotification(trialStartDate: string): Prom
         for (const notification of scheduledNotifications) {
             if (notification.content?.data?.type === 'TRIAL_END') {
                 await Notifications.cancelScheduledNotificationAsync(notification.identifier);
-                console.log('[TrialNotification] Cancelled existing trial end notification');
             }
         }
 
@@ -221,7 +208,6 @@ export async function scheduleTrialEndNotification(trialStartDate: string): Prom
             },
         });
 
-        console.log(`[TrialNotification] Scheduled for ${pushDate.toISOString()}`);
         return identifier;
     } catch (error) {
         console.error('[TrialNotification] Error scheduling:', error);
@@ -242,7 +228,6 @@ export async function cancelTrialEndNotification(): Promise<void> {
         for (const notification of scheduledNotifications) {
             if (notification.content?.data?.type === 'TRIAL_END') {
                 await Notifications.cancelScheduledNotificationAsync(notification.identifier);
-                console.log('[TrialNotification] Cancelled trial end notification');
             }
         }
     } catch (error) {

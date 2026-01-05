@@ -36,10 +36,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         if (likeIndex === -1) {
             // 좋아요 추가
             post.likes.push(deviceId);
+            post.cheerCount = (post.cheerCount || 0) + 1;
             isLiked = true;
         } else {
             // 좋아요 취소
             post.likes.splice(likeIndex, 1);
+            post.cheerCount = Math.max((post.cheerCount || 1) - 1, 0); // 0 이하 방지
             isLiked = false;
         }
 
