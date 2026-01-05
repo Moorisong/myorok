@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Linking, TouchableOpacity } from 'react-native';
-import { useRouter } from 'expo-router';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, Linking, TouchableOpacity, AppState, AppStateStatus } from 'react-native';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 
@@ -11,10 +11,12 @@ import {
     getTrialCountdownText,
     getSubscriptionState,
     startTrialSubscription,
-    handlePurchaseSuccess
+    handlePurchaseSuccess,
+    checkAndRestoreSubscription
 } from '../../../services';
 import type { SubscriptionState } from '../../../services';
-import { purchaseSubscription } from '../../../services/paymentService';
+import { purchaseSubscription, getSubscriptionDetails } from '../../../services/paymentService';
+import type { SubscriptionDetails } from '../../../services/paymentService';
 import { showToast } from '../../../utils/toast';
 
 const FEATURES = [
@@ -26,11 +28,33 @@ const FEATURES = [
 
 export default function ProScreen() {
     const router = useRouter();
+    const appState = useRef(AppState.currentState);
     const [subscriptionState, setSubscriptionState] = useState<SubscriptionState | null>(null);
     const [simpleState, setSimpleState] = useState<'free' | 'trial' | 'active' | 'expired'>('free');
+    const [subscriptionDetails, setSubscriptionDetails] = useState<SubscriptionDetails | null>(null);
 
+    // Focus 시 데이터 로드
+    useFocusEffect(
+        useCallback(() => {
+            loadSubscriptionStatus();
+        }, [])
+    );
+
+    // 앱이 foreground로 돌아올 때 구독 상태 새로고침
+    // (결제 완료 후 또는 Google Play에서 해지하고 돌아왔을 때)
     useEffect(() => {
-        loadSubscriptionStatus();
+        const handleAppStateChange = async (nextAppState: AppStateStatus) => {
+            if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+                console.log('[ProScreen] App came to foreground, refreshing subscription status');
+                // Google Play 구독 상태 동기화 후 로컬 상태 업데이트
+                await checkAndRestoreSubscription();
+                await loadSubscriptionStatus();
+            }
+            appState.current = nextAppState;
+        };
+
+        const subscription = AppState.addEventListener('change', handleAppStateChange);
+        return () => subscription.remove();
     }, []);
 
     const loadSubscriptionStatus = async () => {
@@ -39,17 +63,47 @@ export default function ProScreen() {
 
         const state = await getSubscriptionState();
         setSimpleState(state);
+
+        // 구독 상세 정보 조회 (해지 예정 여부 포함)
+        if (state === 'active') {
+            const details = await getSubscriptionDetails();
+            setSubscriptionDetails(details);
+        }
+    };
+
+    const formatDate = (isoDate: string | undefined) => {
+        if (!isoDate) return '';
+        const date = new Date(isoDate);
+        return `${date.getMonth() + 1}월 ${date.getDate()}일`;
     };
 
     const handleSubscribe = async () => {
         try {
             // 결제 요청 시작 (결제창만 띄움)
+            // 실제 결제 완료/에러는 _layout.tsx의 listener에서 처리됨
             await purchaseSubscription();
-            // 실제 결제 완료는 _layout.tsx의 purchaseUpdatedListener에서 처리됨
-            showToast('결제 진행 중...', 'info');
-        } catch (error) {
+        } catch (error: any) {
             console.error('Subscription error:', error);
-            showToast('결제 요청 실패', 'error');
+
+            // 이미 구독 중인 경우 Google Play에서 에러 발생
+            // Google Play 구독 상태를 확인하고 동기화
+            try {
+                showToast('구독 상태 확인 중...', 'info');
+                await checkAndRestoreSubscription();
+                await loadSubscriptionStatus();
+
+                // 동기화 후 구독 상태 확인
+                const state = await getSubscriptionState();
+                if (state === 'active') {
+                    setSimpleState('active');
+                    showToast('이미 구독 중입니다', 'success');
+                } else {
+                    showToast('결제 요청 실패', 'error');
+                }
+            } catch (restoreError) {
+                console.error('Restore check error:', restoreError);
+                showToast('결제 요청 실패', 'error');
+            }
         }
     };
 
@@ -100,9 +154,25 @@ export default function ProScreen() {
             <ScrollView style={styles.content}>
                 {/* 상태별 UI 분기 */}
                 {simpleState === 'active' && (
-                    <View style={styles.activeSubscription}>
-                        <Text style={styles.activeText}>✓ 구독 중</Text>
-                        <Text style={styles.activeSubtext}>프리미엄 기능 사용 가능</Text>
+                    <View style={[
+                        styles.activeSubscription,
+                        subscriptionDetails?.autoRenewing === false && styles.cancelledSubscription
+                    ]}>
+                        {subscriptionDetails?.autoRenewing === false ? (
+                            <>
+                                <Text style={styles.cancelledText}>⚠️ 해지 예정</Text>
+                                <Text style={styles.cancelledSubtext}>
+                                    {formatDate(subscriptionDetails?.expiryDate)} 만료
+                                </Text>
+                            </>
+                        ) : (
+                            <>
+                                <Text style={styles.activeText}>✓ 구독 중</Text>
+                                <Text style={styles.activeSubtext}>
+                                    다음 결제일: {formatDate(subscriptionDetails?.expiryDate)}
+                                </Text>
+                            </>
+                        )}
                     </View>
                 )}
 
@@ -461,6 +531,19 @@ const styles = StyleSheet.create({
         color: '#757575',
         fontSize: 18,
         fontWeight: '700',
+    },
+    cancelledSubscription: {
+        backgroundColor: '#FFF3E0',
+    },
+    cancelledText: {
+        color: '#E65100',
+        fontSize: 18,
+        fontWeight: '700',
+    },
+    cancelledSubtext: {
+        color: '#FB8C00',
+        fontSize: 14,
+        marginTop: 4,
     },
 });
 
