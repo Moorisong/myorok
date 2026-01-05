@@ -18,12 +18,6 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// TODO: Move this to a dedicated service
-async function mockFetchSubscriptionStatus(userId: string): Promise<SubscriptionStatus> {
-    // Simulate API call
-    return 'active'; // Default to active for now
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
     const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -37,8 +31,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setIsLoggedIn(!!currentUserId);
 
             if (currentUserId) {
-                const status = await mockFetchSubscriptionStatus(currentUserId);
-                setSubscriptionStatus(status);
+                // 실제 구독 상태 조회
+                const { getSubscriptionState } = await import('../services/subscription');
+                const status = await getSubscriptionState();
+                setSubscriptionStatus(status as SubscriptionStatus);
             } else {
                 setSubscriptionStatus(null);
             }
