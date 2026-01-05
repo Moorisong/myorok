@@ -11,7 +11,11 @@
       "Bash(npm uninstall:*)",
       "Bash(git restore:*)",
       "Bash(curl:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(npx expo install:*)",
+      "Bash(./gradlew clean:*)",
+      "Bash(npx expo prebuild:*)",
+      "Bash(npx expo run:android)"
     ]
   }
 }

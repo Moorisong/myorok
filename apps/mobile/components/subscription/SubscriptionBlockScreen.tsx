@@ -1,14 +1,32 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants';
 import { useAuth } from '../../hooks/useAuth';
+import { purchaseSubscription } from '../../services/paymentService';
+import { useToast } from '../ToastContext';
+import { useState } from 'react';
 
 export function SubscriptionBlockScreen() {
     const { logout } = useAuth();
+    const { showToast } = useToast();
+    const [isLoading, setIsLoading] = useState(false);
 
-    const handleSubscribe = () => {
-        Alert.alert('구독하기', '인앱 결제 기능을 준비 중입니다.');
+    const handleSubscribe = async () => {
+        if (isLoading) return;
+
+        try {
+            setIsLoading(true);
+            await purchaseSubscription();
+            // Purchase success is handled by the global purchase listener in _layout.tsx
+        } catch (error: any) {
+            console.error('Purchase failed:', error);
+            if (error.code !== 'E_USER_CANCELLED') {
+                showToast(error.message || '결제 요청에 실패했습니다', { variant: 'error' });
+            }
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (
@@ -25,16 +43,22 @@ export function SubscriptionBlockScreen() {
 
                 <View style={styles.footer}>
                     <TouchableOpacity
-                        style={styles.subscribeButton}
+                        style={[styles.subscribeButton, isLoading && styles.subscribeButtonDisabled]}
                         onPress={handleSubscribe}
                         activeOpacity={0.8}
+                        disabled={isLoading}
                     >
-                        <Text style={styles.subscribeButtonText}>구독 갱신하기</Text>
+                        {isLoading ? (
+                            <ActivityIndicator color="#FFFFFF" />
+                        ) : (
+                            <Text style={styles.subscribeButtonText}>구독 갱신하기</Text>
+                        )}
                     </TouchableOpacity>
 
                     <TouchableOpacity
                         style={styles.logoutButton}
                         onPress={logout}
+                        disabled={isLoading}
                     >
                         <Text style={styles.logoutButtonText}>로그아웃</Text>
                     </TouchableOpacity>
@@ -46,8 +70,9 @@ export function SubscriptionBlockScreen() {
 
 const styles = StyleSheet.create({
     container: {
-        flex: 1,
-        backgroundColor: COLORS.background,
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: '#FFFFFF',
+        zIndex: 9999,
     },
     content: {
         flex: 1,
@@ -91,6 +116,9 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    subscribeButtonDisabled: {
+        opacity: 0.7,
     },
     subscribeButtonText: {
         fontSize: 18,

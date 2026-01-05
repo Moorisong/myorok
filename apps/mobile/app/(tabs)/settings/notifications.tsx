@@ -49,7 +49,7 @@ function SettingToggleItem({ emoji, title, description, value, onValueChange, di
 
 export default function NotificationSettingsScreen() {
     const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({
-        marketing: true,
+        marketing: false,
         comments: true,
         inactivity: true,
     });

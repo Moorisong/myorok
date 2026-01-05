@@ -14,7 +14,11 @@ import {
 } from 'react-native-iap';
 import { Platform } from 'react-native';
 
-const PRODUCT_ID = 'myorok_monthly_premium';
+export const SUBSCRIPTION_SKU = 'myorok_monthly_premium';
+// const PRODUCT_ID = 'myorok_monthly_premium'; // Replaced by exported constant
+
+// Export requestPurchase so it can be used directly if needed, or use purchaseSubscription wrapper
+export { requestPurchase };
 
 // 전역 콜백 저장
 let globalOnPurchaseSuccess: ((purchase: Purchase) => void) | null = null;
@@ -89,7 +93,7 @@ export async function purchaseSubscription(): Promise<void> {
     await requestPurchase({
       request: {
         google: {
-          skus: [PRODUCT_ID],
+          skus: [SUBSCRIPTION_SKU],
         },
       },
       type: 'subs', // 'subs' for subscriptions, 'in-app' for one-time purchases
@@ -129,7 +133,7 @@ export async function restorePurchases(): Promise<boolean> {
   try {
     const purchases = await getAvailablePurchases();
     const hasActiveSubscription = purchases.some(
-      (purchase: Purchase) => purchase.productId === PRODUCT_ID
+      (purchase: Purchase) => purchase.productId === SUBSCRIPTION_SKU
     );
     return hasActiveSubscription;
   } catch (error) {
@@ -152,7 +156,7 @@ export async function getSubscriptionDetails(): Promise<SubscriptionDetails> {
   try {
     const purchases = await getAvailablePurchases();
     const subscription = purchases.find(
-      (purchase: Purchase) => purchase.productId === PRODUCT_ID
+      (purchase: Purchase) => purchase.productId === SUBSCRIPTION_SKU
     );
 
     if (!subscription) {

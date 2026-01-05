@@ -422,7 +422,9 @@ function AppContent() {
       <GestureHandlerRootView style={{ flex: 1 }}>
         <SafeAreaProvider>
           <StatusBar style="dark" />
-          <SubscriptionBlockScreen />
+          <ToastProvider>
+            <SubscriptionBlockScreen />
+          </ToastProvider>
         </SafeAreaProvider>
       </GestureHandlerRootView>
     );

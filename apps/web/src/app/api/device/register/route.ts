@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
 
         // Set default settings on insert (not on update)
         const defaultSettings = {
-            marketing: true,
+            marketing: false,
             comments: true,
             inactivity: true,
         };
