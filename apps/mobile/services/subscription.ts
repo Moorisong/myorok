@@ -308,6 +308,10 @@ export async function startTrialForUser(userId: string): Promise<void> {
         const db = await getDatabase();
         const now = new Date().toISOString();
 
+        // Update AsyncStorage first (getSubscriptionStatus reads from here)
+        await AsyncStorage.setItem(SUBSCRIPTION_KEYS.TRIAL_START_DATE, now);
+        await AsyncStorage.setItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS, 'trial');
+
         // Check if subscription_state row exists
         const existing = await db.getFirstAsync<{ id: number }>(
             'SELECT id FROM subscription_state WHERE id = 1'
@@ -329,6 +333,9 @@ export async function startTrialForUser(userId: string): Promise<void> {
                 [userId, now, 'trial', now, now]
             );
         }
+
+        // Schedule trial end notification
+        await scheduleTrialEndNotificationIfNeeded(now);
     } catch (error) {
         console.error('[Subscription] Start trial failed:', error);
         throw error;
