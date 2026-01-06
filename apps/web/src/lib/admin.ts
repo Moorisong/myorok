@@ -8,6 +8,9 @@
  * @returns 운영자 여부
  */
 export function isAdminUser(kakaoUserId: string): boolean {
-  const admins = process.env.ADMIN_KAKAO_IDS?.split(',') ?? [];
-  return admins.includes(kakaoUserId);
+  const adminsStr = process.env.ADMIN_KAKAO_IDS || '';
+  const admins = adminsStr.split(',').map(id => id.trim());
+  const isAdm = admins.includes(kakaoUserId);
+  console.log(`[Web][AdminCheck] User: ${kakaoUserId}, IsAdmin: ${isAdm}, Admins: ${adminsStr}`);
+  return isAdm;
 }

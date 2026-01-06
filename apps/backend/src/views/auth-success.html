@@ -160,10 +160,25 @@
     </div>
 
     <script>
-        // Auto redirect to app after 2 seconds
+        // Get URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token');
+        const user = urlParams.get('user');
+
+        // Auto redirect to app after 2 seconds with token and user data
         setTimeout(() => {
-            window.location.href = 'myorok://auth/callback';
+            if (token && user) {
+                window.location.href = `myorok://?token=${encodeURIComponent(token)}&user=${encodeURIComponent(user)}`;
+            } else {
+                window.location.href = 'myorok://';
+            }
         }, 2000);
+
+        // Update return button href as well
+        const returnBtn = document.getElementById('returnBtn');
+        if (returnBtn && token && user) {
+            returnBtn.href = `myorok://?token=${encodeURIComponent(token)}&user=${encodeURIComponent(user)}`;
+        }
     </script>
 </body>
 
