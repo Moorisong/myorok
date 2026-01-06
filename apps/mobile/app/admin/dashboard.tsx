@@ -2,6 +2,7 @@ import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-nat
 import { Stack } from 'expo-router';
 import { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { MetricCard } from '../../components/MetricCard';
 import { COLORS } from '../../constants';
 import { CONFIG } from '../../constants/config';
@@ -69,14 +70,17 @@ export default function AdminDashboard() {
     };
 
     return (
-        <>
+        <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
             <Stack.Screen
                 options={{
                     title: '운영자 대시보드',
                     headerBackTitle: '설정',
                 }}
             />
-            <ScrollView style={styles.container}>
+            <ScrollView
+                style={styles.container}
+                contentContainerStyle={styles.scrollContent}
+            >
                 {loading && (
                     <View style={styles.centerContainer}>
                         <ActivityIndicator size="large" color={COLORS.primary} />
@@ -140,7 +144,7 @@ export default function AdminDashboard() {
                     </>
                 )}
             </ScrollView>
-        </>
+        </SafeAreaView>
     );
 }
 
@@ -154,10 +158,18 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 const styles = StyleSheet.create({
+    safeArea: {
+        flex: 1,
+        backgroundColor: COLORS.background,
+    },
     container: {
         flex: 1,
         backgroundColor: COLORS.background,
         padding: 16,
+        paddingTop: 32,
+    },
+    scrollContent: {
+        paddingBottom: 40,
     },
     centerContainer: {
         flex: 1,
