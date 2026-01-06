@@ -10,7 +10,6 @@ import { Card } from '../../../components';
 const API_URL = CONFIG.API_BASE_URL;
 
 interface NotificationSettings {
-    marketing: boolean;
     comments: boolean;
     inactivity: boolean;
 }
@@ -49,7 +48,6 @@ function SettingToggleItem({ emoji, title, description, value, onValueChange, di
 
 export default function NotificationSettingsScreen() {
     const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({
-        marketing: false,
         comments: true,
         inactivity: true,
     });
@@ -73,7 +71,12 @@ export default function NotificationSettingsScreen() {
 
             const data = await response.json();
             if (data.success && data.device?.settings) {
-                setNotificationSettings(data.device.settings);
+                // Merge with defaults to handle missing fields
+                setNotificationSettings({
+                    comments: true,
+                    inactivity: true,
+                    ...data.device.settings,
+                });
                 console.log('[NotificationSettings] Loaded settings:', data.device.settings);
             }
         } catch (error) {
@@ -165,13 +168,7 @@ export default function NotificationSettingsScreen() {
                         value={notificationSettings.inactivity}
                         onValueChange={(value) => updateNotificationSetting('inactivity', value)}
                     />
-                    <SettingToggleItem
-                        emoji="📢"
-                        title="마케팅 알림"
-                        description="마케팅 알림은 현재 발송되지 않으며, 추후 적용될 예정입니다."
-                        value={notificationSettings.marketing}
-                        onValueChange={(value) => updateNotificationSetting('marketing', value)}
-                    />
+
                 </Card>
 
                 <View style={styles.bottomPadding} />
