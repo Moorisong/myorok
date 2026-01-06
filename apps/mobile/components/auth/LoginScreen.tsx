@@ -93,7 +93,7 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'space-between',
         paddingHorizontal: 24,
-        paddingBottom: 40,
+        paddingBottom: 100,
         paddingTop: 60,
     },
     header: {

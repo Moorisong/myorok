@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
-import { getCurrentUserId, logout as logoutService } from '../services/auth';
+import { getCurrentUserId, logout as logoutService, getIsAdmin } from '../services/auth';
 
 export type SubscriptionStatus = 'active' | 'trial' | 'expired' | null;
 
@@ -8,27 +8,24 @@ interface AuthContextType {
     isLoggingIn: boolean;
     userId: string | null;
     subscriptionStatus: SubscriptionStatus;
+    isAdmin: boolean;
     setIsLoggedIn: (value: boolean) => void;
     setIsLoggingIn: (value: boolean) => void;
     setUserId: (value: string | null) => void;
     setSubscriptionStatus: (value: SubscriptionStatus) => void;
+    setIsAdmin: (value: boolean) => void;
     logout: () => Promise<void>;
     checkAuthStatus: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// TODO: Move this to a dedicated service
-async function mockFetchSubscriptionStatus(userId: string): Promise<SubscriptionStatus> {
-    // Simulate API call
-    return 'active'; // Default to active for now
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
     const [isLoggingIn, setIsLoggingIn] = useState(false);
     const [userId, setUserId] = useState<string | null>(null);
     const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus>(null);
+    const [isAdmin, setIsAdmin] = useState<boolean>(false);
 
     const checkAuthStatus = useCallback(async () => {
         try {
@@ -37,15 +34,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setIsLoggedIn(!!currentUserId);
 
             if (currentUserId) {
-                const status = await mockFetchSubscriptionStatus(currentUserId);
-                setSubscriptionStatus(status);
+                // 실제 구독 상태 조회
+                const { getSubscriptionState, getSubscriptionStatus } = await import('../services/subscription');
+                const status = await getSubscriptionState();
+                setSubscriptionStatus(status as SubscriptionStatus);
+
+                // 운영자 권한 조회
+                const adminStatus = await getIsAdmin();
+                console.log('[AuthContext] isAdmin status:', adminStatus);
+                setIsAdmin(adminStatus);
+
+                // 서버에 구독 상태 동기화 (초기 동기화)
+                try {
+                    const subscriptionState = await getSubscriptionStatus();
+                    const API_URL = (await import('../constants/config')).CONFIG.API_BASE_URL;
+                    const token = await import('@react-native-async-storage/async-storage').then(m => m.default.getItem('jwt_token'));
+                    const { getDeviceId } = await import('../services/device');
+
+                    if (token) {
+                        const deviceId = await getDeviceId();
+                        await fetch(`${API_URL}/api/subscription/sync`, {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                deviceId,
+                                status: subscriptionState.status,
+                                trialStartDate: subscriptionState.trialStartDate,
+                                subscriptionStartDate: subscriptionState.subscriptionStartDate,
+                                subscriptionExpiryDate: subscriptionState.subscriptionExpiryDate,
+                            }),
+                        });
+                    }
+                } catch (syncError) {
+                    console.log('[AuthContext] Subscription sync skipped:', syncError);
+                }
             } else {
                 setSubscriptionStatus(null);
+                setIsAdmin(false);
             }
         } catch (error) {
             console.error('[AuthContext] Check auth status failed:', error);
             setIsLoggedIn(false);
             setSubscriptionStatus(null);
+            setIsAdmin(false);
         }
     }, []);
 
@@ -55,12 +89,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setUserId(null);
             setIsLoggedIn(false);
             setSubscriptionStatus(null);
+            setIsAdmin(false);
         } catch (error) {
             console.error('[AuthContext] Logout failed:', error);
             // Still update state even on error
             setUserId(null);
             setIsLoggedIn(false);
             setSubscriptionStatus(null);
+            setIsAdmin(false);
         }
     }, []);
 
@@ -71,10 +107,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 isLoggingIn,
                 userId,
                 subscriptionStatus,
+                isAdmin,
                 setIsLoggedIn,
                 setIsLoggingIn,
                 setUserId,
                 setSubscriptionStatus,
+                setIsAdmin,
                 logout,
                 checkAuthStatus,
             }}

@@ -43,7 +43,6 @@ function KakaoAuthContent() {
         // Redirect to app with deep link (token + user info)
         const userInfo = encodeURIComponent(JSON.stringify(data.user));
         const deepLink = `myorok://?token=${encodeURIComponent(data.token)}&user=${userInfo}`;
-        console.log('Redirecting to app with user info');
         window.location.href = deepLink;
 
         // Keep loading state as we're redirecting

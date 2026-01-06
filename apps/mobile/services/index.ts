@@ -82,6 +82,13 @@ export {
     expireSubscriptionForUser,
     // Test mode functions
     setTrialExpiringTestMode,
+    // Payment-related functions
+    handlePurchaseSuccess,
+    checkAndRestoreSubscription,
+    startTrialSubscription,
+    getSubscriptionState,
+    deactivateSubscription,
+    setSubscriptionStatus,
 } from './subscription';
 export type { SubscriptionStatus, SubscriptionState } from './subscription';
 

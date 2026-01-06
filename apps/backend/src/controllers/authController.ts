@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import fetch from 'node-fetch';
 import { config } from '../config';
 import { AuthRequest } from '../middleware/authMiddleware';
+import { isAdminUser } from '../utils/admin';
 
 interface KakaoTokenResponse {
   access_token: string;
@@ -110,6 +111,10 @@ export const kakaoLogin = async (
       expiresIn: '30d',
     });
 
+    // Check if user is admin
+    const isAdmin = isAdminUser(userId);
+    console.log(`[AuthController] Login User: ${userId}, IsAdmin: ${isAdmin}`);
+
     // Return user data and token
     res.status(200).json({
       success: true,
@@ -119,6 +124,7 @@ export const kakaoLogin = async (
         profileImage,
       },
       token,
+      isAdmin,
     });
   } catch (error) {
     console.error('Kakao login error:', error);
@@ -195,15 +201,35 @@ export const kakaoCallback = async (
 
     const userInfo = (await userInfoResponse.json()) as KakaoUserInfo;
     const userId = userInfo.id.toString();
+    const nickname =
+      userInfo.kakao_account?.profile?.nickname ||
+      userInfo.properties?.nickname ||
+      'Unknown';
+    const profileImage =
+      userInfo.kakao_account?.profile?.profile_image_url ||
+      userInfo.properties?.profile_image ||
+      '';
 
     // Generate JWT token
     const token = jwt.sign({ userId }, config.jwt.secret, {
       expiresIn: '30d',
     });
 
-    // Redirect to success page with token in URL (for app to capture)
+    // Check if user is admin
+    const isAdmin = isAdminUser(userId);
+    console.log(`[AuthController] Callback User: ${userId}, IsAdmin: ${isAdmin}`);
+
+    // Create user object with isAdmin
+    const user = {
+      id: userId,
+      nickname,
+      profileImage,
+      isAdmin,
+    };
+
+    // Redirect to success page with token and user data
     // The app will use deep linking to receive this
-    res.redirect(`/views/auth-success.html?token=${token}&userId=${userId}`);
+    res.redirect(`/views/auth-success.html?token=${token}&user=${encodeURIComponent(JSON.stringify(user))}`);
   } catch (error) {
     console.error('Kakao callback error:', error);
     res.redirect('/views/auth-error.html?error=INTERNAL&message=' + encodeURIComponent('서버 오류가 발생했습니다.'));

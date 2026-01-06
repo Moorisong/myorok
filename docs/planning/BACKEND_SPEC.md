@@ -171,7 +171,57 @@ GET /api/subscription/status?deviceId=xxx
 
 ---
 
-## 6. 보안 및 제한 (v1 기준)
+## 6. 운영자 API (v1 추가)
+
+### 6.1 운영자 판별
+
+```typescript
+function isAdminUser(kakaoUserId: string): boolean {
+  const admins = process.env.ADMIN_KAKAO_IDS?.split(",") ?? [];
+  return admins.includes(kakaoUserId);
+}
+```
+
+### 6.2 인증 미들웨어
+
+```typescript
+function requireAdmin(req, res, next) {
+  if (!req.user?.isAdmin) {
+    return res.status(403).json({ message: "FORBIDDEN" });
+  }
+  next();
+}
+```
+
+### 6.3 대시보드 API
+
+```
+GET /api/admin/dashboard
+Authorization: Bearer {jwt_token}
+```
+
+**Response:**
+```json
+{
+  "kpi": {
+    "activeSubscriptions": 128,
+    "monthlyRevenue": 448000,
+    "growthRate": 12.5
+  },
+  "conversion": {
+    "trialUsers": 42,
+    "conversionRate": 18.0
+  },
+  "secondary": {
+    "totalDevices": 1024,
+    "newDevices7Days": 56
+  }
+}
+```
+
+---
+
+## 7. 보안 및 제한 (v1 기준)
 
 | 항목 | 상태 |
 |------|------|
@@ -184,7 +234,7 @@ GET /api/subscription/status?deviceId=xxx
 
 ---
 
-## 7. 확장 설계 포인트 (v2 대비)
+## 8. 확장 설계 포인트 (v2 대비)
 
 - `deviceId` → `userId` 전환 가능 구조
 - backup document에 `version` 필드 추가 가능

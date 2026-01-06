@@ -1,6 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getDatabase } from './database';
 import { scheduleTrialEndNotification, cancelTrialEndNotification } from './NotificationService';
+import { handleLicenseResponse, checkLicenseAfterPurchase } from './licenseChecker';
+import { restorePurchases } from './paymentService';
+import { CONFIG } from '../constants/config';
+import { getDeviceId } from './device';
 
 const SUBSCRIPTION_KEYS = {
     TRIAL_START_DATE: 'trial_start_date',
@@ -20,6 +24,7 @@ export interface SubscriptionState {
 }
 
 const TRIAL_DAYS = 7;
+const API_URL = CONFIG.API_BASE_URL;
 
 /**
  * Initialize subscription on first app launch
@@ -159,6 +164,18 @@ export async function activateSubscription(expiryDate?: string): Promise<void> {
 
     // Cancel trial end notification
     await cancelTrialEndNotification();
+
+    // Sync to server
+    const userId = await AsyncStorage.getItem('current_user_id');
+    if (userId) {
+        const trialStartDate = await AsyncStorage.getItem(SUBSCRIPTION_KEYS.TRIAL_START_DATE);
+        await syncSubscriptionToServer(userId, {
+            status: 'active',
+            trialStartDate: trialStartDate || undefined,
+            subscriptionStartDate: now,
+            subscriptionExpiryDate: expiry,
+        });
+    }
 }
 
 /**
@@ -173,7 +190,7 @@ function getDefaultExpiryDate(): string {
 /**
  * Set subscription status manually (for testing)
  */
-async function setSubscriptionStatus(status: SubscriptionStatus): Promise<void> {
+export async function setSubscriptionStatus(status: SubscriptionStatus): Promise<void> {
     const now = new Date().toISOString();
     await AsyncStorage.setItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS, status);
 
@@ -182,6 +199,13 @@ async function setSubscriptionStatus(status: SubscriptionStatus): Promise<void> 
         `UPDATE subscription_state SET subscriptionStatus = ?, updatedAt = ? WHERE id = 1`,
         [status, now]
     );
+
+    // Sync to server
+    const userId = await AsyncStorage.getItem('current_user_id');
+    if (userId) {
+        const state = await getSubscriptionStatus();
+        await syncSubscriptionToServer(userId, state);
+    }
 }
 
 /**
@@ -228,6 +252,46 @@ export async function resetSubscription(): Promise<void> {
         throw error;
     }
 }
+
+/**
+ * Sync subscription state to server
+ */
+async function syncSubscriptionToServer(userId: string, state: SubscriptionState): Promise<void> {
+    try {
+        const token = await AsyncStorage.getItem('jwt_token');
+        if (!token) {
+            console.warn('[Subscription] No JWT token, skipping server sync');
+            return;
+        }
+
+        const deviceId = await getDeviceId();
+
+        const response = await fetch(`${API_URL}/api/subscription/sync`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                deviceId,
+                status: state.status,
+                trialStartDate: state.trialStartDate,
+                subscriptionStartDate: state.subscriptionStartDate,
+                subscriptionExpiryDate: state.subscriptionExpiryDate,
+            }),
+        });
+
+        if (!response.ok) {
+            console.error('[Subscription] Server sync failed:', response.status);
+        } else {
+            console.log('[Subscription] Server sync successful');
+        }
+    } catch (error) {
+        console.error('[Subscription] Server sync error:', error);
+        // Don't throw - sync is optional
+    }
+}
+
 
 // ============================================================
 // User-based subscription functions (for Kakao login)
@@ -306,6 +370,10 @@ export async function startTrialForUser(userId: string): Promise<void> {
         const db = await getDatabase();
         const now = new Date().toISOString();
 
+        // Update AsyncStorage first (getSubscriptionStatus reads from here)
+        await AsyncStorage.setItem(SUBSCRIPTION_KEYS.TRIAL_START_DATE, now);
+        await AsyncStorage.setItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS, 'trial');
+
         // Check if subscription_state row exists
         const existing = await db.getFirstAsync<{ id: number }>(
             'SELECT id FROM subscription_state WHERE id = 1'
@@ -314,7 +382,7 @@ export async function startTrialForUser(userId: string): Promise<void> {
         if (existing) {
             // Update existing row with new userId
             await db.runAsync(
-                `UPDATE subscription_state 
+                `UPDATE subscription_state
                  SET userId = ?, trialStartDate = ?, subscriptionStatus = ?, updatedAt = ?
                  WHERE id = 1`,
                 [userId, now, 'trial', now]
@@ -327,6 +395,15 @@ export async function startTrialForUser(userId: string): Promise<void> {
                 [userId, now, 'trial', now, now]
             );
         }
+
+        // Schedule trial end notification
+        await scheduleTrialEndNotificationIfNeeded(now);
+
+        // Sync to server
+        await syncSubscriptionToServer(userId, {
+            status: 'trial',
+            trialStartDate: now,
+        });
     } catch (error) {
         console.error('[Subscription] Start trial failed:', error);
         throw error;
@@ -486,4 +563,90 @@ export async function setTrialExpiringTestMode(): Promise<void> {
         console.error('[Subscription] Set trial expiring test mode failed:', error);
         throw error;
     }
+}
+
+// ============================================================
+// Payment-related functions
+// ============================================================
+
+/**
+ * 결제 성공 후 처리
+ */
+export async function handlePurchaseSuccess(): Promise<void> {
+    console.log('Handling purchase success');
+
+    // 실제 Google Play 구독 정보 가져오기
+    const { getSubscriptionDetails } = await import('./paymentService');
+    const subscriptionDetails = await getSubscriptionDetails();
+
+    // License 확인
+    const { checkLicenseAfterPurchase, handleLicenseResponse } = await import('./licenseChecker');
+    const licenseResponse = await checkLicenseAfterPurchase();
+
+    // License Response 처리 (실제 만료일 전달)
+    await handleLicenseResponse(licenseResponse, subscriptionDetails.expiryDate);
+}
+
+/**
+ * 앱 시작 시 구독 복원 및 확인
+ * 주의: 이 함수는 로컬 상태가 expired일 때만 호출해야 합니다.
+ * Google Play에서 구독을 찾으면 활성화하지만, 찾지 못해도 기존 상태를 변경하지 않습니다.
+ */
+export async function checkAndRestoreSubscription(): Promise<void> {
+    console.log('Checking and restoring subscription');
+
+    try {
+        // Google Play에서 구독 내역 조회
+        const { restorePurchases, getSubscriptionDetails } = await import('./paymentService');
+        const { handleLicenseResponse } = await import('./licenseChecker');
+        const hasActive = await restorePurchases();
+
+        if (hasActive) {
+            // 활성 구독 있음 - 실제 만료일 가져오기
+            const subscriptionDetails = await getSubscriptionDetails();
+            await handleLicenseResponse('LICENSED', subscriptionDetails.expiryDate);
+            console.log('[Subscription] Subscription restored successfully');
+        } else {
+            // 활성 구독 없음 - 기존 상태 유지 (NOT_LICENSED를 보내지 않음)
+            console.log('[Subscription] No active subscription found in Google Play, keeping local state');
+        }
+    } catch (error) {
+        // Google Play 연결 실패 시에도 기존 상태 유지
+        console.error('[Subscription] Failed to check Google Play subscription:', error);
+    }
+}
+
+/**
+ * 무료 체험 시작
+ */
+export async function startTrialSubscription(): Promise<void> {
+    const now = new Date().toISOString();
+    await AsyncStorage.setItem(SUBSCRIPTION_KEYS.TRIAL_START_DATE, now);
+    await AsyncStorage.setItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS, 'trial');
+
+    // Database에도 저장
+    const db = await getDatabase();
+    await db.runAsync(
+        `INSERT OR REPLACE INTO subscription_state (id, trialStartDate, subscriptionStatus, createdAt, updatedAt)
+         VALUES (1, ?, ?, ?, ?)`,
+        [now, 'trial', now, now]
+    );
+
+    // Schedule trial end notification
+    await scheduleTrialEndNotificationIfNeeded(now);
+}
+
+/**
+ * 구독 상태 조회 (단순 버전)
+ */
+export async function getSubscriptionState(): Promise<'free' | 'trial' | 'active' | 'expired'> {
+    const status = await getSubscriptionStatus();
+    return status.status === 'trial' ? 'trial' : status.status === 'active' ? 'active' : 'expired';
+}
+
+/**
+ * 구독 비활성화
+ */
+export async function deactivateSubscription(): Promise<void> {
+    await setSubscriptionStatus('expired');
 }

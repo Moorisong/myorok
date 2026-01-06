@@ -15,6 +15,9 @@ interface Config {
     port: number;
     nodeEnv: string;
   };
+  admin: {
+    kakaoIds: string;
+  };
 }
 
 const config: Config = {
@@ -29,6 +32,9 @@ const config: Config = {
   server: {
     port: parseInt(process.env.PORT || '3000', 10),
     nodeEnv: process.env.NODE_ENV || 'development',
+  },
+  admin: {
+    kakaoIds: process.env.ADMIN_KAKAO_IDS || '',
   },
 };
 

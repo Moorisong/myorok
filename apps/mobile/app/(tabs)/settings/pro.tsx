@@ -1,13 +1,23 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Linking } from 'react-native';
-import { useRouter } from 'expo-router';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, Linking, TouchableOpacity, AppState, AppStateStatus } from 'react-native';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 
 import { COLORS } from '../../../constants';
 import { Card, Button } from '../../../components';
-import { getSubscriptionStatus, getTrialCountdownText, activateSubscription } from '../../../services';
+import {
+    getSubscriptionStatus,
+    getTrialCountdownText,
+    getSubscriptionState,
+    startTrialSubscription,
+    handlePurchaseSuccess,
+    checkAndRestoreSubscription
+} from '../../../services';
 import type { SubscriptionState } from '../../../services';
+import { purchaseSubscription, getSubscriptionDetails } from '../../../services/paymentService';
+import type { SubscriptionDetails } from '../../../services/paymentService';
+import { showToast } from '../../../utils/toast';
 
 const FEATURES = [
     { emoji: '📝', title: '모든 기록 기능', description: '배변/구토/사료/약/병원 기록' },
@@ -18,27 +28,93 @@ const FEATURES = [
 
 export default function ProScreen() {
     const router = useRouter();
+    const appState = useRef(AppState.currentState);
     const [subscriptionState, setSubscriptionState] = useState<SubscriptionState | null>(null);
+    const [simpleState, setSimpleState] = useState<'free' | 'trial' | 'active' | 'expired'>('free');
+    const [subscriptionDetails, setSubscriptionDetails] = useState<SubscriptionDetails | null>(null);
 
+    // Focus 시 데이터 로드
+    useFocusEffect(
+        useCallback(() => {
+            loadSubscriptionStatus();
+        }, [])
+    );
+
+    // 앱이 foreground로 돌아올 때 구독 상태 새로고침
+    // (결제 완료 후 또는 Google Play에서 해지하고 돌아왔을 때)
     useEffect(() => {
-        loadSubscriptionStatus();
+        const handleAppStateChange = async (nextAppState: AppStateStatus) => {
+            if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+                // Google Play 구독 상태 동기화 후 로컬 상태 업데이트
+                await checkAndRestoreSubscription();
+                await loadSubscriptionStatus();
+            }
+            appState.current = nextAppState;
+        };
+
+        const subscription = AppState.addEventListener('change', handleAppStateChange);
+        return () => subscription.remove();
     }, []);
 
     const loadSubscriptionStatus = async () => {
         const status = await getSubscriptionStatus();
         setSubscriptionState(status);
+
+        const state = await getSubscriptionState();
+        setSimpleState(state);
+
+        // 구독 상세 정보 조회 (해지 예정 여부 포함)
+        if (state === 'active') {
+            const details = await getSubscriptionDetails();
+            setSubscriptionDetails(details);
+        }
     };
 
-    const handlePurchase = async () => {
-        // TODO: Implement actual In-App Purchase
-        // For now, mock activation
+    const formatDate = (isoDate: string | undefined) => {
+        if (!isoDate) return '';
+        const date = new Date(isoDate);
+        return `${date.getMonth() + 1}월 ${date.getDate()}일`;
+    };
+
+    const handleSubscribe = async () => {
         try {
-            await activateSubscription();
+            // 결제 요청 시작 (결제창만 띄움)
+            // 실제 결제 완료/에러는 _layout.tsx의 listener에서 처리됨
+            await purchaseSubscription();
+        } catch (error: any) {
+            console.error('Subscription error:', error);
+
+            // 이미 구독 중인 경우 Google Play에서 에러 발생
+            // Google Play 구독 상태를 확인하고 동기화
+            try {
+                showToast('구독 상태 확인 중...', 'info');
+                await checkAndRestoreSubscription();
+                await loadSubscriptionStatus();
+
+                // 동기화 후 구독 상태 확인
+                const state = await getSubscriptionState();
+                if (state === 'active') {
+                    setSimpleState('active');
+                    showToast('이미 구독 중입니다', 'success');
+                } else {
+                    showToast('결제 요청 실패', 'error');
+                }
+            } catch (restoreError) {
+                console.error('Restore check error:', restoreError);
+                showToast('결제 요청 실패', 'error');
+            }
+        }
+    };
+
+    const handleStartTrial = async () => {
+        try {
+            await startTrialSubscription();
             await loadSubscriptionStatus();
-            alert('구독이 활성화되었습니다!');
-            router.back();
+            setSimpleState('trial');
+            showToast('무료 체험이 시작되었습니다', 'success');
         } catch (error) {
-            console.error('Purchase failed:', error);
+            console.error('Trial start error:', error);
+            showToast('오류가 발생했습니다', 'error');
         }
     };
 
@@ -75,10 +151,40 @@ export default function ProScreen() {
             </View>
 
             <ScrollView style={styles.content}>
-                {/* Status Badge */}
-                {subscriptionState && (
-                    <View style={styles.statusBadge}>
-                        <Text style={styles.statusText}>{getStatusMessage()}</Text>
+                {/* 상태별 UI 분기 */}
+                {simpleState === 'active' && (
+                    <View style={[
+                        styles.activeSubscription,
+                        subscriptionDetails?.autoRenewing === false && styles.cancelledSubscription
+                    ]}>
+                        {subscriptionDetails?.autoRenewing === false ? (
+                            <>
+                                <Text style={styles.cancelledText}>⚠️ 해지 예정</Text>
+                                <Text style={styles.cancelledSubtext}>
+                                    {formatDate(subscriptionDetails?.expiryDate)}에 해지됩니다
+                                </Text>
+                            </>
+                        ) : (
+                            <>
+                                <Text style={styles.activeText}>✓ 구독 중</Text>
+                                <Text style={styles.activeSubtext}>
+                                    다음 결제일: {formatDate(subscriptionDetails?.expiryDate)}
+                                </Text>
+                            </>
+                        )}
+                    </View>
+                )}
+
+                {simpleState === 'trial' && (
+                    <View style={styles.trialSubscription}>
+                        <Text style={styles.trialText}>무료 체험 중</Text>
+                        <Text style={styles.trialSubtext}>7일 후 자동 만료</Text>
+                    </View>
+                )}
+
+                {(simpleState === 'free' || simpleState === 'expired') && (
+                    <View style={styles.freeSubscription}>
+                        <Text style={styles.freeText}>무료 사용자</Text>
                     </View>
                 )}
 
@@ -121,11 +227,25 @@ export default function ProScreen() {
                             <Text style={styles.priceNote}>하루 110원으로 우리 고양이 기록 습관 만들기</Text>
                         </View>
 
-                        <Button
-                            title="구독하기"
-                            onPress={handlePurchase}
-                            style={styles.purchaseButton}
-                        />
+                        {/* 구독 시작 / 결제하기 버튼 */}
+                        {simpleState !== 'active' && (
+                            <TouchableOpacity
+                                style={styles.subscribeButton}
+                                onPress={handleSubscribe}
+                            >
+                                <Text style={styles.subscribeButtonText}>구독 시작 / 결제하기</Text>
+                            </TouchableOpacity>
+                        )}
+
+                        {/* 무료 체험 시작 버튼 */}
+                        {simpleState === 'free' && (
+                            <TouchableOpacity
+                                style={styles.trialButton}
+                                onPress={handleStartTrial}
+                            >
+                                <Text style={styles.trialButtonText}>무료 체험 시작</Text>
+                            </TouchableOpacity>
+                        )}
 
                         <Text style={styles.disclaimer}>
                             구매 시 Google Play 계정으로 결제됩니다.{'\n'}
@@ -136,25 +256,52 @@ export default function ProScreen() {
 
                 {isSubscribed && (
                     <>
-                        <Card style={styles.card}>
-                            <Text style={styles.subscribedTitle}>✅ 구독 활성화</Text>
-                            <Text style={styles.subscribedText}>
-                                현재 모든 기능을 무제한으로 사용하실 수 있습니다.
-                            </Text>
-                        </Card>
+                        {subscriptionDetails?.autoRenewing === false ? (
+                            /* 해지 예정 상태 */
+                            <>
+                                <Card style={styles.card}>
+                                    <Text style={styles.cancelledInfoTitle}>📅 해지 예정</Text>
+                                    <Text style={styles.cancelledInfoText}>
+                                        {formatDate(subscriptionDetails?.expiryDate)}까지 모든 기능을 사용하실 수 있습니다.{"\n"}
+                                        이후 구독이 자동으로 해지됩니다.
+                                    </Text>
+                                </Card>
 
-                        <View style={styles.cancelSection}>
-                            <Text style={styles.refundInfo}>
-                                환불은 Google Play 정책에 따라 처리되며,{'\n'}일부 경우에만 가능합니다.
-                            </Text>
-                            <Pressable
-                                onPress={handleCancelSubscription}
-                                style={styles.cancelLink}
-                                hitSlop={8}
-                            >
-                                <Text style={styles.cancelLinkText}>구독 해지·환불 가능 여부 확인 → Google Play 이동</Text>
-                            </Pressable>
-                        </View>
+                                <View style={styles.resubscribeSection}>
+                                    <Text style={styles.resubscribeInfo}>
+                                        💡 구독을 계속하시려면 다시 구독해 주세요
+                                    </Text>
+                                    <Pressable
+                                        onPress={handleSubscribe}
+                                        style={styles.resubscribeButton}
+                                    >
+                                        <Text style={styles.resubscribeButtonText}>다시 구독하기</Text>
+                                    </Pressable>
+                                </View>
+                            </>
+                        ) : (
+                            /* 정상 구독 상태 */
+                            <>
+                                <Card style={styles.card}>
+                                    <Text style={styles.subscribedTitle}>✅ 구독 활성화</Text>
+                                    <Text style={styles.subscribedText}>
+                                        현재 모든 기능을 무제한으로 사용하실 수 있습니다.
+                                    </Text>
+                                </Card>
+
+                                <View style={styles.cancelSection}>
+                                    <Text style={styles.cancelInfo}>
+                                        ℹ️ 구독은 언제든지 취소할 수 있습니다.
+                                    </Text>
+                                    <Pressable
+                                        onPress={handleCancelSubscription}
+                                        style={styles.cancelLink}
+                                    >
+                                        <Text style={styles.cancelLinkText}>구독 해지하기 →</Text>
+                                    </Pressable>
+                                </View>
+                            </>
+                        )}
                     </>
                 )}
 
@@ -314,33 +461,153 @@ const styles = StyleSheet.create({
     },
     cancelSection: {
         alignItems: 'center',
-        paddingTop: 40,
-        paddingBottom: 8,
+        paddingVertical: 16,
+        paddingHorizontal: 16,
+        marginTop: 16,
     },
     cancelInfo: {
-        fontSize: 13,
-        color: '#888',
-        marginBottom: 4,
-        textAlign: 'center',
-    },
-    refundInfo: {
         fontSize: 13,
         color: '#888',
         marginBottom: 8,
         textAlign: 'center',
     },
     cancelLink: {
-        paddingVertical: 5,
-        marginTop: 12,
+        paddingVertical: 12,
+        paddingHorizontal: 16,
         minHeight: 44,
     },
     cancelLinkText: {
         fontSize: 14,
         color: '#888',
-        textDecorationLine: 'underline',
+        textDecorationLine: 'none',
     },
     bottomPadding: {
-        height: 40,
+        height: 16,
+    },
+    subscribeButton: {
+        backgroundColor: '#007AFF',
+        padding: 16,
+        borderRadius: 12,
+        alignItems: 'center',
+        marginVertical: 8,
+        marginHorizontal: 16,
+    },
+    subscribeButtonText: {
+        color: '#FFFFFF',
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    trialButton: {
+        backgroundColor: '#34C759',
+        padding: 16,
+        borderRadius: 12,
+        alignItems: 'center',
+        marginVertical: 8,
+        marginHorizontal: 16,
+    },
+    trialButtonText: {
+        color: '#FFFFFF',
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    activeSubscription: {
+        padding: 16,
+        backgroundColor: '#E8F5E9',
+        borderRadius: 12,
+        alignItems: 'center',
+        marginHorizontal: 16,
+        marginTop: 16,
+    },
+    activeText: {
+        color: '#2E7D32',
+        fontSize: 18,
+        fontWeight: '700',
+    },
+    activeSubtext: {
+        color: '#4CAF50',
+        fontSize: 14,
+        marginTop: 4,
+    },
+    trialSubscription: {
+        padding: 16,
+        backgroundColor: '#E3F2FD',
+        borderRadius: 12,
+        alignItems: 'center',
+        marginHorizontal: 16,
+        marginTop: 16,
+    },
+    trialText: {
+        color: '#1976D2',
+        fontSize: 18,
+        fontWeight: '700',
+    },
+    trialSubtext: {
+        color: '#42A5F5',
+        fontSize: 14,
+        marginTop: 4,
+    },
+    freeSubscription: {
+        padding: 16,
+        backgroundColor: '#F5F5F5',
+        borderRadius: 12,
+        alignItems: 'center',
+        marginHorizontal: 16,
+        marginTop: 16,
+    },
+    freeText: {
+        color: '#757575',
+        fontSize: 18,
+        fontWeight: '700',
+    },
+    cancelledSubscription: {
+        backgroundColor: '#FFF3E0',
+    },
+    cancelledText: {
+        color: '#E65100',
+        fontSize: 18,
+        fontWeight: '700',
+    },
+    cancelledSubtext: {
+        color: '#FB8C00',
+        fontSize: 14,
+        marginTop: 4,
+    },
+    cancelledInfoTitle: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#E65100',
+        marginBottom: 8,
+    },
+    cancelledInfoText: {
+        fontSize: 14,
+        color: COLORS.textSecondary,
+        lineHeight: 20,
+    },
+    resubscribeSection: {
+        alignItems: 'center',
+        paddingVertical: 24,
+        paddingHorizontal: 16,
+        marginTop: 16,
+    },
+    resubscribeInfo: {
+        fontSize: 14,
+        color: COLORS.textSecondary,
+        marginBottom: 12,
+        textAlign: 'center',
+    },
+    resubscribeButton: {
+        backgroundColor: COLORS.primary,
+        paddingVertical: 14,
+        paddingHorizontal: 32,
+        borderRadius: 12,
+        minHeight: 48,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    resubscribeButtonText: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#FFFFFF',
     },
 });
 

@@ -106,23 +106,20 @@
 104:   |---|---|---|
 105:   | `comments` | 댓글 알림 | ✅ 설정 적용 (체크 후 발송) |
 106:   | `inactivity` | 미활동 알림 | ✅ 설정 적용 (체크 후 스케줄링) |
-107:   | `marketing` | 마케팅 알림 | ⚠️ UI만 제공 (미적용, Default: true) |
 108: 
 109: - **데이터 구조**:
 110:   `Device.settings` JSON 필드 활용
 111:   ```typescript
 112:   settings: {
-113:     marketing: boolean;   // default: true
-114:     comments: boolean;    // default: true
-115:     inactivity: boolean;  // default: true
-116:   }
-117:   ```
+113:     comments: boolean;    // default: true
+114:     inactivity: boolean;  // default: true
+115:   }
+116:   ```
 118: 
 119: - **UX 동작**:
 120:   - `apps/mobile/app/(tabs)/settings/index.tsx`에 [알림 설정] 섹션 추가
 121:   - 토글 변경 시 즉시 `POST /api/device/register` 호출하여 설정 저장
 122:   - Optimistic Update 적용 (실패 시 원복)
-123:   - 마케팅 알림 하단에는 "마케팅 알림은 현재 발송되지 않으며, 추후 적용될 예정입니다." 문구 표시
 124: 
 125: ---
 126:
@@ -136,7 +133,6 @@
     deviceId: String,
     pushToken: String,
     settings: {
-      marketing: Boolean,
       comments: Boolean,
       inactivity: Boolean
     },

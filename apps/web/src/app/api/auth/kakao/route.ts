@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
+import { isAdminUser } from '../../../../lib/admin';
 
 export const dynamic = 'force-dynamic';
 
@@ -105,7 +106,7 @@ export async function POST(request: NextRequest) {
             id: userData.id.toString(),
             nickname: userData.kakao_account?.profile?.nickname || 'Unknown User',
             profileImage: userData.kakao_account?.profile?.profile_image_url ||
-                         userData.kakao_account?.profile?.thumbnail_image_url || '',
+                userData.kakao_account?.profile?.thumbnail_image_url || '',
         };
 
         // Generate JWT token (30 days expiration)
@@ -118,14 +119,20 @@ export async function POST(request: NextRequest) {
             { expiresIn: '30d' }
         );
 
+        // Check if user is admin
+        const isAdmin = isAdminUser(user.id);
+
+        // Add isAdmin to user object for Deep Link
+        const userWithAdmin = {
+            ...user,
+            isAdmin
+        };
+
         return NextResponse.json({
             success: true,
-            user: {
-                id: user.id,
-                nickname: user.nickname,
-                profileImage: user.profileImage,
-            },
+            user: userWithAdmin,
             token: jwtToken,
+            isAdmin,
         });
 
     } catch (error) {

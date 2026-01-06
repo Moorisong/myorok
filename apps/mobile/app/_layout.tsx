@@ -2,7 +2,7 @@ import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { Platform } from 'react-native';
+import { Platform, AppState } from 'react-native';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState, useRef } from 'react';
@@ -21,15 +21,19 @@ import { initializeSubscription, isAppAccessAllowed, markTrialNotificationAsSent
 import { loginWithKakao } from '../services/auth';
 import { KAKAO_CLIENT_ID, KAKAO_REDIRECT_URI } from '../services/auth/kakaoAuth';
 import { getCurrentUserId } from '../services/auth';
+import { initializePayment, disconnectPayment } from '../services/paymentService';
+import { checkAndRestoreSubscription } from '../services/subscription';
 
 // Main app content that uses auth context
 function AppContent() {
-  const { isLoggedIn, setIsLoggedIn, isLoggingIn, setIsLoggingIn, checkAuthStatus, subscriptionStatus } = useAuth();
+  const { isLoggedIn, setIsLoggedIn, isLoggingIn, setIsLoggingIn, checkAuthStatus, subscriptionStatus, setSubscriptionStatus } = useAuth();
   const [subscriptionBlocked, setSubscriptionBlocked] = useState(false);
   const router = useRouter();
   const notificationListener = useRef<any>(null);
   const responseListener = useRef<any>(null);
   const NotificationsRef = useRef<any>(null);
+  const appState = useRef(AppState.currentState);
+  const subscriptionCheckInterval = useRef<NodeJS.Timeout | null>(null);
 
   // Direct OAuth URL construction (bypasses expo-auth-session to avoid PKCE issues)
 
@@ -41,6 +45,123 @@ function AppContent() {
       try {
         // Check login status first using context
         await checkAuthStatus();
+
+        // Initialize payment system
+        try {
+
+          // 1. Google Play 결제 시스템 연결
+          await initializePayment();
+
+          // 2. Purchase listener 설정
+          const { setupPurchaseListeners, completePurchase } = await import('../services/paymentService');
+          const { handlePurchaseSuccess: handleSubscriptionSuccess } = await import('../services/subscription');
+
+          const cleanupListeners = setupPurchaseListeners(
+            async (purchase) => {
+              // 결제 완료 처리
+              try {
+                await completePurchase(purchase);
+                await handleSubscriptionSuccess();
+
+                // Auth context 업데이트하여 구독 상태 갱신
+                await checkAuthStatus();
+
+                // 즉시 구독 상태를 'active'로 설정 (React 상태 강제 업데이트)
+                setSubscriptionStatus('active');
+
+                // 성공 토스트 표시
+                setTimeout(() => {
+                  const { showToast } = require('../utils/toast');
+                  showToast('구독이 활성화되었습니다', 'success');
+                }, 100);
+              } catch (error) {
+                console.error('Failed to process purchase:', error);
+                setTimeout(() => {
+                  const { showToast } = require('../utils/toast');
+                  showToast('결제 처리 중 오류가 발생했습니다', 'error');
+                }, 100);
+              }
+            },
+            (error) => {
+              // 사용자가 결제를 취소한 경우 - 정상 케이스, 별도 처리 없이 조용히 무시
+              if (error.code === 'user-cancelled') {
+                console.log('[Payment] User cancelled purchase');
+                return;
+              }
+
+              // 이미 구독 중인 경우 (already-owned) - 정상 케이스, 구독 상태 동기화
+              if (error.code === 'already-owned') {
+                console.log('[Payment] Item already owned, syncing subscription status');
+                (async () => {
+                  try {
+                    // 이미 구독 중이므로 Google Play에서 상태 가져오기
+                    const { getSubscriptionDetails } = await import('../services/paymentService');
+                    const { handleLicenseResponse } = await import('../services/licenseChecker');
+
+                    const subscriptionDetails = await getSubscriptionDetails();
+
+                    if (subscriptionDetails.isActive) {
+                      // 구독 활성화 처리
+                      await handleLicenseResponse('LICENSED', subscriptionDetails.expiryDate);
+
+                      // Auth context 업데이트하여 화면 갱신
+                      await checkAuthStatus();
+
+                      // 즉시 구독 상태를 'active'로 설정 (React 상태 강제 업데이트)
+                      setSubscriptionStatus('active');
+
+                      setTimeout(() => {
+                        const { showToast } = require('../utils/toast');
+                        showToast('이미 구독 중입니다', 'success');
+                      }, 100);
+                    }
+                  } catch (restoreError) {
+                    console.error('[Payment] Failed to sync already-owned subscription:', restoreError);
+                    setTimeout(() => {
+                      const { showToast } = require('../utils/toast');
+                      showToast('구독 상태 확인 실패', 'error');
+                    }, 100);
+                  }
+                })();
+                return;
+              }
+
+              // 실제 에러 케이스 - 로그 출력
+              console.error('[Payment] Purchase error:', error);
+
+              // SKU not found 에러 처리
+              if (error.code === 'sku-not-found') {
+                setTimeout(() => {
+                  const { showToast } = require('../utils/toast');
+                  showToast('상품이 Google Play Console에 등록되지 않았습니다', 'error');
+                }, 100);
+                return;
+              }
+
+              // 기타 에러
+              setTimeout(() => {
+                const { showToast } = require('../utils/toast');
+                showToast('결제 중 오류가 발생했습니다', 'error');
+              }, 100);
+            }
+          );
+
+          // Cleanup 함수를 subscription 변수에 할당하여 나중에 제거
+          subscription = { remove: cleanupListeners };
+
+          // 3. 기존 구독 복원 (재설치 시) - 로컬 상태가 expired인 경우에만 시도
+          const { getSubscriptionState } = await import('../services/subscription');
+          const localState = await getSubscriptionState();
+
+          // 만료 상태일 때만 Google Play에서 복원 시도 (active 상태는 유지)
+          if (localState === 'expired') {
+            await checkAndRestoreSubscription();
+          }
+
+        } catch (error) {
+          console.error('Failed to initialize payment system:', error);
+          // 초기화 실패해도 앱은 계속 실행
+        }
 
         // Initialize subscription on first launch
         await initializeSubscription();
@@ -160,6 +281,10 @@ function AppContent() {
             await AsyncStorage.setItem('current_user_id', user.id);
             await AsyncStorage.setItem('kakao_user_info', JSON.stringify(user));
 
+            // Store isAdmin status (from server response)
+            const isAdminValue = user.isAdmin ? 'true' : 'false';
+            await AsyncStorage.setItem('is_admin', isAdminValue);
+
             // Save user to database and handle trial
             const { getUser } = await import('../services/auth/userService');
             const { getDatabase } = await import('../services/database');
@@ -187,7 +312,6 @@ function AppContent() {
                 'UPDATE users SET lastLogin = ? WHERE id = ?',
                 [now, user.id]
               );
-              console.log('[DeepLink] Existing user updated');
             }
 
             // Re-check auth status to update context (including subscription)
@@ -213,6 +337,11 @@ function AppContent() {
     });
 
     return () => {
+      // Cleanup: 앱 종료 시 결제 시스템 연결 해제
+      disconnectPayment().catch(error => {
+        console.error('Failed to disconnect payment system:', error);
+      });
+
       if (subscription) {
         subscription.remove();
       }
@@ -227,8 +356,68 @@ function AppContent() {
           NotificationsRef.current.removeNotificationSubscription(responseListener.current);
         }
       }
+
+      // Cleanup subscription check interval
+      if (subscriptionCheckInterval.current) {
+        clearInterval(subscriptionCheckInterval.current);
+      }
     };
   }, []);
+
+  // AppState listener and periodic subscription check
+  useEffect(() => {
+    // 로그인하지 않았거나 로그인 중이면 체크하지 않음
+    if (!isLoggedIn || isLoggingIn) {
+      return;
+    }
+
+    // 구독 상태 체크 함수
+    const checkSubscriptionStatus = async () => {
+      try {
+        const { getSubscriptionState } = await import('../services/subscription');
+        const currentState = await getSubscriptionState();
+
+        // 상태가 변경되었으면 context 업데이트
+        if (currentState !== subscriptionStatus) {
+          console.log('[AppState] Subscription status changed:', subscriptionStatus, '→', currentState);
+          setSubscriptionStatus(currentState as any);
+        }
+      } catch (error) {
+        console.error('[AppState] Failed to check subscription status:', error);
+      }
+    };
+
+    // AppState 변경 리스너 (백그라운드 → 포그라운드)
+    const handleAppStateChange = (nextAppState: any) => {
+      if (
+        appState.current.match(/inactive|background/) &&
+        nextAppState === 'active'
+      ) {
+        console.log('[AppState] App has come to the foreground, checking subscription');
+        checkSubscriptionStatus();
+      }
+
+      appState.current = nextAppState;
+    };
+
+    const appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
+
+    // 주기적인 구독 상태 체크 (10분마다)
+    subscriptionCheckInterval.current = setInterval(() => {
+      console.log('[AppState] Periodic subscription check');
+      checkSubscriptionStatus();
+    }, 10 * 60 * 1000); // 10분 (운영 환경 기준, 서버 부하 최소화)
+
+    // 초기 체크
+    checkSubscriptionStatus();
+
+    return () => {
+      appStateSubscription.remove();
+      if (subscriptionCheckInterval.current) {
+        clearInterval(subscriptionCheckInterval.current);
+      }
+    };
+  }, [isLoggedIn, isLoggingIn, subscriptionStatus, setSubscriptionStatus]);
 
   // Note: Login response is now handled via deep link in the useEffect above
 
@@ -309,7 +498,9 @@ function AppContent() {
       <GestureHandlerRootView style={{ flex: 1 }}>
         <SafeAreaProvider>
           <StatusBar style="dark" />
-          <SubscriptionBlockScreen />
+          <ToastProvider>
+            <SubscriptionBlockScreen />
+          </ToastProvider>
         </SafeAreaProvider>
       </GestureHandlerRootView>
     );

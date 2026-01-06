@@ -64,10 +64,6 @@ export interface ServerAuthResponse {
  */
 export async function exchangeCodeForToken(code: string): Promise<KakaoUser> {
     try {
-        console.log('[KakaoAuth] Starting server-based authentication...');
-        console.log('[KakaoAuth] Server URL:', SERVER_URL);
-        console.log('[KakaoAuth] Code prefix:', code.slice(0, 10) + '...');
-
         // Call server to exchange code for user info and JWT token
         const response = await fetch(`${SERVER_URL}/auth/kakao`, {
             method: 'POST',
@@ -76,8 +72,6 @@ export async function exchangeCodeForToken(code: string): Promise<KakaoUser> {
             },
             body: JSON.stringify({ code }),
         });
-
-        console.log('[KakaoAuth] Server Response Status:', response.status, response.ok ? 'OK' : 'FAILED');
 
         if (!response.ok) {
             const error = await response.text();
@@ -97,7 +91,6 @@ export async function exchangeCodeForToken(code: string): Promise<KakaoUser> {
         // Store user info
         await AsyncStorage.setItem(STORAGE_KEYS.USER_INFO, JSON.stringify(authResponse.user));
 
-        console.log('[KakaoAuth] Login successful:', authResponse.user.id);
         return authResponse.user;
     } catch (error) {
         console.error('[KakaoAuth] Authentication failed:', error);
@@ -139,8 +132,6 @@ export async function loginWithKakaoServer(code: string): Promise<{ user: KakaoU
         // Store user info
         await AsyncStorage.setItem(STORAGE_KEYS.USER_INFO, JSON.stringify(authResponse.user));
 
-        console.log('[KakaoAuth] Server login successful:', authResponse.user.id);
-
         return {
             user: authResponse.user,
             token: authResponse.token,
@@ -176,7 +167,6 @@ export async function logoutFromKakao(): Promise<void> {
         await AsyncStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
         await AsyncStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
 
-        console.log('[KakaoAuth] Logout successful');
     } catch (error) {
         console.error('[KakaoAuth] Logout error:', error);
         // Still clear local storage even if API call fails
@@ -207,7 +197,6 @@ export async function getAuthSession(): Promise<KakaoUser | null> {
 
             if (decodedPayload.exp && decodedPayload.exp < currentTime) {
                 // Token expired
-                console.log('[KakaoAuth] JWT token expired');
                 await logoutFromKakao();
                 return null;
             }
@@ -247,8 +236,6 @@ const MOCK_MODE = false; // Force real auth for testing
  * Mock authentication for development
  */
 export async function authenticateWithKakaoMock(): Promise<KakaoUser> {
-    console.log('[KakaoAuth] Using mock authentication');
-
     const mockUser: KakaoUser = {
         id: 'mock_user_' + Date.now(),
         nickname: '테스트 사용자',
