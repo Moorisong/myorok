@@ -81,6 +81,12 @@ function AppContent() {
               }
             },
             (error) => {
+              // 사용자가 결제를 취소한 경우 - 정상 케이스, 별도 처리 없이 조용히 무시
+              if (error.code === 'user-cancelled') {
+                console.log('[Payment] User cancelled the purchase');
+                return;
+              }
+
               // 결제 에러 처리
               console.error('Purchase error:', error);
 
@@ -123,18 +129,11 @@ function AppContent() {
                 return;
               }
 
-              // 사용자 취소가 아닌 경우에만 에러 토스트 표시
-              if (!error.message?.includes('cancel') && !error.message?.includes('Cancel')) {
-                setTimeout(() => {
-                  const { showToast } = require('../utils/toast');
-                  showToast('결제 중 오류가 발생했습니다', 'error');
-                }, 100);
-              } else {
-                setTimeout(() => {
-                  const { showToast } = require('../utils/toast');
-                  showToast('결제가 취소되었습니다', 'info');
-                }, 100);
-              }
+              // 기타 에러
+              setTimeout(() => {
+                const { showToast } = require('../utils/toast');
+                showToast('결제 중 오류가 발생했습니다', 'error');
+              }, 100);
             }
           );
 
