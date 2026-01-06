@@ -14,9 +14,11 @@ import {
 } from '../services/customMetrics';
 import { getTodayDateString } from '../services/database';
 import { useToast } from './ToastContext';
+import { useSelectedPet } from '../hooks/use-selected-pet';
 
 export default function CustomMetricInputSection() {
     const { showToast } = useToast();
+    const { selectedPet } = useSelectedPet();
     const [metrics, setMetrics] = useState<CustomMetric[]>([]);
     const [selectedMetricId, setSelectedMetricId] = useState<string | null>(null);
     const [isCreatingNew, setIsCreatingNew] = useState(false);
@@ -28,7 +30,13 @@ export default function CustomMetricInputSection() {
 
     useEffect(() => {
         loadMetrics();
-    }, []);
+        // 고양이가 변경되면 선택 상태 초기화
+        setSelectedMetricId(null);
+        setIsCreatingNew(false);
+        setValue('');
+        setNewMetricName('');
+        setNewMetricUnit('');
+    }, [selectedPet?.id]);
 
     const loadMetrics = async () => {
         try {
