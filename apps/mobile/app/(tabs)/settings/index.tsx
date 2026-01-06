@@ -4,7 +4,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { COLORS } from '../../../constants';
-import { Card, SubscriptionBlockScreen } from '../../../components';
+import { Card } from '../../../components';
 import { useSelectedPet } from '../../../hooks/use-selected-pet';
 import { useAuth } from '../../../hooks/useAuth';
 import { getSubscriptionStatus, getTrialCountdownText } from '../../../services';
@@ -54,7 +54,6 @@ export default function SettingsScreen() {
     const { logout: authLogout, isAdmin } = useAuth();
 
     const [subscriptionState, setSubscriptionState] = useState<SubscriptionState | null>(null);
-    const [showBlockPreview, setShowBlockPreview] = useState(false);
     const [currentUser, setCurrentUser] = useState<User | null>(null);
 
     useFocusEffect(
@@ -256,10 +255,20 @@ export default function SettingsScreen() {
                                 }}
                             />
                             <SettingItem
-                                emoji="👁️"
-                                title="차단 화면 미리보기 (Dev)"
-                                description="체험 만료 시 보이는 화면"
-                                onPress={() => setShowBlockPreview(true)}
+                                emoji="🚫"
+                                title="구독 만료 상태로 전환 (Dev)"
+                                description={`현재: ${subscriptionState?.status || '로딩 중'}`}
+                                onPress={async () => {
+                                    try {
+                                        const { deactivateSubscription } = await import('../../../services');
+                                        await deactivateSubscription();
+                                        await loadSubscriptionStatus();
+                                        Alert.alert('완료', '구독이 만료 상태로 변경되었습니다.');
+                                    } catch (error) {
+                                        console.error('[Settings] Deactivate subscription failed:', error);
+                                        Alert.alert('오류', '구독 만료 설정에 실패했습니다.');
+                                    }
+                                }}
                             />
                             <SettingItem
                                 emoji="📊"
@@ -335,13 +344,7 @@ export default function SettingsScreen() {
 
                 <View style={styles.bottomPadding} />
             </ScrollView>
-
-            {/* Subscription Block Screen Preview */}
-            <SubscriptionBlockScreen
-                visible={showBlockPreview}
-                onDismiss={() => setShowBlockPreview(false)}
-            />
-        </SafeAreaView >
+        </SafeAreaView>
     );
 }
 
