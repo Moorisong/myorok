@@ -110,6 +110,7 @@ export default function ComfortDebugModal({
                         icon="layers"
                         title="샘플 생성 x3 (동일 유저)"
                         description="같은 사용자가 작성한 글 3개 생성"
+                        onPress={() => handleAction('create-sample', { count: 3 })}
                         isLoading={isLoading}
                     />
 
