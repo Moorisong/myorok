@@ -3,6 +3,8 @@ import { getDatabase } from './database';
 import { scheduleTrialEndNotification, cancelTrialEndNotification } from './NotificationService';
 import { handleLicenseResponse, checkLicenseAfterPurchase } from './licenseChecker';
 import { restorePurchases } from './paymentService';
+import { CONFIG } from '../constants/config';
+import { getDeviceId } from './device';
 
 const SUBSCRIPTION_KEYS = {
     TRIAL_START_DATE: 'trial_start_date',
@@ -22,6 +24,7 @@ export interface SubscriptionState {
 }
 
 const TRIAL_DAYS = 7;
+const API_URL = CONFIG.API_BASE_URL;
 
 /**
  * Initialize subscription on first app launch
@@ -161,6 +164,18 @@ export async function activateSubscription(expiryDate?: string): Promise<void> {
 
     // Cancel trial end notification
     await cancelTrialEndNotification();
+
+    // Sync to server
+    const userId = await AsyncStorage.getItem('current_user_id');
+    if (userId) {
+        const trialStartDate = await AsyncStorage.getItem(SUBSCRIPTION_KEYS.TRIAL_START_DATE);
+        await syncSubscriptionToServer(userId, {
+            status: 'active',
+            trialStartDate: trialStartDate || undefined,
+            subscriptionStartDate: now,
+            subscriptionExpiryDate: expiry,
+        });
+    }
 }
 
 /**
@@ -184,6 +199,13 @@ export async function setSubscriptionStatus(status: SubscriptionStatus): Promise
         `UPDATE subscription_state SET subscriptionStatus = ?, updatedAt = ? WHERE id = 1`,
         [status, now]
     );
+
+    // Sync to server
+    const userId = await AsyncStorage.getItem('current_user_id');
+    if (userId) {
+        const state = await getSubscriptionStatus();
+        await syncSubscriptionToServer(userId, state);
+    }
 }
 
 /**
@@ -230,6 +252,46 @@ export async function resetSubscription(): Promise<void> {
         throw error;
     }
 }
+
+/**
+ * Sync subscription state to server
+ */
+async function syncSubscriptionToServer(userId: string, state: SubscriptionState): Promise<void> {
+    try {
+        const token = await AsyncStorage.getItem('jwt_token');
+        if (!token) {
+            console.warn('[Subscription] No JWT token, skipping server sync');
+            return;
+        }
+
+        const deviceId = await getDeviceId();
+
+        const response = await fetch(`${API_URL}/api/subscription/sync`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                deviceId,
+                status: state.status,
+                trialStartDate: state.trialStartDate,
+                subscriptionStartDate: state.subscriptionStartDate,
+                subscriptionExpiryDate: state.subscriptionExpiryDate,
+            }),
+        });
+
+        if (!response.ok) {
+            console.error('[Subscription] Server sync failed:', response.status);
+        } else {
+            console.log('[Subscription] Server sync successful');
+        }
+    } catch (error) {
+        console.error('[Subscription] Server sync error:', error);
+        // Don't throw - sync is optional
+    }
+}
+
 
 // ============================================================
 // User-based subscription functions (for Kakao login)
@@ -320,7 +382,7 @@ export async function startTrialForUser(userId: string): Promise<void> {
         if (existing) {
             // Update existing row with new userId
             await db.runAsync(
-                `UPDATE subscription_state 
+                `UPDATE subscription_state
                  SET userId = ?, trialStartDate = ?, subscriptionStatus = ?, updatedAt = ?
                  WHERE id = 1`,
                 [userId, now, 'trial', now]
@@ -336,6 +398,12 @@ export async function startTrialForUser(userId: string): Promise<void> {
 
         // Schedule trial end notification
         await scheduleTrialEndNotificationIfNeeded(now);
+
+        // Sync to server
+        await syncSubscriptionToServer(userId, {
+            status: 'trial',
+            trialStartDate: now,
+        });
     } catch (error) {
         console.error('[Subscription] Start trial failed:', error);
         throw error;

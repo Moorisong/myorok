@@ -51,7 +51,7 @@ function SettingItem({ emoji, title, description, onPress, danger }: SettingItem
 export default function SettingsScreen() {
     const router = useRouter();
     const { selectedPet } = useSelectedPet();
-    const { logout: authLogout } = useAuth();
+    const { logout: authLogout, isAdmin } = useAuth();
 
     const [subscriptionState, setSubscriptionState] = useState<SubscriptionState | null>(null);
     const [showBlockPreview, setShowBlockPreview] = useState(false);
@@ -210,6 +210,18 @@ export default function SettingsScreen() {
                         onPress={() => handleNavigate('/settings/reference-memos')}
                     />
                 </Card>
+
+                {/* 운영자 전용 섹션 */}
+                {isAdmin && (
+                    <Card style={styles.card}>
+                        <SettingItem
+                            emoji="📊"
+                            title="운영자 대시보드"
+                            description="서비스 현황 확인"
+                            onPress={() => handleNavigate('/admin/dashboard')}
+                        />
+                    </Card>
+                )}
 
                 <Card style={styles.card}>
                     <SettingItem

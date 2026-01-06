@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
+import { isAdminUser } from '../../../../lib/admin';
 
 export const dynamic = 'force-dynamic';
 
@@ -118,6 +119,9 @@ export async function POST(request: NextRequest) {
             { expiresIn: '30d' }
         );
 
+        // Check if user is admin
+        const isAdmin = isAdminUser(user.id);
+
         return NextResponse.json({
             success: true,
             user: {
@@ -126,6 +130,7 @@ export async function POST(request: NextRequest) {
                 profileImage: user.profileImage,
             },
             token: jwtToken,
+            isAdmin,
         });
 
     } catch (error) {

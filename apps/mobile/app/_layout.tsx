@@ -267,6 +267,9 @@ function AppContent() {
             await AsyncStorage.setItem('current_user_id', user.id);
             await AsyncStorage.setItem('kakao_user_info', JSON.stringify(user));
 
+            // Store isAdmin status (from server response)
+            await AsyncStorage.setItem('is_admin', user.isAdmin ? 'true' : 'false');
+
             // Save user to database and handle trial
             const { getUser } = await import('../services/auth/userService');
             const { getDatabase } = await import('../services/database');

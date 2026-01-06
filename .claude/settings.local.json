@@ -15,7 +15,8 @@
       "Bash(npx expo install:*)",
       "Bash(./gradlew clean:*)",
       "Bash(npx expo prebuild:*)",
-      "Bash(npx expo run:android)"
+      "Bash(npx expo run:android)",
+      "Bash(tree:*)"
     ]
   }
 }

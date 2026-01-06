@@ -8,6 +8,7 @@ const DeviceSchema = new mongoose.Schema({
         comments: { type: Boolean, default: true },
         inactivity: { type: Boolean, default: true },
     },
+    createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now }
 });
 

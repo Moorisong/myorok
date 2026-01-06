@@ -7,6 +7,7 @@ import { migrateLegacyDataToUser } from './migrateLegacyData';
 const STORAGE_KEYS = {
     CURRENT_USER_ID: 'current_user_id',
     JWT_TOKEN: 'jwt_token',
+    IS_ADMIN: 'is_admin',
 };
 
 export interface User {
@@ -189,6 +190,31 @@ export async function updateUserProfile(
         );
     } catch (error) {
         console.error('[UserService] Update profile failed:', error);
+        throw error;
+    }
+}
+
+/**
+ * 운영자 권한 여부 조회
+ */
+export async function getIsAdmin(): Promise<boolean> {
+    try {
+        const isAdmin = await AsyncStorage.getItem(STORAGE_KEYS.IS_ADMIN);
+        return isAdmin === 'true';
+    } catch (error) {
+        console.error('[UserService] Get isAdmin failed:', error);
+        return false;
+    }
+}
+
+/**
+ * 운영자 권한 여부 저장
+ */
+export async function setIsAdmin(isAdmin: boolean): Promise<void> {
+    try {
+        await AsyncStorage.setItem(STORAGE_KEYS.IS_ADMIN, isAdmin ? 'true' : 'false');
+    } catch (error) {
+        console.error('[UserService] Set isAdmin failed:', error);
         throw error;
     }
 }

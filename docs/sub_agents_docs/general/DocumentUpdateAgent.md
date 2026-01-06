@@ -26,6 +26,7 @@
 - `LOCAL_DB_SPEC.md` - 로컬 DB
 - `KAKAO_LOGIN_SUBSCRIPTION_SPEC.md` - 카카오 로그인/구독
 - `PAYMENT_SPEC.md` - Google Play 결제
+- `ADMIN_DASHBOARD_SPEC.md` - 운영자 대시보드
 
 **작업:**
 1. 관련 문서 찾기 (Glob, Grep 활용)

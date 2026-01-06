@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import fetch from 'node-fetch';
 import { config } from '../config';
 import { AuthRequest } from '../middleware/authMiddleware';
+import { isAdminUser } from '../utils/admin';
 
 interface KakaoTokenResponse {
   access_token: string;
@@ -110,6 +111,9 @@ export const kakaoLogin = async (
       expiresIn: '30d',
     });
 
+    // Check if user is admin
+    const isAdmin = isAdminUser(userId);
+
     // Return user data and token
     res.status(200).json({
       success: true,
@@ -119,6 +123,7 @@ export const kakaoLogin = async (
         profileImage,
       },
       token,
+      isAdmin,
     });
   } catch (error) {
     console.error('Kakao login error:', error);
