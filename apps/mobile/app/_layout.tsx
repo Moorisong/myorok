@@ -261,6 +261,8 @@ function AppContent() {
           try {
             // Parse user info
             const user = JSON.parse(decodeURIComponent(userString));
+            console.log('[DeepLink] Received user data:', user);
+            console.log('[DeepLink] isAdmin:', user.isAdmin);
 
             // Store JWT token and user info in AsyncStorage
             await AsyncStorage.setItem('jwt_token', token);
@@ -268,7 +270,9 @@ function AppContent() {
             await AsyncStorage.setItem('kakao_user_info', JSON.stringify(user));
 
             // Store isAdmin status (from server response)
-            await AsyncStorage.setItem('is_admin', user.isAdmin ? 'true' : 'false');
+            const isAdminValue = user.isAdmin ? 'true' : 'false';
+            console.log('[DeepLink] Storing isAdmin:', isAdminValue);
+            await AsyncStorage.setItem('is_admin', isAdminValue);
 
             // Save user to database and handle trial
             const { getUser } = await import('../services/auth/userService');

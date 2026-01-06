@@ -41,6 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
                 // 운영자 권한 조회
                 const adminStatus = await getIsAdmin();
+                console.log('[AuthContext] isAdmin status:', adminStatus);
                 setIsAdmin(adminStatus);
 
                 // 서버에 구독 상태 동기화 (초기 동기화)

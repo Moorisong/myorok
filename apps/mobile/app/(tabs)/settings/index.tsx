@@ -53,6 +53,8 @@ export default function SettingsScreen() {
     const { selectedPet } = useSelectedPet();
     const { logout: authLogout, isAdmin } = useAuth();
 
+    console.log('[Settings] isAdmin:', isAdmin);
+
     const [subscriptionState, setSubscriptionState] = useState<SubscriptionState | null>(null);
     const [showBlockPreview, setShowBlockPreview] = useState(false);
     const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -224,6 +226,21 @@ export default function SettingsScreen() {
                 )}
 
                 <Card style={styles.card}>
+                    <SettingItem
+                        emoji="🔍"
+                        title="isAdmin 상태 확인 (Dev)"
+                        description="AsyncStorage의 isAdmin 값 확인"
+                        onPress={async () => {
+                            const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+                            const isAdminValue = await AsyncStorage.getItem('is_admin');
+                            const userId = await AsyncStorage.getItem('current_user_id');
+                            Alert.alert(
+                                'isAdmin 디버깅',
+                                `userId: ${userId}\nisAdmin (storage): ${isAdminValue}\nisAdmin (context): ${isAdmin}`,
+                                [{ text: '확인' }]
+                            );
+                        }}
+                    />
                     <SettingItem
                         emoji="⏰"
                         title="무료 체험 24시간 남음 (Dev)"
