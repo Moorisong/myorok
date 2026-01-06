@@ -178,7 +178,7 @@ export default function ProScreen() {
                 {simpleState === 'trial' && (
                     <View style={styles.trialSubscription}>
                         <Text style={styles.trialText}>무료 체험 중</Text>
-                        <Text style={styles.trialSubtext}>7일 후 자동 만료</Text>
+                        <Text style={styles.trialSubtext}>무료 체험 기간: 최대 7일</Text>
                     </View>
                 )}
 
