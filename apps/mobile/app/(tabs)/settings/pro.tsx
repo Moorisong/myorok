@@ -45,7 +45,6 @@ export default function ProScreen() {
     useEffect(() => {
         const handleAppStateChange = async (nextAppState: AppStateStatus) => {
             if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-                console.log('[ProScreen] App came to foreground, refreshing subscription status');
                 // Google Play 구독 상태 동기화 후 로컬 상태 업데이트
                 await checkAndRestoreSubscription();
                 await loadSubscriptionStatus();

@@ -46,7 +46,6 @@ function AppContent() {
 
         // Initialize payment system
         try {
-          console.log('Initializing payment system...');
 
           // 1. Google Play 결제 시스템 연결
           await initializePayment();
@@ -59,10 +58,8 @@ function AppContent() {
             async (purchase) => {
               // 결제 완료 처리
               try {
-                console.log('Purchase successful, processing...');
                 await completePurchase(purchase);
                 await handleSubscriptionSuccess();
-                console.log('Purchase processing completed');
 
                 // Auth context 업데이트하여 구독 상태 갱신
                 await checkAuthStatus();
@@ -83,7 +80,6 @@ function AppContent() {
             (error) => {
               // 사용자가 결제를 취소한 경우 - 정상 케이스, 별도 처리 없이 조용히 무시
               if (error.code === 'user-cancelled') {
-                console.log('[Payment] User cancelled the purchase');
                 return;
               }
 
@@ -143,7 +139,6 @@ function AppContent() {
           // 3. 기존 구독 복원 (재설치 시)
           await checkAndRestoreSubscription();
 
-          console.log('Payment system initialized successfully');
         } catch (error) {
           console.error('Failed to initialize payment system:', error);
           // 초기화 실패해도 앱은 계속 실행
@@ -261,8 +256,6 @@ function AppContent() {
           try {
             // Parse user info
             const user = JSON.parse(decodeURIComponent(userString));
-            console.log('[DeepLink] Received user data:', user);
-            console.log('[DeepLink] isAdmin:', user.isAdmin);
 
             // Store JWT token and user info in AsyncStorage
             await AsyncStorage.setItem('jwt_token', token);
@@ -271,7 +264,6 @@ function AppContent() {
 
             // Store isAdmin status (from server response)
             const isAdminValue = user.isAdmin ? 'true' : 'false';
-            console.log('[DeepLink] Storing isAdmin:', isAdminValue);
             await AsyncStorage.setItem('is_admin', isAdminValue);
 
             // Save user to database and handle trial
@@ -301,7 +293,6 @@ function AppContent() {
                 'UPDATE users SET lastLogin = ? WHERE id = ?',
                 [now, user.id]
               );
-              console.log('[DeepLink] Existing user updated');
             }
 
             // Re-check auth status to update context (including subscription)

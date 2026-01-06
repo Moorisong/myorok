@@ -11,6 +11,5 @@ export function isAdminUser(kakaoUserId: string): boolean {
   const adminsStr = process.env.ADMIN_KAKAO_IDS || '';
   const admins = adminsStr.split(',').map(id => id.trim());
   const isAdm = admins.includes(kakaoUserId);
-  console.log(`[AdminCheck] User: ${kakaoUserId}, IsAdmin: ${isAdm}, Admins: ${adminsStr}`);
   return isAdm;
 }
