@@ -162,7 +162,7 @@ export default function ProScreen() {
                             <>
                                 <Text style={styles.cancelledText}>⚠️ 해지 예정</Text>
                                 <Text style={styles.cancelledSubtext}>
-                                    {formatDate(subscriptionDetails?.expiryDate)} 만료
+                                    {formatDate(subscriptionDetails?.expiryDate)}에 해지됩니다
                                 </Text>
                             </>
                         ) : (
@@ -257,24 +257,52 @@ export default function ProScreen() {
 
                 {isSubscribed && (
                     <>
-                        <Card style={styles.card}>
-                            <Text style={styles.subscribedTitle}>✅ 구독 활성화</Text>
-                            <Text style={styles.subscribedText}>
-                                현재 모든 기능을 무제한으로 사용하실 수 있습니다.
-                            </Text>
-                        </Card>
+                        {subscriptionDetails?.autoRenewing === false ? (
+                            /* 해지 예정 상태 */
+                            <>
+                                <Card style={styles.card}>
+                                    <Text style={styles.cancelledInfoTitle}>📅 해지 예정</Text>
+                                    <Text style={styles.cancelledInfoText}>
+                                        {formatDate(subscriptionDetails?.expiryDate)}까지 모든 기능을 사용하실 수 있습니다.{"\n"}
+                                        이후 구독이 자동으로 해지됩니다.
+                                    </Text>
+                                </Card>
 
-                        <View style={styles.cancelSection}>
-                            <Text style={styles.cancelInfo}>
-                                ℹ️ 구독은 언제든지 취소할 수 있습니다.
-                            </Text>
-                            <Pressable
-                                onPress={handleCancelSubscription}
-                                style={styles.cancelLink}
-                            >
-                                <Text style={styles.cancelLinkText}>구독 해지하기 →</Text>
-                            </Pressable>
-                        </View>
+                                <View style={styles.resubscribeSection}>
+                                    <Text style={styles.resubscribeInfo}>
+                                        💡 구독을 계속하시려면 다시 구독해 주세요
+                                    </Text>
+                                    <Pressable
+                                        onPress={handleSubscribe}
+                                        style={styles.resubscribeButton}
+                                    >
+                                        <Text style={styles.resubscribeButtonText}>다시 구독하기</Text>
+                                    </Pressable>
+                                </View>
+                            </>
+                        ) : (
+                            /* 정상 구독 상태 */
+                            <>
+                                <Card style={styles.card}>
+                                    <Text style={styles.subscribedTitle}>✅ 구독 활성화</Text>
+                                    <Text style={styles.subscribedText}>
+                                        현재 모든 기능을 무제한으로 사용하실 수 있습니다.
+                                    </Text>
+                                </Card>
+
+                                <View style={styles.cancelSection}>
+                                    <Text style={styles.cancelInfo}>
+                                        ℹ️ 구독은 언제든지 취소할 수 있습니다.
+                                    </Text>
+                                    <Pressable
+                                        onPress={handleCancelSubscription}
+                                        style={styles.cancelLink}
+                                    >
+                                        <Text style={styles.cancelLinkText}>구독 해지하기 →</Text>
+                                    </Pressable>
+                                </View>
+                            </>
+                        )}
                     </>
                 )}
 
@@ -544,6 +572,43 @@ const styles = StyleSheet.create({
         color: '#FB8C00',
         fontSize: 14,
         marginTop: 4,
+    },
+    cancelledInfoTitle: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#E65100',
+        marginBottom: 8,
+    },
+    cancelledInfoText: {
+        fontSize: 14,
+        color: COLORS.textSecondary,
+        lineHeight: 20,
+    },
+    resubscribeSection: {
+        alignItems: 'center',
+        paddingVertical: 24,
+        paddingHorizontal: 16,
+        marginTop: 16,
+    },
+    resubscribeInfo: {
+        fontSize: 14,
+        color: COLORS.textSecondary,
+        marginBottom: 12,
+        textAlign: 'center',
+    },
+    resubscribeButton: {
+        backgroundColor: COLORS.primary,
+        paddingVertical: 14,
+        paddingHorizontal: 32,
+        borderRadius: 12,
+        minHeight: 48,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    resubscribeButtonText: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#FFFFFF',
     },
 });
 
