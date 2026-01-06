@@ -461,9 +461,9 @@ const styles = StyleSheet.create({
     },
     cancelSection: {
         alignItems: 'center',
-        paddingVertical: 24,
+        paddingVertical: 16,
         paddingHorizontal: 16,
-        marginTop: 32,
+        marginTop: 16,
     },
     cancelInfo: {
         fontSize: 13,
@@ -482,7 +482,7 @@ const styles = StyleSheet.create({
         textDecorationLine: 'none',
     },
     bottomPadding: {
-        height: 40,
+        height: 16,
     },
     subscribeButton: {
         backgroundColor: '#007AFF',

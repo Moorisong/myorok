@@ -575,31 +575,44 @@ export async function setTrialExpiringTestMode(): Promise<void> {
 export async function handlePurchaseSuccess(): Promise<void> {
     console.log('Handling purchase success');
 
+    // 실제 Google Play 구독 정보 가져오기
+    const { getSubscriptionDetails } = await import('./paymentService');
+    const subscriptionDetails = await getSubscriptionDetails();
+
     // License 확인
     const { checkLicenseAfterPurchase, handleLicenseResponse } = await import('./licenseChecker');
     const licenseResponse = await checkLicenseAfterPurchase();
 
-    // License Response 처리
-    await handleLicenseResponse(licenseResponse);
+    // License Response 처리 (실제 만료일 전달)
+    await handleLicenseResponse(licenseResponse, subscriptionDetails.expiryDate);
 }
 
 /**
  * 앱 시작 시 구독 복원 및 확인
+ * 주의: 이 함수는 로컬 상태가 expired일 때만 호출해야 합니다.
+ * Google Play에서 구독을 찾으면 활성화하지만, 찾지 못해도 기존 상태를 변경하지 않습니다.
  */
 export async function checkAndRestoreSubscription(): Promise<void> {
     console.log('Checking and restoring subscription');
 
-    // Google Play에서 구독 내역 조회
-    const { restorePurchases } = await import('./paymentService');
-    const { handleLicenseResponse } = await import('./licenseChecker');
-    const hasActive = await restorePurchases();
+    try {
+        // Google Play에서 구독 내역 조회
+        const { restorePurchases, getSubscriptionDetails } = await import('./paymentService');
+        const { handleLicenseResponse } = await import('./licenseChecker');
+        const hasActive = await restorePurchases();
 
-    if (hasActive) {
-        // 활성 구독 있음
-        await handleLicenseResponse('LICENSED');
-    } else {
-        // 활성 구독 없음
-        await handleLicenseResponse('NOT_LICENSED');
+        if (hasActive) {
+            // 활성 구독 있음 - 실제 만료일 가져오기
+            const subscriptionDetails = await getSubscriptionDetails();
+            await handleLicenseResponse('LICENSED', subscriptionDetails.expiryDate);
+            console.log('[Subscription] Subscription restored successfully');
+        } else {
+            // 활성 구독 없음 - 기존 상태 유지 (NOT_LICENSED를 보내지 않음)
+            console.log('[Subscription] No active subscription found in Google Play, keeping local state');
+        }
+    } catch (error) {
+        // Google Play 연결 실패 시에도 기존 상태 유지
+        console.error('[Subscription] Failed to check Google Play subscription:', error);
     }
 }
 

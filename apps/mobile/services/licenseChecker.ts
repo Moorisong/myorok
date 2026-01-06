@@ -14,13 +14,15 @@ export type LicenseResponse =
 /**
  * License Response 코드에 따른 처리
  * Note: Toast 메시지는 UI 레이어에서 처리하도록 합니다.
+ * @param response - License response from Google Play
+ * @param expiryDate - Optional expiry date from Google Play subscription details
  */
-export async function handleLicenseResponse(response: LicenseResponse): Promise<void> {
+export async function handleLicenseResponse(response: LicenseResponse, expiryDate?: string): Promise<void> {
   switch (response) {
     case 'LICENSED':
-      // 구독 활성화
-      console.log('License valid - activating subscription');
-      await activateSubscription(); // state = 'active', isPro=true
+      // 구독 활성화 (실제 만료일 사용)
+      console.log('License valid - activating subscription with expiry:', expiryDate);
+      await activateSubscription(expiryDate); // state = 'active', isPro=true
       break;
 
     case 'NOT_LICENSED':
