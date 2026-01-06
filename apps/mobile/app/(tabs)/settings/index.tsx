@@ -53,8 +53,6 @@ export default function SettingsScreen() {
     const { selectedPet } = useSelectedPet();
     const { logout: authLogout, isAdmin } = useAuth();
 
-    console.log('[Settings] isAdmin:', isAdmin);
-
     const [subscriptionState, setSubscriptionState] = useState<SubscriptionState | null>(null);
     const [showBlockPreview, setShowBlockPreview] = useState(false);
     const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -73,7 +71,6 @@ export default function SettingsScreen() {
 
     const loadCurrentUser = async () => {
         const user = await getCurrentUser();
-        console.log('[Settings] Current user:', user);
         setCurrentUser(user);
     };
 
@@ -89,7 +86,6 @@ export default function SettingsScreen() {
                     onPress: async () => {
                         try {
                             await authLogout();
-                            console.log('[Settings] Logout successful, returning to login screen');
                             // Auth context will update isLoggedIn, triggering login screen
                         } catch (error) {
                             console.error('[Settings] Logout error:', error);
@@ -225,85 +221,75 @@ export default function SettingsScreen() {
                     </Card>
                 )}
 
+
                 <Card style={styles.card}>
-                    <SettingItem
-                        emoji="🔍"
-                        title="isAdmin 상태 확인 (Dev)"
-                        description="AsyncStorage의 isAdmin 값 확인"
-                        onPress={async () => {
-                            const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
-                            const isAdminValue = await AsyncStorage.getItem('is_admin');
-                            const userId = await AsyncStorage.getItem('current_user_id');
-                            Alert.alert(
-                                'isAdmin 디버깅',
-                                `userId: ${userId}\nisAdmin (storage): ${isAdminValue}\nisAdmin (context): ${isAdmin}`,
-                                [{ text: '확인' }]
-                            );
-                        }}
-                    />
-                    <SettingItem
-                        emoji="⏰"
-                        title="무료 체험 24시간 남음 (Dev)"
-                        description="체험 상태를 24시간 전으로 설정"
-                        onPress={async () => {
-                            try {
-                                const { setTrialExpiringTestMode } = await import('../../../services');
-                                await setTrialExpiringTestMode();
-                                await loadSubscriptionStatus();
-                                Alert.alert(
-                                    '테스트 모드 설정 완료',
-                                    '무료 체험이 24시간 남은 상태로 설정되었습니다.\n\n10초 후 체험 종료 알림이 자동으로 스케줄링됩니다.',
-                                    [{ text: '확인' }]
-                                );
-                            } catch (error) {
-                                console.error('[Settings] Set trial expiring test mode failed:', error);
-                                Alert.alert('오류', '테스트 모드 설정에 실패했습니다.');
-                            }
-                        }}
-                    />
-                    <SettingItem
-                        emoji="🔄"
-                        title="구독 상태 리셋 (Dev)"
-                        description={`현재: ${subscriptionState?.status || '로딩 중'}`}
-                        onPress={async () => {
-                            const { resetSubscription } = await import('../../../services');
-                            await resetSubscription();
-                            Alert.alert('완료', '구독 상태가 리셋되었습니다. 앱을 다시 시작하세요.');
-                        }}
-                    />
-                    <SettingItem
-                        emoji="👁️"
-                        title="차단 화면 미리보기 (Dev)"
-                        description="체험 만료 시 보이는 화면"
-                        onPress={() => setShowBlockPreview(true)}
-                    />
-                    <SettingItem
-                        emoji="📊"
-                        title="1년 테스트 데이터 생성 (Dev)"
-                        description="365일치 무작위 기록 생성"
-                        onPress={async () => {
-                            Alert.alert(
-                                '테스트 데이터 생성',
-                                '1년(365일)치 무작위 데이터를 생성합니다. 기존 데이터가 없는 날짜에만 추가됩니다.',
-                                [
-                                    { text: '취소', style: 'cancel' },
-                                    {
-                                        text: '생성',
-                                        onPress: async () => {
-                                            try {
-                                                const { generateTestData } = await import('../../../services/testDataGenerator');
-                                                const result = await generateTestData();
-                                                Alert.alert('완료', `${result.recordsCreated}개의 기록이 생성되었습니다.`);
-                                            } catch (error) {
-                                                console.error('Test data generation failed:', error);
-                                                Alert.alert('오류', '데이터 생성에 실패했습니다.');
-                                            }
-                                        },
-                                    },
-                                ]
-                            );
-                        }}
-                    />
+                    {__DEV__ && (
+                        <>
+                            <SettingItem
+                                emoji="⏰"
+                                title="무료 체험 24시간 남음 (Dev)"
+                                description="체험 상태를 24시간 전으로 설정"
+                                onPress={async () => {
+                                    try {
+                                        const { setTrialExpiringTestMode } = await import('../../../services');
+                                        await setTrialExpiringTestMode();
+                                        await loadSubscriptionStatus();
+                                        Alert.alert(
+                                            '테스트 모드 설정 완료',
+                                            '무료 체험이 24시간 남은 상태로 설정되었습니다.\n\n10초 후 체험 종료 알림이 자동으로 스케줄링됩니다.',
+                                            [{ text: '확인' }]
+                                        );
+                                    } catch (error) {
+                                        console.error('[Settings] Set trial expiring test mode failed:', error);
+                                        Alert.alert('오류', '테스트 모드 설정에 실패했습니다.');
+                                    }
+                                }}
+                            />
+                            <SettingItem
+                                emoji="🔄"
+                                title="구독 상태 리셋 (Dev)"
+                                description={`현재: ${subscriptionState?.status || '로딩 중'}`}
+                                onPress={async () => {
+                                    const { resetSubscription } = await import('../../../services');
+                                    await resetSubscription();
+                                    Alert.alert('완료', '구독 상태가 리셋되었습니다. 앱을 다시 시작하세요.');
+                                }}
+                            />
+                            <SettingItem
+                                emoji="👁️"
+                                title="차단 화면 미리보기 (Dev)"
+                                description="체험 만료 시 보이는 화면"
+                                onPress={() => setShowBlockPreview(true)}
+                            />
+                            <SettingItem
+                                emoji="📊"
+                                title="1년 테스트 데이터 생성 (Dev)"
+                                description="365일치 무작위 기록 생성"
+                                onPress={async () => {
+                                    Alert.alert(
+                                        '테스트 데이터 생성',
+                                        '1년(365일)치 무작위 데이터를 생성합니다. 기존 데이터가 없는 날짜에만 추가됩니다.',
+                                        [
+                                            { text: '취소', style: 'cancel' },
+                                            {
+                                                text: '생성',
+                                                onPress: async () => {
+                                                    try {
+                                                        const { generateTestData } = await import('../../../services/testDataGenerator');
+                                                        const result = await generateTestData();
+                                                        Alert.alert('완료', `${result.recordsCreated}개의 기록이 생성되었습니다.`);
+                                                    } catch (error) {
+                                                        console.error('Test data generation failed:', error);
+                                                        Alert.alert('오류', '데이터 생성에 실패했습니다.');
+                                                    }
+                                                },
+                                            },
+                                        ]
+                                    );
+                                }}
+                            />
+                        </>
+                    )}
                 </Card>
 
                 <Card style={styles.card}>
@@ -355,7 +341,7 @@ export default function SettingsScreen() {
                 visible={showBlockPreview}
                 onDismiss={() => setShowBlockPreview(false)}
             />
-        </SafeAreaView>
+        </SafeAreaView >
     );
 }
 
