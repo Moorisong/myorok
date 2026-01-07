@@ -22,7 +22,8 @@ export default function SummaryMedicineChart({
                 <Text style={styles.sectionTitle}>
                     {period === '15d' ? '최근 15일' :
                         period === '1m' ? '최근 1개월' :
-                            period === '3m' ? '최근 3개월' : '전체 기간'} 약/영양제 복용
+                            period === '3m' ? '최근 3개월' :
+                                period === '6m' ? '최근 6개월' : '전체 기간'} 약/영양제 복용
                 </Text>
                 <View style={styles.emptyContainer}>
                     <Text style={styles.emptyText}>복용 기록이 없습니다.</Text>
@@ -37,7 +38,8 @@ export default function SummaryMedicineChart({
                 <Text style={styles.sectionTitle}>
                     {period === '15d' ? '최근 15일' :
                         period === '1m' ? '최근 1개월' :
-                            period === '3m' ? '최근 3개월' : '전체 기간'} 약/영양제 복용
+                            period === '3m' ? '최근 3개월' :
+                                period === '6m' ? '최근 6개월' : '전체 기간'} 약/영양제 복용
                 </Text>
 
                 <View style={styles.medicineChartContainer}>
@@ -73,18 +75,23 @@ export default function SummaryMedicineChart({
                                         {row.isDeleted && <Text style={styles.textDeletedSmall}>(삭제)</Text>}
                                     </View>
 
+                                    {/* Fixed Grid Area */}
                                     <View style={styles.medGridFixed}>
-                                        {/* Fixed Grid Background - 3 vertical lines for anchor points */}
+                                        {/* Grid Lines */}
                                         <View style={styles.gridLineStart} />
                                         <View style={styles.gridLineCenter} />
                                         <View style={styles.gridLineEnd} />
 
-                                        {/* Segments (Bars and Dots) - positioned within fixed grid */}
+                                        {/* Segments */}
                                         {row.segments.map((seg, segIndex) => {
-                                            const columns = period === '1m' ? 30 : 15;
-                                            const cellWidthPercent = 100 / columns;
-                                            const leftPercent = seg.startIndex * cellWidthPercent;
-                                            const widthPercent = seg.length * cellWidthPercent;
+                                            // Calculate position based on 15d grid (0-14)
+                                            // 100% width = 15 days (or 30 for 1m)
+                                            // But standardizing on index based positioning
+                                            const totalSlots = chartDates.length; // 15 or 30
+                                            const slotWidthPercent = 100 / totalSlots;
+
+                                            const left = `${seg.startIndex * slotWidthPercent}%` as DimensionValue;
+                                            const width = `${seg.length * slotWidthPercent}%` as DimensionValue;
 
                                             if (seg.type === 'bar') {
                                                 return (
@@ -92,25 +99,19 @@ export default function SummaryMedicineChart({
                                                         key={segIndex}
                                                         style={[
                                                             styles.medBarFixed,
-                                                            {
-                                                                left: `${leftPercent}%` as DimensionValue,
-                                                                width: `${widthPercent}%` as DimensionValue
-                                                            },
-                                                            row.isDeleted && styles.medBarDeleted,
+                                                            { left, width },
+                                                            row.isDeleted && styles.medBarDeleted
                                                         ]}
                                                     />
                                                 );
                                             } else {
-                                                // Single dot - center it within its cell
-                                                const dotCenterPercent = leftPercent + (cellWidthPercent / 2);
                                                 return (
                                                     <View
                                                         key={segIndex}
                                                         style={[
                                                             styles.medDotFixed,
-                                                            { left: `${dotCenterPercent}%` as DimensionValue },
-                                                            period === '1m' && styles.medDotSmall,
-                                                            row.isDeleted && styles.medDotDeleted,
+                                                            { left: left as DimensionValue },
+                                                            row.isDeleted && styles.medDotDeleted
                                                         ]}
                                                     />
                                                 );
@@ -130,9 +131,25 @@ export default function SummaryMedicineChart({
                                 <View style={styles.medHeaderRow}>
                                     <View style={styles.medNameHeader} />
                                     <View style={styles.weekDateLabelContainer}>
-                                        <Text style={styles.weekDateLabel}>12주 전</Text>
-                                        <Text style={[styles.weekDateLabel, styles.weekDateLabelCenter]}>6주 전</Text>
-                                        <Text style={[styles.weekDateLabel, styles.weekDateLabelRight]}>이번 주</Text>
+                                        {Array.from({ length: 12 }).map((_, i) => (
+                                            <View key={i} style={{ flex: 1, alignItems: 'center' }}>
+                                                {i === 0 && (
+                                                    <Text style={[styles.weekDateLabel, { position: 'absolute', width: 60, textAlign: 'center' }]}>
+                                                        12주 전
+                                                    </Text>
+                                                )}
+                                                {i === 6 && (
+                                                    <Text style={[styles.weekDateLabel, { position: 'absolute', width: 60, textAlign: 'center' }]}>
+                                                        6주 전
+                                                    </Text>
+                                                )}
+                                                {i === 11 && (
+                                                    <Text style={[styles.weekDateLabel, { position: 'absolute', width: 60, textAlign: 'center' }]}>
+                                                        이번 주
+                                                    </Text>
+                                                )}
+                                            </View>
+                                        ))}
                                     </View>
                                 </View>
                             )}
@@ -153,9 +170,10 @@ export default function SummaryMedicineChart({
                                     <View style={styles.weekGridContainer}>
                                         {row.weekSegments?.map((seg, segIndex) => {
                                             // days → opacity 변환
-                                            const opacity = seg.days === 0 ? 0 :
-                                                seg.days <= 2 ? 0.3 :
-                                                    seg.days <= 5 ? 0.6 : 1.0;
+                                            let opacity = 0;
+                                            if (seg.days >= 6) opacity = 1.0;
+                                            else if (seg.days >= 3) opacity = 0.6;
+                                            else if (seg.days >= 1) opacity = 0.3;
 
                                             return (
                                                 <View key={segIndex} style={styles.weekBarWrapper}>
@@ -183,12 +201,82 @@ export default function SummaryMedicineChart({
                             </View>
                         </>
                     )}
+
+                    {period === '6m' && (
+                        <>
+                            {/* 6개월: 월간 요약 차트 */}
+                            {/* 월 라벨 헤더 */}
+                            {medicineRows.length > 0 && medicineRows[0].monthSegments && (
+                                <View style={styles.medHeaderRow}>
+                                    <View style={styles.medNameHeader} />
+                                    <View style={styles.weekDateLabelContainer}>
+                                        {medicineRows[0].monthSegments?.map((seg, i) => (
+                                            <View key={i} style={{ flex: 1, alignItems: 'center' }}>
+                                                {(i === 0 || i === 3 || i === 5) && (
+                                                    <Text style={[styles.weekDateLabel, { position: 'absolute', width: 40, textAlign: 'center' }]}>
+                                                        {seg.label}
+                                                    </Text>
+                                                )}
+                                            </View>
+                                        ))}
+                                    </View>
+                                </View>
+                            )}
+
+                            {medicineRows.map((row, rowIndex) => (
+                                <View key={rowIndex} style={styles.medRow}>
+                                    <View style={styles.medNameCol}>
+                                        <Text
+                                            style={[styles.medNameText, row.isDeleted && styles.textDeleted]}
+                                            numberOfLines={1}
+                                            ellipsizeMode="tail"
+                                        >
+                                            {row.name}
+                                        </Text>
+                                        {row.isDeleted && <Text style={styles.textDeletedSmall}>(삭제)</Text>}
+                                    </View>
+
+                                    <View style={styles.weekGridContainer}>
+                                        {row.monthSegments?.map((seg, segIndex) => {
+                                            // days → opacity 변환
+                                            const opacity = seg.days === 0 ? 0 :
+                                                seg.days <= 10 ? 0.3 :
+                                                    seg.days <= 20 ? 0.6 : 1.0;
+
+                                            return (
+                                                <View key={segIndex} style={styles.weekBarWrapper}>
+                                                    {seg.days > 0 && (
+                                                        <View
+                                                            style={[
+                                                                styles.weekBar,
+                                                                { opacity },
+                                                                row.isDeleted && styles.weekBarDeleted,
+                                                            ]}
+                                                        />
+                                                    )}
+                                                </View>
+                                            );
+                                        })}
+                                    </View>
+                                </View>
+                            ))}
+
+                            {/* 범례 */}
+                            <View style={styles.weekLegendContainer}>
+                                <Text style={styles.weekLegendText}>
+                                    막대 농도: 1~10일(연) · 11~20일(중) · 21일+(진)
+                                </Text>
+                            </View>
+                        </>
+                    )}
                 </View>
             </Card>
 
             <Text style={styles.hint}>
                 💡 이 화면을 병원에서 보여주세요. {"\n"}
-                {period === '3m' ? (
+                {period === '6m' ? (
+                    <>약/영양제 차트는 최근 6개월 기준이며, {"\n"}막대 색이 진할수록 해당 월에 자주 복용했음을 의미합니다.</>
+                ) : period === '3m' ? (
                     <>약/영양제 차트는 최근 3개월 기준이며, {"\n"}막대 색이 진할수록 해당 주에 자주 복용했음을 의미합니다.</>
                 ) : (
                     <>약/영양제 차트는 {period === '15d' ? '최근 15일' : '최근 1개월'} 기준이며, {"\n"}연속된 날짜는 막대(Bar), 하루 복용은 점(Dot)으로 표시됩니다.</>
@@ -224,7 +312,7 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
     medicineChartContainer: {
-        marginTop: 8,
+        marginTop: 24,
         paddingBottom: 8,
     },
     medHeaderRow: {
@@ -232,7 +320,7 @@ const styles = StyleSheet.create({
         marginBottom: 8,
     },
     medNameHeader: {
-        width: 85,
+        width: 70, // Reduced from 85 for 3m/6m layout
     },
     medRow: {
         flexDirection: 'row',
@@ -241,37 +329,32 @@ const styles = StyleSheet.create({
         marginBottom: 4,
     },
     medNameCol: {
-        width: 85,
-        paddingRight: 8,
+        width: 70, // Reduced from 85
+        paddingRight: 4,
         justifyContent: 'center',
     },
     medNameText: {
-        fontSize: 11,
+        fontSize: 12,
         color: COLORS.textPrimary,
     },
     textDeleted: {
-        color: COLORS.textSecondary,
+        color: COLORS.border,
         textDecorationLine: 'line-through',
     },
     textDeletedSmall: {
         fontSize: 10,
-        color: COLORS.textSecondary,
+        color: COLORS.border,
     },
     medGridFixed: {
         flex: 1,
-        flexDirection: 'row',
         position: 'relative',
-        height: 36,
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginRight: 8,
+        height: '100%',
     },
     medDateLabelStart: {
         position: 'absolute',
         left: 0,
         fontSize: 10,
         color: COLORS.textSecondary,
-        textAlign: 'left',
     },
     medDateLabelCenter: {
         position: 'absolute',
@@ -355,7 +438,7 @@ const styles = StyleSheet.create({
     bottomPadding: {
         height: 100,
     },
-    // 3개월 주간 요약 차트 스타일 (Bar + Opacity 기반)
+    // 3개월/6개월 요약 차트 스타일
     weekGridContainer: {
         flex: 1,
         flexDirection: 'row',
@@ -366,9 +449,9 @@ const styles = StyleSheet.create({
     weekDateLabelContainer: {
         flex: 1,
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
         marginRight: 8,
+        gap: 2,
     },
     weekDateLabel: {
         fontSize: 10,
@@ -403,4 +486,18 @@ const styles = StyleSheet.create({
         fontSize: 10,
         color: COLORS.textSecondary,
     },
+    // Old dot styles for safety if referenced (partially removed but kept wrapper)
+    weekSegmentItem: {
+        flex: 1,
+        alignItems: 'center',
+    },
+    weekDot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        backgroundColor: COLORS.primary,
+    },
+    weekDotDeleted: {
+        backgroundColor: COLORS.border,
+    }
 });
