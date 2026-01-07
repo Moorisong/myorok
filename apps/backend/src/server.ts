@@ -3,6 +3,7 @@ import cors from 'cors';
 import path from 'path';
 import { config, validateConfig } from './config';
 import authRoutes from './routes/authRoutes';
+import subscriptionRoutes from './routes/subscriptionRoutes';
 
 // Validate environment variables
 try {
@@ -39,6 +40,7 @@ app.get('/health', (_req: Request, res: Response) => {
 
 // Routes
 app.use('/auth', authRoutes);
+app.use('/api/subscription', subscriptionRoutes);
 
 // 404 handler
 app.use((_req: Request, res: Response) => {
