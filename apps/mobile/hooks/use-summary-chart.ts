@@ -377,7 +377,9 @@ export function useSummaryChart() {
                     monthlyHydration.push({
                         monthLabel,
                         hasForce: false,
-                        hasFluid: false
+                        hasFluid: false,
+                        force: 0,
+                        fluid: 0
                     });
                 }
 
@@ -400,7 +402,7 @@ export function useSummaryChart() {
                     }
                 });
 
-                // Aggregate hydration by month (existence only)
+                // Aggregate hydration by month (existence + volume)
                 fluids.forEach(f => {
                     const recordDate = new Date(f.date);
                     const recordMonth = recordDate.getMonth();
@@ -413,8 +415,10 @@ export function useSummaryChart() {
                         if (recordMonth === checkDate.getMonth() && recordYear === checkDate.getFullYear()) {
                             if (f.fluidType === 'force') {
                                 monthlyHydration[i].hasForce = true;
+                                monthlyHydration[i].force += f.volume || 0;
                             } else {
                                 monthlyHydration[i].hasFluid = true;
+                                monthlyHydration[i].fluid += f.volume || 0;
                             }
                             break;
                         }

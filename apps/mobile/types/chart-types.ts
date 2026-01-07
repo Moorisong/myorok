@@ -101,5 +101,7 @@ export interface MonthlyHydrationData {
   monthLabel: string;
   hasForce: boolean;  // 강수 존재 여부
   hasFluid: boolean;  // 수액 존재 여부
+  force: number;      // 강수 총량 (ml)
+  fluid: number;      // 수액 총량 (ml)
 }
 
