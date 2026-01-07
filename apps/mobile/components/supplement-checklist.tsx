@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Pressable, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { Link } from 'expo-router';
 
@@ -11,7 +11,7 @@ interface SupplementChecklistProps {
     takenStatus: Map<string, boolean>;
     onToggle: (supplementId: string) => void;
     onAdd: (name: string, type: 'medicine' | 'supplement') => void;
-    onDelete?: (supplementId: string, deleteRecords: boolean) => void;
+    onDelete?: (supplementId: string) => void;
 }
 
 export default function SupplementChecklist({
@@ -37,36 +37,18 @@ export default function SupplementChecklist({
             <Text style={styles.sectionTitle}>약 / 영양제</Text>
             {supplements.map(supp => (
                 <View key={supp.id} style={styles.checkItemContainer}>
-                    <Pressable
-                        style={styles.checkItem}
-                        onPress={() => onToggle(supp.id)}
-                    >
-                        <View style={[styles.checkbox, takenStatus.get(supp.id) && styles.checkboxChecked]}>
-                            {takenStatus.get(supp.id) && <Text style={styles.checkmark}>✓</Text>}
-                        </View>
+                    <View style={styles.checkItem}>
+                        <Pressable onPress={() => onToggle(supp.id)}>
+                            <View style={[styles.checkbox, takenStatus.get(supp.id) && styles.checkboxChecked]}>
+                                {takenStatus.get(supp.id) && <Text style={styles.checkmark}>✓</Text>}
+                            </View>
+                        </Pressable>
                         <Text style={styles.checkLabel}>{supp.name}</Text>
-                    </Pressable>
-                    {onDelete && (
+                    </View>
+                    {onDelete && !takenStatus.get(supp.id) && (
                         <Pressable
                             style={styles.deleteButton}
-                            onPress={() => {
-                                Alert.alert(
-                                    '목록에서 제거',
-                                    `"${supp.name}"을(를) 어떻게 처리하시겠습니까?`,
-                                    [
-                                        { text: '취소', style: 'cancel' },
-                                        {
-                                            text: '기록 유지하고 제거',
-                                            onPress: () => onDelete(supp.id, false)
-                                        },
-                                        {
-                                            text: '기록도 함께 삭제',
-                                            style: 'destructive',
-                                            onPress: () => onDelete(supp.id, true)
-                                        }
-                                    ]
-                                );
-                            }}
+                            onPress={() => onDelete(supp.id)}
                         >
                             <Feather name="minus-circle" size={18} color={COLORS.textSecondary} style={{ opacity: 0.5 }} />
                         </Pressable>
