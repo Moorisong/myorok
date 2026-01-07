@@ -199,8 +199,6 @@ export default function SummaryWeeklyCharts({
                     </View>
                 </View>
             </Card>
-
-            <View style={styles.bottomPadding} />
         </>
     );
 }

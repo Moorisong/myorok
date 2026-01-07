@@ -121,13 +121,78 @@ export default function SummaryMedicineChart({
                             ))}
                         </>
                     )}
+
+                    {period === '3m' && (
+                        <>
+                            {/* 3개월: 주간 요약 차트 - Opacity 기반 Bar */}
+                            {/* 주차 라벨 헤더 */}
+                            {medicineRows.length > 0 && medicineRows[0].weekSegments && (
+                                <View style={styles.medHeaderRow}>
+                                    <View style={styles.medNameHeader} />
+                                    <View style={styles.weekDateLabelContainer}>
+                                        <Text style={styles.weekDateLabel}>12주 전</Text>
+                                        <Text style={[styles.weekDateLabel, styles.weekDateLabelCenter]}>6주 전</Text>
+                                        <Text style={[styles.weekDateLabel, styles.weekDateLabelRight]}>이번 주</Text>
+                                    </View>
+                                </View>
+                            )}
+
+                            {medicineRows.map((row, rowIndex) => (
+                                <View key={rowIndex} style={styles.medRow}>
+                                    <View style={styles.medNameCol}>
+                                        <Text
+                                            style={[styles.medNameText, row.isDeleted && styles.textDeleted]}
+                                            numberOfLines={1}
+                                            ellipsizeMode="tail"
+                                        >
+                                            {row.name}
+                                        </Text>
+                                        {row.isDeleted && <Text style={styles.textDeletedSmall}>(삭제)</Text>}
+                                    </View>
+
+                                    <View style={styles.weekGridContainer}>
+                                        {row.weekSegments?.map((seg, segIndex) => {
+                                            // days → opacity 변환
+                                            const opacity = seg.days === 0 ? 0 :
+                                                seg.days <= 2 ? 0.3 :
+                                                    seg.days <= 5 ? 0.6 : 1.0;
+
+                                            return (
+                                                <View key={segIndex} style={styles.weekBarWrapper}>
+                                                    {seg.days > 0 && (
+                                                        <View
+                                                            style={[
+                                                                styles.weekBar,
+                                                                { opacity },
+                                                                row.isDeleted && styles.weekBarDeleted,
+                                                            ]}
+                                                        />
+                                                    )}
+                                                </View>
+                                            );
+                                        })}
+                                    </View>
+                                </View>
+                            ))}
+
+                            {/* 범례 */}
+                            <View style={styles.weekLegendContainer}>
+                                <Text style={styles.weekLegendText}>
+                                    막대 농도: 1~2일(연) · 3~5일(중) · 6~7일(진)
+                                </Text>
+                            </View>
+                        </>
+                    )}
                 </View>
             </Card>
 
             <Text style={styles.hint}>
                 💡 이 화면을 병원에서 보여주세요. {"\n"}
-                약/영양제 차트는 {period === '15d' ? '최근 15일' : period === '1m' ? '최근 1개월' : period === '3m' ? '최근 3개월' : '전체 기간'} 기준이며, {"\n"}
-                연속된 날짜는 막대(Bar), 하루 복용은 점(Dot)으로 표시됩니다.
+                {period === '3m' ? (
+                    <>약/영양제 차트는 최근 3개월 기준이며, {"\n"}막대 색이 진할수록 해당 주에 자주 복용했음을 의미합니다.</>
+                ) : (
+                    <>약/영양제 차트는 {period === '15d' ? '최근 15일' : '최근 1개월'} 기준이며, {"\n"}연속된 날짜는 막대(Bar), 하루 복용은 점(Dot)으로 표시됩니다.</>
+                )}
             </Text>
 
             <View style={styles.bottomPadding} />
@@ -289,5 +354,53 @@ const styles = StyleSheet.create({
     },
     bottomPadding: {
         height: 100,
+    },
+    // 3개월 주간 요약 차트 스타일 (Bar + Opacity 기반)
+    weekGridContainer: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 2,
+        marginRight: 8,
+    },
+    weekDateLabelContainer: {
+        flex: 1,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginRight: 8,
+    },
+    weekDateLabel: {
+        fontSize: 10,
+        color: COLORS.textSecondary,
+    },
+    weekDateLabelCenter: {
+        textAlign: 'center',
+    },
+    weekDateLabelRight: {
+        textAlign: 'right',
+    },
+    weekBarWrapper: {
+        flex: 1,
+        height: 16,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    weekBar: {
+        width: '90%',
+        height: 12,
+        borderRadius: 6,
+        backgroundColor: COLORS.primary,
+    },
+    weekBarDeleted: {
+        backgroundColor: COLORS.border,
+    },
+    weekLegendContainer: {
+        marginTop: 8,
+        alignItems: 'flex-end',
+    },
+    weekLegendText: {
+        fontSize: 10,
+        color: COLORS.textSecondary,
     },
 });

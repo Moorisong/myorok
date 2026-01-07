@@ -27,8 +27,7 @@ export interface MedicineSegment {
 // Pro Features - Weekly Segment
 export interface WeekSegment {
   weekIndex: number;
-  count: number;
-  type: 'thick' | 'thin' | 'dot' | 'none';
+  days: number;  // 0~7: 해당 주에 복용한 일수
   label: string; // e.g. "3rd week of Mar"
 }
 

@@ -328,16 +328,9 @@ export function useSummaryChart() {
                             }
                         }
 
-                        let type: 'thick' | 'thin' | 'dot' | 'none' = 'none';
-                        if (count >= 5) type = 'thick';
-                        else if (count >= 2) type = 'thin';
-                        else if (count >= 1) type = 'dot';
-                        else type = 'none';
-
                         weekSegments.push({
                             weekIndex: 11 - i,
-                            count,
-                            type,
+                            days: count,
                             label: `${weekStart.getMonth() + 1}/${weekStart.getDate()}`
                         });
                     }
