@@ -19,5 +19,4 @@ export { default as ComfortReportModal } from './comfort-report-modal';
 export { default as ComfortCommentReportModal } from './comfort-comment-report-modal';
 export { default as MemoEditModal } from './memo-edit-modal';
 export { default as SummaryOverallCards } from './summary-overall-cards';
-export { default as SummaryWeeklyCharts } from './summary-weekly-charts';
-export { default as SummaryDailyCharts } from './summary-daily-charts';
+export { default as SummaryCharts } from './summary-charts';
