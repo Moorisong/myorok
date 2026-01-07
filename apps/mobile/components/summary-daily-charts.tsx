@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 
 import { COLORS } from '../constants';
 import Card from './card';
@@ -14,6 +15,52 @@ interface SummaryDailyChartsProps {
     scrollViewRef2: React.RefObject<ScrollView | null>;
     scrollViewRef3: React.RefObject<ScrollView | null>;
     scrollViewRef4: React.RefObject<ScrollView | null>;
+}
+
+// 연속된 데이터 구간을 찾는 함수
+interface ContinuousSegment {
+    startIndex: number;
+    endIndex: number;
+    points: Array<{ index: number; value: number }>;
+}
+
+function findContinuousSegments(data: ChartData[], key: 'poop' | 'diarrhea' | 'vomit'): ContinuousSegment[] {
+    const segments: ContinuousSegment[] = [];
+    let currentSegment: ContinuousSegment | null = null;
+
+    for (let index = 0; index < data.length; index++) {
+        const item = data[index];
+        const value = item[key];
+        const hasData = value > 0;
+
+        if (hasData) {
+            if (!currentSegment) {
+                // 새로운 구간 시작
+                currentSegment = {
+                    startIndex: index,
+                    endIndex: index,
+                    points: [{ index, value }]
+                };
+            } else {
+                // 기존 구간 확장
+                currentSegment.endIndex = index;
+                currentSegment.points.push({ index, value });
+            }
+        } else {
+            // 0이면 구간 끊김
+            if (currentSegment && currentSegment.points.length >= 2) {
+                segments.push(currentSegment);
+            }
+            currentSegment = null;
+        }
+    }
+
+    // 마지막 구간 처리
+    if (currentSegment && currentSegment.points.length >= 2) {
+        segments.push(currentSegment);
+    }
+
+    return segments;
 }
 
 export default function SummaryDailyCharts({
@@ -31,6 +78,9 @@ export default function SummaryDailyCharts({
             {/* 배변 횟수 차트 */}
             <Card style={styles.card}>
                 <Text style={styles.sectionTitle}>배변 횟수</Text>
+                <Text style={styles.chartHint}>
+                    점은 증상이 발생한 날입니다. 선은 연속으로 발생한 날을 연결한 표시이며, 발생하지 않은 날(0회)은 표시하지 않습니다.
+                </Text>
 
                 <ScrollView
                     ref={scrollViewRef}
@@ -44,29 +94,61 @@ export default function SummaryDailyCharts({
                                 <Text style={styles.emptyText}>기록이 없습니다.</Text>
                             </View>
                         ) : (
-                            chartData.map((day, index) => {
-                                const maxDisplayValue = Math.max(maxValue, 5);
-                                const hasData = day.poop > 0;
-                                return (
-                                    <View key={index} style={styles.dotColumn}>
-                                        <View style={styles.dotArea}>
-                                            {hasData && (
-                                                <>
-                                                    <Text style={styles.dotLabel}>{day.poop}회</Text>
-                                                    <View
-                                                        style={[
-                                                            styles.dot,
-                                                            styles.dotPoop,
-                                                            { bottom: (day.poop / maxDisplayValue) * 60 }
-                                                        ]}
-                                                    />
-                                                </>
-                                            )}
+                            <>
+                                {/* SVG로 연속 라인 그리기 */}
+                                <Svg
+                                    style={StyleSheet.absoluteFill}
+                                    width={Math.max(chartData.length * 36, 300)}
+                                    height={110}
+                                >
+                                    {findContinuousSegments(chartData, 'poop').map((segment, segIndex) => {
+                                        const maxDisplayValue = Math.max(maxValue, 5);
+                                        const pathData = segment.points
+                                            .map((point, i) => {
+                                                const x = point.index * 36 + 18; // 중앙
+                                                const y = 90 - (point.value / maxDisplayValue) * 60;
+                                                return i === 0 ? `M ${x} ${y}` : `L ${x} ${y}`;
+                                            })
+                                            .join(' ');
+
+                                        return (
+                                            <Path
+                                                key={segIndex}
+                                                d={pathData}
+                                                stroke={COLORS.primary}
+                                                strokeWidth={1.5}
+                                                fill="none"
+                                                opacity={0.5}
+                                            />
+                                        );
+                                    })}
+                                </Svg>
+
+                                {/* 점과 라벨 */}
+                                {chartData.map((day, index) => {
+                                    const maxDisplayValue = Math.max(maxValue, 5);
+                                    const hasData = day.poop > 0;
+                                    return (
+                                        <View key={index} style={styles.dotColumn}>
+                                            <View style={styles.dotArea}>
+                                                {hasData && (
+                                                    <>
+                                                        <Text style={styles.dotLabel}>{day.poop}회</Text>
+                                                        <View
+                                                            style={[
+                                                                styles.dot,
+                                                                styles.dotPoop,
+                                                                { bottom: (day.poop / maxDisplayValue) * 60 }
+                                                            ]}
+                                                        />
+                                                    </>
+                                                )}
+                                            </View>
+                                            <Text style={styles.dotDateLabel}>{day.date}</Text>
                                         </View>
-                                        <Text style={styles.dotDateLabel}>{day.date}</Text>
-                                    </View>
-                                );
-                            })
+                                    );
+                                })}
+                            </>
                         )}
                     </View>
                 </ScrollView>
@@ -75,6 +157,9 @@ export default function SummaryDailyCharts({
             {/* 설사 횟수 차트 */}
             <Card style={styles.card}>
                 <Text style={styles.sectionTitle}>설사 횟수</Text>
+                <Text style={styles.chartHint}>
+                    점은 증상이 발생한 날입니다. 선은 연속으로 발생한 날을 연결한 표시이며, 발생하지 않은 날(0회)은 표시하지 않습니다.
+                </Text>
 
                 <ScrollView
                     ref={scrollViewRef2}
@@ -88,29 +173,61 @@ export default function SummaryDailyCharts({
                                 <Text style={styles.emptyText}>기록이 없습니다.</Text>
                             </View>
                         ) : (
-                            chartData.map((day, index) => {
-                                const maxDisplayValue = Math.max(maxValue, 5);
-                                const hasData = day.diarrhea > 0;
-                                return (
-                                    <View key={index} style={styles.dotColumn}>
-                                        <View style={styles.dotArea}>
-                                            {hasData && (
-                                                <>
-                                                    <Text style={[styles.dotLabel, styles.dotLabelWarning]}>{day.diarrhea}회</Text>
-                                                    <View
-                                                        style={[
-                                                            styles.dot,
-                                                            styles.dotDiarrhea,
-                                                            { bottom: (day.diarrhea / maxDisplayValue) * 60 }
-                                                        ]}
-                                                    />
-                                                </>
-                                            )}
+                            <>
+                                {/* SVG로 연속 라인 그리기 */}
+                                <Svg
+                                    style={StyleSheet.absoluteFill}
+                                    width={Math.max(chartData.length * 36, 300)}
+                                    height={110}
+                                >
+                                    {findContinuousSegments(chartData, 'diarrhea').map((segment, segIndex) => {
+                                        const maxDisplayValue = Math.max(maxValue, 5);
+                                        const pathData = segment.points
+                                            .map((point, i) => {
+                                                const x = point.index * 36 + 18; // 중앙
+                                                const y = 90 - (point.value / maxDisplayValue) * 60;
+                                                return i === 0 ? `M ${x} ${y}` : `L ${x} ${y}`;
+                                            })
+                                            .join(' ');
+
+                                        return (
+                                            <Path
+                                                key={segIndex}
+                                                d={pathData}
+                                                stroke={COLORS.warning}
+                                                strokeWidth={1.5}
+                                                fill="none"
+                                                opacity={0.5}
+                                            />
+                                        );
+                                    })}
+                                </Svg>
+
+                                {/* 점과 라벨 */}
+                                {chartData.map((day, index) => {
+                                    const maxDisplayValue = Math.max(maxValue, 5);
+                                    const hasData = day.diarrhea > 0;
+                                    return (
+                                        <View key={index} style={styles.dotColumn}>
+                                            <View style={styles.dotArea}>
+                                                {hasData && (
+                                                    <>
+                                                        <Text style={[styles.dotLabel, styles.dotLabelWarning]}>{day.diarrhea}회</Text>
+                                                        <View
+                                                            style={[
+                                                                styles.dot,
+                                                                styles.dotDiarrhea,
+                                                                { bottom: (day.diarrhea / maxDisplayValue) * 60 }
+                                                            ]}
+                                                        />
+                                                    </>
+                                                )}
+                                            </View>
+                                            <Text style={styles.dotDateLabel}>{day.date}</Text>
                                         </View>
-                                        <Text style={styles.dotDateLabel}>{day.date}</Text>
-                                    </View>
-                                );
-                            })
+                                    );
+                                })}
+                            </>
                         )}
                     </View>
                 </ScrollView>
@@ -119,6 +236,9 @@ export default function SummaryDailyCharts({
             {/* 구토 횟수 차트 */}
             <Card style={styles.card}>
                 <Text style={styles.sectionTitle}>구토 횟수</Text>
+                <Text style={styles.chartHint}>
+                    점은 증상이 발생한 날입니다. 선은 연속으로 발생한 날을 연결한 표시이며, 발생하지 않은 날(0회)은 표시하지 않습니다.
+                </Text>
 
                 <ScrollView
                     ref={scrollViewRef3}
@@ -132,29 +252,61 @@ export default function SummaryDailyCharts({
                                 <Text style={styles.emptyText}>기록이 없습니다.</Text>
                             </View>
                         ) : (
-                            chartData.map((day, index) => {
-                                const maxDisplayValue = Math.max(maxValue, 5);
-                                const hasData = day.vomit > 0;
-                                return (
-                                    <View key={index} style={styles.dotColumn}>
-                                        <View style={styles.dotArea}>
-                                            {hasData && (
-                                                <>
-                                                    <Text style={[styles.dotLabel, styles.dotLabelError]}>{day.vomit}회</Text>
-                                                    <View
-                                                        style={[
-                                                            styles.dot,
-                                                            styles.dotVomit,
-                                                            { bottom: (day.vomit / maxDisplayValue) * 60 }
-                                                        ]}
-                                                    />
-                                                </>
-                                            )}
+                            <>
+                                {/* SVG로 연속 라인 그리기 */}
+                                <Svg
+                                    style={StyleSheet.absoluteFill}
+                                    width={Math.max(chartData.length * 36, 300)}
+                                    height={110}
+                                >
+                                    {findContinuousSegments(chartData, 'vomit').map((segment, segIndex) => {
+                                        const maxDisplayValue = Math.max(maxValue, 5);
+                                        const pathData = segment.points
+                                            .map((point, i) => {
+                                                const x = point.index * 36 + 18; // 중앙
+                                                const y = 90 - (point.value / maxDisplayValue) * 60;
+                                                return i === 0 ? `M ${x} ${y}` : `L ${x} ${y}`;
+                                            })
+                                            .join(' ');
+
+                                        return (
+                                            <Path
+                                                key={segIndex}
+                                                d={pathData}
+                                                stroke={COLORS.error}
+                                                strokeWidth={1.5}
+                                                fill="none"
+                                                opacity={0.5}
+                                            />
+                                        );
+                                    })}
+                                </Svg>
+
+                                {/* 점과 라벨 */}
+                                {chartData.map((day, index) => {
+                                    const maxDisplayValue = Math.max(maxValue, 5);
+                                    const hasData = day.vomit > 0;
+                                    return (
+                                        <View key={index} style={styles.dotColumn}>
+                                            <View style={styles.dotArea}>
+                                                {hasData && (
+                                                    <>
+                                                        <Text style={[styles.dotLabel, styles.dotLabelError]}>{day.vomit}회</Text>
+                                                        <View
+                                                            style={[
+                                                                styles.dot,
+                                                                styles.dotVomit,
+                                                                { bottom: (day.vomit / maxDisplayValue) * 60 }
+                                                            ]}
+                                                        />
+                                                    </>
+                                                )}
+                                            </View>
+                                            <Text style={styles.dotDateLabel}>{day.date}</Text>
                                         </View>
-                                        <Text style={styles.dotDateLabel}>{day.date}</Text>
-                                    </View>
-                                );
-                            })
+                                    );
+                                })}
+                            </>
                         )}
                     </View>
                 </ScrollView>
@@ -241,7 +393,13 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: '600',
         color: COLORS.textPrimary,
+        marginBottom: 4,
+    },
+    chartHint: {
+        fontSize: 11,
+        color: COLORS.textSecondary,
         marginBottom: 8,
+        lineHeight: 16,
     },
     emptyContainer: {
         flex: 1,
@@ -273,9 +431,9 @@ const styles = StyleSheet.create({
         position: 'relative',
     },
     dot: {
-        width: 10,
-        height: 10,
-        borderRadius: 5,
+        width: 12,
+        height: 12,
+        borderRadius: 6,
         position: 'absolute',
     },
     dotPoop: {

@@ -8,8 +8,7 @@ import {
     Card,
     SummaryOverallCards,
     SummaryWeeklyCharts,
-    SummaryDailyCharts,
-    SummaryMedicineChart
+    SummaryDailyCharts
 } from '../../../components';
 import SummaryMonthlyCharts from '../../../components/summary-monthly-charts';
 import { useSummaryChart } from '../../../hooks/use-summary-chart';
@@ -22,8 +21,6 @@ export default function SummaryChartScreen() {
         isLoading,
         chartData,
         hydrationData,
-        medicineRows,
-        chartDates,
         maxValue,
         maxVolValue,
         overallSummary,
@@ -71,7 +68,10 @@ export default function SummaryChartScreen() {
                 ))}
             </View>
 
-            <ScrollView style={styles.content}>
+            <ScrollView
+                style={styles.content}
+                contentContainerStyle={styles.scrollContent}
+            >
                 {/* 전체 기간: 요약 카드 표시 */}
                 {period === 'all' && overallSummary ? (
                     <SummaryOverallCards overallSummary={overallSummary} />
@@ -82,52 +82,30 @@ export default function SummaryChartScreen() {
                         </View>
                     </Card>
                 ) : period === '6m' ? (
-                    <>
-                        <SummaryMonthlyCharts
-                            monthlyChartData={monthlyChartData}
-                            monthlyHydrationData={monthlyHydrationData}
-                        />
-                        <SummaryMedicineChart
-                            medicineRows={medicineRows}
-                            chartDates={chartDates}
-                            period={period}
-                        />
-                    </>
+                    <SummaryMonthlyCharts
+                        monthlyChartData={monthlyChartData}
+                        monthlyHydrationData={monthlyHydrationData}
+                    />
                 ) : period === '3m' ? (
-                    <>
-                        <SummaryWeeklyCharts
-                            weeklyChartData={weeklyChartData}
-                            weeklyHydrationData={weeklyHydrationData}
-                            scrollViewRef3m1={scrollViewRef3m1}
-                            scrollViewRef3m2={scrollViewRef3m2}
-                            scrollViewRef3m3={scrollViewRef3m3}
-                            scrollViewRef3m4={scrollViewRef3m4}
-                        />
-                        <SummaryMedicineChart
-                            medicineRows={medicineRows}
-                            chartDates={chartDates}
-                            period={period}
-                        />
-                    </>
+                    <SummaryWeeklyCharts
+                        weeklyChartData={weeklyChartData}
+                        weeklyHydrationData={weeklyHydrationData}
+                        scrollViewRef3m1={scrollViewRef3m1}
+                        scrollViewRef3m2={scrollViewRef3m2}
+                        scrollViewRef3m3={scrollViewRef3m3}
+                        scrollViewRef3m4={scrollViewRef3m4}
+                    />
                 ) : (
-                    <>
-                        <SummaryDailyCharts
-                            chartData={chartData}
-                            hydrationData={hydrationData}
-                            maxValue={maxValue}
-                            maxVolValue={maxVolValue}
-                            scrollViewRef={scrollViewRef}
-                            scrollViewRef2={scrollViewRef2}
-                            scrollViewRef3={scrollViewRef3}
-                            scrollViewRef4={scrollViewRef4}
-                        />
-
-                        <SummaryMedicineChart
-                            medicineRows={medicineRows}
-                            chartDates={chartDates}
-                            period={period}
-                        />
-                    </>
+                    <SummaryDailyCharts
+                        chartData={chartData}
+                        hydrationData={hydrationData}
+                        maxValue={maxValue}
+                        maxVolValue={maxVolValue}
+                        scrollViewRef={scrollViewRef}
+                        scrollViewRef2={scrollViewRef2}
+                        scrollViewRef3={scrollViewRef3}
+                        scrollViewRef4={scrollViewRef4}
+                    />
                 )}
             </ScrollView>
         </SafeAreaView>
@@ -184,5 +162,8 @@ const styles = StyleSheet.create({
     periodButtonTextSelected: {
         color: COLORS.surface,
         fontWeight: '600',
+    },
+    scrollContent: {
+        paddingBottom: 100,
     },
 });

@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 
 import { COLORS } from '../constants';
 import Card from './card';
@@ -12,6 +13,48 @@ interface SummaryWeeklyChartsProps {
     scrollViewRef3m2: React.RefObject<ScrollView | null>;
     scrollViewRef3m3: React.RefObject<ScrollView | null>;
     scrollViewRef3m4: React.RefObject<ScrollView | null>;
+}
+
+// 연속된 데이터 구간을 찾는 함수
+interface ContinuousSegment {
+    startIndex: number;
+    endIndex: number;
+    points: Array<{ index: number; value: number }>;
+}
+
+function findContinuousSegments(data: WeeklyChartData[], key: 'poop' | 'diarrhea' | 'vomit'): ContinuousSegment[] {
+    const segments: ContinuousSegment[] = [];
+    let currentSegment: ContinuousSegment | null = null;
+
+    for (let index = 0; index < data.length; index++) {
+        const item = data[index];
+        const value = item[key];
+        const hasData = value > 0;
+
+        if (hasData) {
+            if (!currentSegment) {
+                currentSegment = {
+                    startIndex: index,
+                    endIndex: index,
+                    points: [{ index, value }]
+                };
+            } else {
+                currentSegment.endIndex = index;
+                currentSegment.points.push({ index, value });
+            }
+        } else {
+            if (currentSegment && currentSegment.points.length >= 2) {
+                segments.push(currentSegment);
+            }
+            currentSegment = null;
+        }
+    }
+
+    if (currentSegment && currentSegment.points.length >= 2) {
+        segments.push(currentSegment);
+    }
+
+    return segments;
 }
 
 export default function SummaryWeeklyCharts({
@@ -27,6 +70,9 @@ export default function SummaryWeeklyCharts({
             {/* 배변 주간 차트 */}
             <Card style={styles.card}>
                 <Text style={styles.sectionTitle}>배변 횟수 (주간)</Text>
+                <Text style={styles.chartHint}>
+                    점은 증상이 발생한 주입니다. 선은 연속으로 발생한 주를 연결한 표시이며, 발생하지 않은 주(0회)는 표시하지 않습니다.
+                </Text>
                 {weeklyChartData.length === 0 ? (
                     <View style={styles.emptyContainer}>
                         <Text style={styles.emptyText}>기록이 없습니다.</Text>
@@ -36,25 +82,56 @@ export default function SummaryWeeklyCharts({
                         ref={scrollViewRef3m1}
                         horizontal
                         showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={{ paddingRight: 20 }}
                     >
-                        <View style={styles.weeklyChart}>
+                        <View style={[styles.weeklyChart, { width: Math.max(weeklyChartData.length * 56, 300) }]}>
+                            {/* SVG로 연속 라인 그리기 */}
+                            <Svg
+                                style={StyleSheet.absoluteFill}
+                                width={Math.max(weeklyChartData.length * 56, 300)}
+                                height={110}
+                            >
+                                {findContinuousSegments(weeklyChartData, 'poop').map((segment, segIndex) => {
+                                    const maxWeeklyValue = Math.max(...weeklyChartData.map(w => w.poop), 10);
+                                    const pathData = segment.points
+                                        .map((point, i) => {
+                                            const x = point.index * 56 + 28;
+                                            const y = 90 - (point.value / maxWeeklyValue) * 60 - 6; // -6 for dot center
+                                            return i === 0 ? `M ${x} ${y}` : `L ${x} ${y}`;
+                                        })
+                                        .join(' ');
+
+                                    return (
+                                        <Path
+                                            key={segIndex}
+                                            d={pathData}
+                                            stroke={COLORS.primary}
+                                            strokeWidth={1.5}
+                                            fill="none"
+                                            opacity={0.5}
+                                        />
+                                    );
+                                })}
+                            </Svg>
+
+                            {/* 점과 라벨 */}
                             {weeklyChartData.map((week, index) => {
                                 const maxWeeklyValue = Math.max(...weeklyChartData.map(w => w.poop), 10);
                                 const hasData = week.poop > 0;
                                 return (
                                     <View key={index} style={styles.weeklyColumn}>
-                                        <Text style={styles.weeklyBarLabel}>
-                                            {hasData ? `${week.poop}회` : ''}
-                                        </Text>
-                                        <View style={styles.weeklyBarArea}>
+                                        <View style={styles.weeklyDotArea}>
                                             {hasData && (
-                                                <View
-                                                    style={[
-                                                        styles.weeklyBar,
-                                                        styles.weeklyBarPoop,
-                                                        { height: Math.max((week.poop / maxWeeklyValue) * 60, 4) }
-                                                    ]}
-                                                />
+                                                <>
+                                                    <Text style={styles.weeklyDotLabel}>{week.poop}회</Text>
+                                                    <View
+                                                        style={[
+                                                            styles.weeklyDot,
+                                                            styles.weeklyDotPoop,
+                                                            { bottom: (week.poop / maxWeeklyValue) * 60 }
+                                                        ]}
+                                                    />
+                                                </>
                                             )}
                                         </View>
                                         <Text style={styles.weeklyLabel}>{week.weekLabel}</Text>
@@ -69,29 +146,63 @@ export default function SummaryWeeklyCharts({
             {/* 설사 주간 차트 */}
             <Card style={styles.card}>
                 <Text style={styles.sectionTitle}>설사 횟수 (주간)</Text>
+                <Text style={styles.chartHint}>
+                    점은 증상이 발생한 주입니다. 선은 연속으로 발생한 주를 연결한 표시이며, 발생하지 않은 주(0회)는 표시하지 않습니다.
+                </Text>
                 <ScrollView
                     ref={scrollViewRef3m2}
                     horizontal
                     showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{ paddingRight: 20 }}
                 >
-                    <View style={styles.weeklyChart}>
+                    <View style={[styles.weeklyChart, { width: Math.max(weeklyChartData.length * 56, 300) }]}>
+                        {/* SVG로 연속 라인 그리기 */}
+                        <Svg
+                            style={StyleSheet.absoluteFill}
+                            width={Math.max(weeklyChartData.length * 56, 300)}
+                            height={110}
+                        >
+                            {findContinuousSegments(weeklyChartData, 'diarrhea').map((segment, segIndex) => {
+                                const maxWeeklyValue = Math.max(...weeklyChartData.map(w => w.diarrhea), 5);
+                                const pathData = segment.points
+                                    .map((point, i) => {
+                                        const x = point.index * 56 + 28;
+                                        const y = 90 - (point.value / maxWeeklyValue) * 60 - 6;
+                                        return i === 0 ? `M ${x} ${y}` : `L ${x} ${y}`;
+                                    })
+                                    .join(' ');
+
+                                return (
+                                    <Path
+                                        key={segIndex}
+                                        d={pathData}
+                                        stroke={COLORS.warning}
+                                        strokeWidth={1.5}
+                                        fill="none"
+                                        opacity={0.5}
+                                    />
+                                );
+                            })}
+                        </Svg>
+
+                        {/* 점과 라벨 */}
                         {weeklyChartData.map((week, index) => {
                             const maxWeeklyValue = Math.max(...weeklyChartData.map(w => w.diarrhea), 5);
                             const hasData = week.diarrhea > 0;
                             return (
                                 <View key={index} style={styles.weeklyColumn}>
-                                    <Text style={[styles.weeklyBarLabel, styles.weeklyBarLabelWarning]}>
-                                        {hasData ? `${week.diarrhea}회` : ''}
-                                    </Text>
-                                    <View style={styles.weeklyBarArea}>
+                                    <View style={styles.weeklyDotArea}>
                                         {hasData && (
-                                            <View
-                                                style={[
-                                                    styles.weeklyBar,
-                                                    styles.weeklyBarWarning,
-                                                    { height: Math.max((week.diarrhea / maxWeeklyValue) * 60, 4) }
-                                                ]}
-                                            />
+                                            <>
+                                                <Text style={[styles.weeklyDotLabel, styles.weeklyDotLabelWarning]}>{week.diarrhea}회</Text>
+                                                <View
+                                                    style={[
+                                                        styles.weeklyDot,
+                                                        styles.weeklyDotWarning,
+                                                        { bottom: (week.diarrhea / maxWeeklyValue) * 60 }
+                                                    ]}
+                                                />
+                                            </>
                                         )}
                                     </View>
                                     <Text style={styles.weeklyLabel}>{week.weekLabel}</Text>
@@ -105,29 +216,63 @@ export default function SummaryWeeklyCharts({
             {/* 구토 주간 차트 */}
             <Card style={styles.card}>
                 <Text style={styles.sectionTitle}>구토 횟수 (주간)</Text>
+                <Text style={styles.chartHint}>
+                    점은 증상이 발생한 주입니다. 선은 연속으로 발생한 주를 연결한 표시이며, 발생하지 않은 주(0회)는 표시하지 않습니다.
+                </Text>
                 <ScrollView
                     ref={scrollViewRef3m3}
                     horizontal
                     showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{ paddingRight: 20 }}
                 >
-                    <View style={styles.weeklyChart}>
+                    <View style={[styles.weeklyChart, { width: Math.max(weeklyChartData.length * 56, 300) }]}>
+                        {/* SVG로 연속 라인 그리기 */}
+                        <Svg
+                            style={StyleSheet.absoluteFill}
+                            width={Math.max(weeklyChartData.length * 56, 300)}
+                            height={110}
+                        >
+                            {findContinuousSegments(weeklyChartData, 'vomit').map((segment, segIndex) => {
+                                const maxWeeklyValue = Math.max(...weeklyChartData.map(w => w.vomit), 5);
+                                const pathData = segment.points
+                                    .map((point, i) => {
+                                        const x = point.index * 56 + 28;
+                                        const y = 90 - (point.value / maxWeeklyValue) * 60 - 6;
+                                        return i === 0 ? `M ${x} ${y}` : `L ${x} ${y}`;
+                                    })
+                                    .join(' ');
+
+                                return (
+                                    <Path
+                                        key={segIndex}
+                                        d={pathData}
+                                        stroke={COLORS.error}
+                                        strokeWidth={1.5}
+                                        fill="none"
+                                        opacity={0.5}
+                                    />
+                                );
+                            })}
+                        </Svg>
+
+                        {/* 점과 라벨 */}
                         {weeklyChartData.map((week, index) => {
                             const maxWeeklyValue = Math.max(...weeklyChartData.map(w => w.vomit), 5);
                             const hasData = week.vomit > 0;
                             return (
                                 <View key={index} style={styles.weeklyColumn}>
-                                    <Text style={[styles.weeklyBarLabel, styles.weeklyBarLabelError]}>
-                                        {hasData ? `${week.vomit}회` : ''}
-                                    </Text>
-                                    <View style={styles.weeklyBarArea}>
+                                    <View style={styles.weeklyDotArea}>
                                         {hasData && (
-                                            <View
-                                                style={[
-                                                    styles.weeklyBar,
-                                                    styles.weeklyBarError,
-                                                    { height: Math.max((week.vomit / maxWeeklyValue) * 60, 4) }
-                                                ]}
-                                            />
+                                            <>
+                                                <Text style={[styles.weeklyDotLabel, styles.weeklyDotLabelError]}>{week.vomit}회</Text>
+                                                <View
+                                                    style={[
+                                                        styles.weeklyDot,
+                                                        styles.weeklyDotError,
+                                                        { bottom: (week.vomit / maxWeeklyValue) * 60 }
+                                                    ]}
+                                                />
+                                            </>
                                         )}
                                     </View>
                                     <Text style={styles.weeklyLabel}>{week.weekLabel}</Text>
@@ -145,6 +290,7 @@ export default function SummaryWeeklyCharts({
                     ref={scrollViewRef3m4}
                     horizontal
                     showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{ paddingRight: 20 }}
                 >
                     <View style={styles.weeklyChart}>
                         {weeklyHydrationData.map((week, index) => {
@@ -212,7 +358,13 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: '600',
         color: COLORS.textPrimary,
+        marginBottom: 4,
+    },
+    chartHint: {
+        fontSize: 11,
+        color: COLORS.textSecondary,
         marginBottom: 8,
+        lineHeight: 16,
     },
     emptyContainer: {
         flex: 1,
@@ -229,14 +381,54 @@ const styles = StyleSheet.create({
     weeklyChart: {
         flexDirection: 'row',
         alignItems: 'flex-end',
-        height: 120,
+        height: 110,
         paddingTop: 10,
-        paddingHorizontal: 8,
     },
     weeklyColumn: {
         alignItems: 'center',
-        width: 48,
-        marginHorizontal: 4,
+        width: 56,
+    },
+    weeklyDotArea: {
+        height: 80,
+        width: '100%',
+        justifyContent: 'flex-end',
+        alignItems: 'center',
+        position: 'relative',
+    },
+    weeklyDot: {
+        width: 12,
+        height: 12,
+        borderRadius: 6,
+        position: 'absolute',
+    },
+    weeklyDotPoop: {
+        backgroundColor: COLORS.primary,
+    },
+    weeklyDotWarning: {
+        backgroundColor: COLORS.warning,
+    },
+    weeklyDotError: {
+        backgroundColor: COLORS.error,
+    },
+    weeklyDotLabel: {
+        fontSize: 10,
+        fontWeight: '600',
+        color: COLORS.primary,
+        position: 'absolute',
+        top: 0,
+        textAlign: 'center',
+    },
+    weeklyDotLabelWarning: {
+        color: COLORS.warning,
+    },
+    weeklyDotLabelError: {
+        color: COLORS.error,
+    },
+    weeklyBarForce: {
+        backgroundColor: COLORS.indigoDeep,
+    },
+    weeklyBarFluid: {
+        backgroundColor: COLORS.emeraldDeep,
     },
     weeklyBarArea: {
         height: 70,
@@ -248,37 +440,9 @@ const styles = StyleSheet.create({
         width: 24,
         borderRadius: 4,
     },
-    weeklyBarPoop: {
-        backgroundColor: COLORS.primary,
-    },
-    weeklyBarWarning: {
-        backgroundColor: COLORS.warning,
-    },
-    weeklyBarError: {
-        backgroundColor: COLORS.error,
-    },
-    weeklyBarForce: {
-        backgroundColor: COLORS.indigoDeep,
-    },
-    weeklyBarFluid: {
-        backgroundColor: COLORS.emeraldDeep,
-    },
     weeklyBarStack: {
         flexDirection: 'column',
         alignItems: 'center',
-    },
-    weeklyBarLabel: {
-        fontSize: 11,
-        fontWeight: '600',
-        color: COLORS.primary,
-        marginBottom: 4,
-        height: 16,
-    },
-    weeklyBarLabelWarning: {
-        color: COLORS.warning,
-    },
-    weeklyBarLabelError: {
-        color: COLORS.error,
     },
     weeklyBarLabelHydration: {
         fontSize: 10,
@@ -290,7 +454,7 @@ const styles = StyleSheet.create({
     weeklyLabel: {
         fontSize: 9,
         color: COLORS.textSecondary,
-        marginTop: 6,
+        marginTop: 4,
         textAlign: 'center',
     },
     legend: {

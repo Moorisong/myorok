@@ -3,7 +3,6 @@ import { ScrollView } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 
 import { getRecentDailyRecords } from '../services/dailyRecords';
-import { getRecentSupplementHistory } from '../services/supplements';
 import { getRecentFluidHistory } from '../services/fluidRecords';
 import { useSelectedPet } from './use-selected-pet';
 
@@ -11,23 +10,17 @@ import type {
     Period,
     ChartData,
     HydrationData,
-    MedicineRow,
     OverallSummaryData,
     WeeklyChartData,
     WeeklyHydrationData,
     MonthlyChartData,
-    MonthlyHydrationData,
-    MedicineSegment
+    MonthlyHydrationData
 } from '../types/chart-types';
 
 export function useSummaryChart() {
     const { selectedPetId } = useSelectedPet();
     const [chartData, setChartData] = useState<ChartData[]>([]);
     const [hydrationData, setHydrationData] = useState<HydrationData[]>([]);
-
-    // Medicine Chart State
-    const [medicineRows, setMedicineRows] = useState<MedicineRow[]>([]);
-    const [chartDates, setChartDates] = useState<string[]>([]);
 
     const [maxValue, setMaxValue] = useState(5);
     const [maxVolValue, setMaxVolValue] = useState(100);
@@ -72,7 +65,6 @@ export function useSummaryChart() {
         try {
             // Clear previous data to prevent flash of old data during period transition
             setIsLoading(true);
-            setMedicineRows([]);
 
             // Determine days for data fetching based on period
             let daysToFetch = 15;
@@ -112,16 +104,9 @@ export function useSummaryChart() {
                     const ddPad = String(d.getDate()).padStart(2, '0');
                     dateObjs.push(`${yyyy}-${mmPad}-${ddPad}`);
                 }
-            } else if (currentPeriod === '3m') {
-                for (let i = 11; i >= 0; i--) {
-                    dates.push(`W-${i}`);
-                }
             }
 
-            setChartDates(dates);
-
             const records = await getRecentDailyRecords(days);
-            const medicines = await getRecentSupplementHistory(Math.max(days, daysToFetch));
             const fluids = await getRecentFluidHistory(days);
 
             // Process Chart Data (Daily Records - Fill empty dates)
@@ -246,162 +231,6 @@ export function useSummaryChart() {
             setHydrationData(processedHydration);
             setMaxValue(maxVal);
             setMaxVolValue(maxVol);
-
-            // --- Process Medicine Data (Adaptive) ---
-            const medMap = new Map<string, { isDeleted: boolean, takenMap: Map<string, boolean>, allDates: string[] }>();
-
-            medicines.forEach(m => {
-                let name = m.name;
-                let isDeleted = false;
-                if (m.name.includes('(삭제된 항목)')) {
-                    name = m.name.replace('(삭제된 항목)', '').trim();
-                    isDeleted = true;
-                }
-
-                if (!medMap.has(name)) {
-                    medMap.set(name, { isDeleted, takenMap: new Map(), allDates: [] });
-                }
-
-                const entry = medMap.get(name)!;
-                if (m.taken === 1) {
-                    entry.takenMap.set(m.date, true);
-                    entry.allDates.push(m.date);
-                }
-            });
-
-            const rows: MedicineRow[] = [];
-
-            medMap.forEach((data, name) => {
-                const row: MedicineRow = {
-                    name,
-                    isDeleted: data.isDeleted,
-                    segments: [],
-                    weekSegments: [],
-                    summary: undefined
-                };
-
-                if (currentPeriod === '15d' || currentPeriod === '1m') {
-                    // Timeline Logic
-                    const segments: MedicineSegment[] = [];
-                    let currentSegment: { start: number, length: number } | null = null;
-
-                    for (let i = 0; i < dateObjs.length; i++) {
-                        const date = dateObjs[i];
-                        const isTaken = data.takenMap.has(date);
-
-                        if (isTaken) {
-                            if (currentSegment) {
-                                currentSegment.length++;
-                            } else {
-                                currentSegment = { start: i, length: 1 };
-                            }
-                        } else {
-                            if (currentSegment) {
-                                segments.push({
-                                    type: currentSegment.length >= 2 ? 'bar' : 'dot',
-                                    startIndex: currentSegment.start,
-                                    length: currentSegment.length,
-                                    dateLabel: dates[currentSegment.start]
-                                });
-                                currentSegment = null;
-                            }
-                        }
-                    }
-                    if (currentSegment) {
-                        segments.push({
-                            type: currentSegment.length >= 2 ? 'bar' : 'dot',
-                            startIndex: currentSegment.start,
-                            length: currentSegment.length,
-                            dateLabel: dates[currentSegment.start]
-                        });
-                    }
-                    row.segments = segments;
-
-                } else if (currentPeriod === '3m') {
-                    // Week Aggregation Logic
-                    const weekSegments = [];
-                    for (let i = 11; i >= 0; i--) {
-                        const weekStart = new Date();
-                        weekStart.setDate(today.getDate() - (i * 7 + 6));
-                        const weekEnd = new Date();
-                        weekEnd.setDate(today.getDate() - (i * 7));
-
-                        let count = 0;
-                        for (let d = 0; d < 7; d++) {
-                            const checkDate = new Date(weekStart);
-                            checkDate.setDate(weekStart.getDate() + d);
-                            const y = checkDate.getFullYear();
-                            const m = String(checkDate.getMonth() + 1).padStart(2, '0');
-                            const dayStr = String(checkDate.getDate()).padStart(2, '0');
-                            if (data.takenMap.has(`${y}-${m}-${dayStr}`)) {
-                                count++;
-                            }
-                        }
-
-                        weekSegments.push({
-                            weekIndex: 11 - i,
-                            days: count,
-                            label: `${weekStart.getMonth() + 1}/${weekStart.getDate()}`
-                        });
-                    }
-                    row.weekSegments = weekSegments;
-
-                } else if (currentPeriod === '6m') {
-                    // Monthly Aggregation Logic for 6 months
-                    const monthSegments = [];
-                    for (let i = 5; i >= 0; i--) {
-                        const monthDate = new Date();
-                        monthDate.setMonth(today.getMonth() - i);
-                        monthDate.setDate(1);
-
-                        const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
-                        const daysInMonth = monthEnd.getDate();
-
-                        let count = 0;
-                        for (let d = 1; d <= daysInMonth; d++) {
-                            const checkDate = new Date(monthDate.getFullYear(), monthDate.getMonth(), d);
-                            const y = checkDate.getFullYear();
-                            const m = String(checkDate.getMonth() + 1).padStart(2, '0');
-                            const dayStr = String(checkDate.getDate()).padStart(2, '0');
-                            if (data.takenMap.has(`${y}-${m}-${dayStr}`)) {
-                                count++;
-                            }
-                        }
-
-                        monthSegments.push({
-                            monthIndex: 5 - i,
-                            days: count,
-                            label: `${monthDate.getMonth() + 1}월`
-                        });
-                    }
-                    row.monthSegments = monthSegments;
-
-                } else if (currentPeriod === 'all') {
-                    // Summary Logic
-                    data.allDates.sort();
-                    if (data.allDates.length > 0) {
-                        const start = data.allDates[0];
-                        const end = data.allDates[data.allDates.length - 1];
-
-                        const startDate = new Date(start);
-                        const endDate = new Date(end);
-                        const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
-                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-
-                        const weeks = Math.max(diffDays / 7, 1);
-                        const avg = (data.allDates.length / weeks).toFixed(1);
-
-                        row.summary = {
-                            startDate: start.substring(5).replace('-', '.'),
-                            endDate: end.substring(5).replace('-', '.'),
-                            totalDays: data.allDates.length,
-                            avgFreq: `주 ${avg}회`
-                        };
-                    }
-                }
-
-                rows.push(row);
-            });
 
             // --- Calculate Overall Summary for 'all' period ---
             if (currentPeriod === 'all' && records.length > 0) {
@@ -599,7 +428,6 @@ export function useSummaryChart() {
                 setMonthlyHydrationData([]);
             }
 
-            setMedicineRows(rows);
             setIsLoading(false);
 
         } catch (error) {
@@ -641,8 +469,6 @@ export function useSummaryChart() {
         isLoading,
         chartData,
         hydrationData,
-        medicineRows,
-        chartDates,
         maxValue,
         maxVolValue,
         overallSummary,

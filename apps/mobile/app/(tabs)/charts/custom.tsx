@@ -180,12 +180,6 @@ export default function CustomChartScreen() {
                             onSelect={setSelectedPeriod}
                         />
 
-                        {/* Chart Type Badge */}
-                        <View style={styles.chartTypeBadge}>
-                            <Text style={styles.chartTypeText}>
-                                {getChartTypeLabel(chartType)}
-                            </Text>
-                        </View>
 
                         {/* Adaptive Chart */}
                         {loading ? (
@@ -216,12 +210,36 @@ export default function CustomChartScreen() {
 }
 
 function formatDisplayDate(dateStr: string): string {
+    // 주간 형식: 2026-W03 → 26년\n01월 01주
     if (dateStr.includes('-W')) {
-        return dateStr.replace('-W', '/W');
+        const [yearPart, weekPart] = dateStr.split('-W');
+        const year = yearPart.substring(2); // 26
+
+        // ISO 주차로부터 해당 주의 날짜 계산
+        const yearNum = parseInt(yearPart);
+        const weekNum = parseInt(weekPart);
+
+        // ISO week 기준 해당 주의 목요일 날짜 계산
+        const jan4 = new Date(yearNum, 0, 4);
+        const dayOfWeek = jan4.getDay() || 7;
+        const firstThursday = new Date(jan4);
+        firstThursday.setDate(jan4.getDate() - dayOfWeek + 4);
+
+        const targetThursday = new Date(firstThursday);
+        targetThursday.setDate(firstThursday.getDate() + (weekNum - 1) * 7);
+
+        // 해당 월과 월 기준 주차 계산
+        const month = String(targetThursday.getMonth() + 1).padStart(2, '0');
+        const dayOfMonth = targetThursday.getDate();
+        const weekOfMonth = String(Math.ceil(dayOfMonth / 7)).padStart(2, '0');
+
+        return `${year}년\n${month}월 ${weekOfMonth}주`;
     }
+    // 월별 형식: 2026-01 → 26/01
     if (dateStr.length === 7) {
         return dateStr.substring(2).replace('-', '/');
     }
+    // 일별 형식: 2026-01-07 → 01/07
     return dateStr.substring(5).replace('-', '/');
 }
 
