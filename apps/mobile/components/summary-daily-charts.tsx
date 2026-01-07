@@ -4,6 +4,7 @@ import Svg, { Circle, Path } from 'react-native-svg';
 
 import { COLORS } from '../constants';
 import Card from './card';
+import HydrationChart from './hydration-chart';
 import type { ChartData, HydrationData } from '../types/chart-types';
 
 interface SummaryDailyChartsProps {
@@ -235,73 +236,26 @@ export default function SummaryDailyCharts({
             />
 
             {/* 강수/수액 차트 */}
-            <Card style={styles.card}>
-                <Text style={styles.sectionTitle}>강수 / 수액</Text>
+            {(() => {
+                const hydrationChartData = hydrationData.map(day => ({
+                    label: day.date,
+                    force: day.force,
+                    fluid: day.fluid,
+                    displayValue: (day.force + day.fluid) > 0 ? `${day.force + day.fluid}ml` : ''
+                }));
+                const maxHydration = Math.max(maxVolValue, 100);
 
-                <ScrollView ref={scrollViewRef4} horizontal showsHorizontalScrollIndicator={false}>
-                    <View style={[styles.hydrationChart, { width: Math.max(hydrationData.length * 44, 300) }]}>
-                        {hydrationData.length === 0 ? (
-                            <View style={styles.emptyContainer}>
-                                <Text style={styles.emptyText}>기록이 없습니다.</Text>
-                            </View>
-                        ) : (
-                            hydrationData.map((day, index) => {
-                                const total = day.force + day.fluid;
-                                const hasData = total > 0;
-                                const maxDisplayValue = Math.max(maxVolValue, 100);
-
-                                return (
-                                    <View key={index} style={styles.hydrationColumn}>
-                                        <Text style={styles.hydrationMlLabel}>
-                                            {hasData ? `${total}ml` : ''}
-                                        </Text>
-
-                                        <View style={styles.hydrationBarArea}>
-                                            {hasData && (
-                                                <View style={styles.hydrationBarStack}>
-                                                    {day.fluid > 0 && (
-                                                        <View
-                                                            style={[
-                                                                styles.hydrationBar,
-                                                                styles.barFluid,
-                                                                { height: (day.fluid / maxDisplayValue) * 70 },
-                                                            ]}
-                                                        />
-                                                    )}
-                                                    {day.force > 0 && (
-                                                        <View
-                                                            style={[
-                                                                styles.hydrationBar,
-                                                                styles.barForce,
-                                                                { height: (day.force / maxDisplayValue) * 70 },
-                                                            ]}
-                                                        />
-                                                    )}
-                                                </View>
-                                            )}
-                                        </View>
-
-                                        <Text style={styles.dateLabel}>{day.date}</Text>
-                                    </View>
-                                );
-                            })
-                        )}
-                    </View>
-                </ScrollView>
-
-                <View style={styles.legend}>
-                    <View style={styles.legendItem}>
-                        <Text style={styles.legendEmoji}>💧</Text>
-                        <View style={[styles.legendColor, styles.barForce]} />
-                        <Text style={styles.legendText}>강수</Text>
-                    </View>
-                    <View style={styles.legendItem}>
-                        <Text style={styles.legendEmoji}>💉</Text>
-                        <View style={[styles.legendColor, styles.barFluid]} />
-                        <Text style={styles.legendText}>수액</Text>
-                    </View>
-                </View>
-            </Card>
+                return (
+                    <HydrationChart
+                        data={hydrationChartData}
+                        maxValue={maxHydration}
+                        title="강수 / 수액"
+                        columnWidth={44}
+                        barWidth={20}
+                        scrollViewRef={scrollViewRef4}
+                    />
+                );
+            })()}
         </>
     );
 }
@@ -380,7 +334,7 @@ const styles = StyleSheet.create({
         color: COLORS.emerald,
         height: 14,
         textAlign: 'center',
-        marginBottom: 2,
+        marginBottom: 8,
     },
     hydrationBarArea: {
         height: 80,

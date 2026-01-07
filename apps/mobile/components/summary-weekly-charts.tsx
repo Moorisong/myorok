@@ -4,6 +4,7 @@ import Svg, { Circle, Path } from 'react-native-svg';
 
 import { COLORS } from '../constants';
 import Card from './card';
+import HydrationChart from './hydration-chart';
 import type { WeeklyChartData, WeeklyHydrationData } from '../types/chart-types';
 
 interface SummaryWeeklyChartsProps {
@@ -236,67 +237,26 @@ export default function SummaryWeeklyCharts({
             />
 
             {/* 강수/수액 주간 차트 */}
-            <Card style={styles.card}>
-                <Text style={styles.sectionTitle}>강수 / 수액 (주간)</Text>
-                <ScrollView
-                    ref={scrollViewRef3m4}
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={{ paddingRight: 20 }}
-                >
-                    <View style={styles.hydrationChart}>
-                        {weeklyHydrationData.map((week, index) => {
-                            const total = week.force + week.fluid;
-                            const maxWeeklyValue = Math.max(...weeklyHydrationData.map(w => w.force + w.fluid), 500);
-                            const hasData = total > 0;
-                            return (
-                                <View key={index} style={styles.hydrationColumn}>
-                                    <Text style={styles.hydrationMlLabel}>
-                                        {hasData ? `${total}ml` : ''}
-                                    </Text>
-                                    <View style={styles.hydrationBarArea}>
-                                        {hasData && (
-                                            <View style={styles.hydrationBarStack}>
-                                                {week.fluid > 0 && (
-                                                    <View
-                                                        style={[
-                                                            styles.hydrationBar,
-                                                            styles.barFluid,
-                                                            { height: Math.max((week.fluid / maxWeeklyValue) * 60, 2) }
-                                                        ]}
-                                                    />
-                                                )}
-                                                {week.force > 0 && (
-                                                    <View
-                                                        style={[
-                                                            styles.hydrationBar,
-                                                            styles.barForce,
-                                                            { height: Math.max((week.force / maxWeeklyValue) * 60, 2) }
-                                                        ]}
-                                                    />
-                                                )}
-                                            </View>
-                                        )}
-                                    </View>
-                                    <Text style={styles.dateLabel}>{week.weekLabel}</Text>
-                                </View>
-                            );
-                        })}
-                    </View>
-                </ScrollView>
-                <View style={styles.legend}>
-                    <View style={styles.legendItem}>
-                        <Text style={styles.legendEmoji}>💧</Text>
-                        <View style={[styles.legendColor, styles.barForce]} />
-                        <Text style={styles.legendText}>강수</Text>
-                    </View>
-                    <View style={styles.legendItem}>
-                        <Text style={styles.legendEmoji}>💉</Text>
-                        <View style={[styles.legendColor, styles.barFluid]} />
-                        <Text style={styles.legendText}>수액</Text>
-                    </View>
-                </View>
-            </Card>
+            {(() => {
+                const hydrationChartData = weeklyHydrationData.map(w => ({
+                    label: w.weekLabel,
+                    force: w.force,
+                    fluid: w.fluid,
+                    displayValue: (w.force + w.fluid) > 0 ? `${w.force + w.fluid}ml` : ''
+                }));
+                const maxHydration = Math.max(...weeklyHydrationData.map(w => w.force + w.fluid), 500);
+
+                return (
+                    <HydrationChart
+                        data={hydrationChartData}
+                        maxValue={maxHydration}
+                        title="강수 / 수액 (주간)"
+                        columnWidth={56}
+                        barWidth={24}
+                        scrollViewRef={scrollViewRef3m4}
+                    />
+                );
+            })()}
         </>
     );
 }
@@ -372,8 +332,8 @@ const styles = StyleSheet.create({
     hydrationMlLabel: {
         fontSize: 10,
         fontWeight: '600',
-        color: COLORS.indigoDeep,
-        marginBottom: 4,
+        color: COLORS.emerald,
+        marginBottom: 8,
         height: 16,
     },
     hydrationBarArea: {
@@ -391,10 +351,10 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     barForce: {
-        backgroundColor: COLORS.indigoDeep,
+        backgroundColor: COLORS.indigo,
     },
     barFluid: {
-        backgroundColor: COLORS.emeraldDeep,
+        backgroundColor: COLORS.emerald,
     },
     legend: {
         flexDirection: 'row',

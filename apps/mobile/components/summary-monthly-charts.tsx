@@ -4,6 +4,7 @@ import Svg, { Circle, Path } from 'react-native-svg';
 
 import { COLORS } from '../constants';
 import Card from './card';
+import HydrationChart from './hydration-chart';
 import type { MonthlyChartData, MonthlyHydrationData } from '../types/chart-types';
 
 interface SummaryMonthlyChartsProps {
@@ -236,46 +237,25 @@ export default function SummaryMonthlyCharts({
             />
 
             {/* 강수/수액 월간 차트 */}
-            <Card style={styles.card}>
-                <Text style={styles.sectionTitle}>강수 / 수액 (월간)</Text>
-                <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={{ paddingRight: 20 }}
-                >
-                    <View style={styles.hydrationChart}>
-                        {monthlyHydrationData.map((month, index) => (
-                            <View key={index} style={styles.hydrationColumn}>
-                                <View style={styles.hydrationBarArea}>
-                                    {(month.hasForce || month.hasFluid) && (
-                                        <View style={styles.hydrationStack}>
-                                            {month.hasForce && (
-                                                <View style={[styles.hydrationBar, styles.barForce]} />
-                                            )}
-                                            {month.hasFluid && (
-                                                <View style={[styles.hydrationBar, styles.barFluid]} />
-                                            )}
-                                        </View>
-                                    )}
-                                </View>
-                                <Text style={styles.dateLabel}>{month.monthLabel}</Text>
-                            </View>
-                        ))}
-                    </View>
-                </ScrollView>
-                <View style={styles.legend}>
-                    <View style={styles.legendItem}>
-                        <Text style={styles.legendEmoji}>💧</Text>
-                        <View style={[styles.legendColor, styles.barForce]} />
-                        <Text style={styles.legendText}>강수</Text>
-                    </View>
-                    <View style={styles.legendItem}>
-                        <Text style={styles.legendEmoji}>💉</Text>
-                        <View style={[styles.legendColor, styles.barFluid]} />
-                        <Text style={styles.legendText}>수액</Text>
-                    </View>
-                </View>
-            </Card>
+            {(() => {
+                const hydrationChartData = monthlyHydrationData.map(m => ({
+                    label: m.monthLabel,
+                    force: m.hasForce ? 10 : 0,
+                    fluid: m.hasFluid ? 10 : 0,
+                    displayValue: ''
+                }));
+                const maxHydration = Math.max(...hydrationChartData.map(d => d.force + d.fluid), 10);
+
+                return (
+                    <HydrationChart
+                        data={hydrationChartData}
+                        maxValue={maxHydration}
+                        title="강수 / 수액 (월간)"
+                        columnWidth={60}
+                        barWidth={28}
+                    />
+                );
+            })()}
         </>
     );
 }
@@ -365,10 +345,10 @@ const styles = StyleSheet.create({
         borderRadius: 4,
     },
     barForce: {
-        backgroundColor: COLORS.indigoDeep,
+        backgroundColor: COLORS.indigo,
     },
     barFluid: {
-        backgroundColor: COLORS.emeraldDeep,
+        backgroundColor: COLORS.emerald,
     },
     legend: {
         flexDirection: 'row',
