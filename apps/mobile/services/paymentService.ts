@@ -30,7 +30,6 @@ let globalOnPurchaseError: ((error: PurchaseError) => void) | null = null;
 export async function initializePayment(): Promise<void> {
   try {
     await initConnection();
-    console.log('Payment system initialized');
   } catch (error) {
     console.error('Failed to initialize payment system:', error);
     throw error;
@@ -44,27 +43,20 @@ export function setupPurchaseListeners(
   onPurchaseUpdate: (purchase: Purchase) => void,
   onPurchaseError: (error: PurchaseError) => void
 ): () => void {
-  console.log('Setting up purchase listeners...');
-
   // Purchase 업데이트 리스너
   const purchaseUpdateSubscription = purchaseUpdatedListener((purchase: Purchase) => {
-    console.log('Purchase update received:', purchase);
     onPurchaseUpdate(purchase);
   });
 
   // Purchase 에러 리스너
   const purchaseErrorSubscription = purchaseErrorListener((error: PurchaseError) => {
-    console.log('Purchase error received:', error);
     onPurchaseError(error);
   });
-
-  console.log('Purchase listeners setup completed');
 
   // Cleanup 함수 반환
   return () => {
     purchaseUpdateSubscription.remove();
     purchaseErrorSubscription.remove();
-    console.log('Purchase listeners removed');
   };
 }
 
@@ -88,7 +80,6 @@ export async function fetchProducts(): Promise<Product[]> {
  */
 export async function purchaseSubscription(): Promise<void> {
   try {
-    console.log('Purchase request initiated');
     // react-native-iap v14 requires request object with platform-specific fields
     await requestPurchase({
       request: {
@@ -111,15 +102,11 @@ export async function purchaseSubscription(): Promise<void> {
  */
 export async function completePurchase(purchase: Purchase): Promise<void> {
   try {
-    console.log('Completing purchase:', purchase.productId);
-
     // 구독은 consumable이 아님
     await finishTransaction({
       purchase,
       isConsumable: false,
     });
-
-    console.log('Purchase completed and finished');
   } catch (error) {
     console.error('Failed to complete purchase:', error);
     throw error;
@@ -179,11 +166,6 @@ export async function getSubscriptionDetails(): Promise<SubscriptionDetails> {
       expiryDate = expiry.toISOString();
     }
 
-    console.log('[PaymentService] Subscription details:', {
-      autoRenewing,
-      transactionDate,
-      expiryDate
-    });
 
     return {
       isActive: true,
@@ -204,7 +186,6 @@ export async function getSubscriptionDetails(): Promise<SubscriptionDetails> {
 export async function disconnectPayment(): Promise<void> {
   try {
     await endConnection();
-    console.log('Payment system disconnected');
   } catch (error) {
     console.error('Failed to disconnect payment system:', error);
   }

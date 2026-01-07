@@ -65,9 +65,10 @@ export async function getMonthRecords(year: number, month: number): Promise<Map<
     // Process supplement records
     for (const sr of supplementRecords) {
         if (!result.has(sr.date)) {
+            // Only create entry if supplement was actually taken
             result.set(sr.date, {
                 date: sr.date,
-                hasRecord: true,
+                hasRecord: sr.taken === 1, // Only count as record if taken
                 hasDiarrheaOrVomit: false,
                 hasMedicine: sr.taken === 1,
                 hasFluid: false,

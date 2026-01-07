@@ -70,8 +70,8 @@ export default function ProScreen() {
         }
     };
 
-    const formatDate = (isoDate: string | undefined) => {
-        if (!isoDate) return '';
+    const formatDate = (isoDate: string | undefined, fallback: string = '곧') => {
+        if (!isoDate) return fallback;
         const date = new Date(isoDate);
         return `${date.getMonth() + 1}월 ${date.getDate()}일`;
     };
