@@ -1,6 +1,6 @@
 // Chart Types for Summary Screen
 
-export type Period = '15d' | '1m' | '3m' | 'all';
+export type Period = '15d' | '1m' | '3m' | '6m' | 'all';
 
 export interface ChartData {
   date: string;
@@ -24,11 +24,18 @@ export interface MedicineSegment {
   dateLabel?: string; // For dot hover/display
 }
 
-// Pro Features - Weekly Segment
+// Pro Features - Weekly Segment (3m)
 export interface WeekSegment {
   weekIndex: number;
   days: number;  // 0~7: 해당 주에 복용한 일수
   label: string; // e.g. "3rd week of Mar"
+}
+
+// Pro Features - Monthly Segment (6m)
+export interface MonthSegment {
+  monthIndex: number;
+  days: number;  // 0~31: 해당 월에 복용한 일수
+  label: string; // e.g. "8월", "9월"
 }
 
 export interface MedicineSummary {
@@ -43,6 +50,7 @@ export interface MedicineRow {
   isDeleted: boolean;
   segments: MedicineSegment[];    // For 15d, 1m
   weekSegments?: WeekSegment[];   // For 3m
+  monthSegments?: MonthSegment[]; // For 6m
   summary?: MedicineSummary;      // For all
 }
 
@@ -80,3 +88,18 @@ export interface WeeklyHydrationData {
   force: number;
   fluid: number;
 }
+
+// Monthly aggregation for 6-month charts
+export interface MonthlyChartData {
+  monthLabel: string;  // e.g., "8월", "9월"
+  poop: number;
+  diarrhea: number;
+  vomit: number;
+}
+
+export interface MonthlyHydrationData {
+  monthLabel: string;
+  hasForce: boolean;  // 강수 존재 여부
+  hasFluid: boolean;  // 수액 존재 여부
+}
+

@@ -15,6 +15,8 @@ import type {
     OverallSummaryData,
     WeeklyChartData,
     WeeklyHydrationData,
+    MonthlyChartData,
+    MonthlyHydrationData,
     MedicineSegment
 } from '../types/chart-types';
 
@@ -41,6 +43,10 @@ export function useSummaryChart() {
     const [weeklyChartData, setWeeklyChartData] = useState<WeeklyChartData[]>([]);
     const [weeklyHydrationData, setWeeklyHydrationData] = useState<WeeklyHydrationData[]>([]);
 
+    // Monthly Chart State (for '6m' period)
+    const [monthlyChartData, setMonthlyChartData] = useState<MonthlyChartData[]>([]);
+    const [monthlyHydrationData, setMonthlyHydrationData] = useState<MonthlyHydrationData[]>([]);
+
     // ScrollView refs
     const scrollViewRef = useRef<ScrollView>(null);
     const scrollViewRef2 = useRef<ScrollView>(null);
@@ -56,6 +62,7 @@ export function useSummaryChart() {
             case '15d': return 15;
             case '1m': return 30;
             case '3m': return 90;
+            case '6m': return 180;
             case 'all': return 365;
             default: return 15;
         }
@@ -77,6 +84,9 @@ export function useSummaryChart() {
             } else if (currentPeriod === '3m') {
                 daysToFetch = 90;
                 chartColumns = 12;
+            } else if (currentPeriod === '6m') {
+                daysToFetch = 180;
+                chartColumns = 6;
             } else if (currentPeriod === 'all') {
                 daysToFetch = 365;
                 chartColumns = 0;
@@ -336,6 +346,36 @@ export function useSummaryChart() {
                     }
                     row.weekSegments = weekSegments;
 
+                } else if (currentPeriod === '6m') {
+                    // Monthly Aggregation Logic for 6 months
+                    const monthSegments = [];
+                    for (let i = 5; i >= 0; i--) {
+                        const monthDate = new Date();
+                        monthDate.setMonth(today.getMonth() - i);
+                        monthDate.setDate(1);
+
+                        const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
+                        const daysInMonth = monthEnd.getDate();
+
+                        let count = 0;
+                        for (let d = 1; d <= daysInMonth; d++) {
+                            const checkDate = new Date(monthDate.getFullYear(), monthDate.getMonth(), d);
+                            const y = checkDate.getFullYear();
+                            const m = String(checkDate.getMonth() + 1).padStart(2, '0');
+                            const dayStr = String(checkDate.getDate()).padStart(2, '0');
+                            if (data.takenMap.has(`${y}-${m}-${dayStr}`)) {
+                                count++;
+                            }
+                        }
+
+                        monthSegments.push({
+                            monthIndex: 5 - i,
+                            days: count,
+                            label: `${monthDate.getMonth() + 1}월`
+                        });
+                    }
+                    row.monthSegments = monthSegments;
+
                 } else if (currentPeriod === 'all') {
                     // Summary Logic
                     data.allDates.sort();
@@ -488,6 +528,77 @@ export function useSummaryChart() {
                 setWeeklyHydrationData([]);
             }
 
+            // --- Calculate Monthly Data for '6m' period ---
+            if (currentPeriod === '6m') {
+                const monthlyData: MonthlyChartData[] = [];
+                const monthlyHydration: MonthlyHydrationData[] = [];
+
+                for (let i = 5; i >= 0; i--) {
+                    const monthDate = new Date();
+                    monthDate.setMonth(today.getMonth() - i);
+                    const monthLabel = `${monthDate.getMonth() + 1}월`;
+
+                    monthlyData.push({
+                        monthLabel,
+                        poop: 0,
+                        diarrhea: 0,
+                        vomit: 0
+                    });
+
+                    monthlyHydration.push({
+                        monthLabel,
+                        hasForce: false,
+                        hasFluid: false
+                    });
+                }
+
+                // Aggregate symptoms by month
+                records.forEach(r => {
+                    const recordDate = new Date(r.date);
+                    const recordMonth = recordDate.getMonth();
+                    const recordYear = recordDate.getFullYear();
+
+                    for (let i = 0; i < 6; i++) {
+                        const checkDate = new Date();
+                        checkDate.setMonth(today.getMonth() - (5 - i));
+
+                        if (recordMonth === checkDate.getMonth() && recordYear === checkDate.getFullYear()) {
+                            monthlyData[i].poop += r.poopCount || 0;
+                            monthlyData[i].diarrhea += r.diarrheaCount || 0;
+                            monthlyData[i].vomit += r.vomitCount || 0;
+                            break;
+                        }
+                    }
+                });
+
+                // Aggregate hydration by month (existence only)
+                fluids.forEach(f => {
+                    const recordDate = new Date(f.date);
+                    const recordMonth = recordDate.getMonth();
+                    const recordYear = recordDate.getFullYear();
+
+                    for (let i = 0; i < 6; i++) {
+                        const checkDate = new Date();
+                        checkDate.setMonth(today.getMonth() - (5 - i));
+
+                        if (recordMonth === checkDate.getMonth() && recordYear === checkDate.getFullYear()) {
+                            if (f.fluidType === 'force') {
+                                monthlyHydration[i].hasForce = true;
+                            } else {
+                                monthlyHydration[i].hasFluid = true;
+                            }
+                            break;
+                        }
+                    }
+                });
+
+                setMonthlyChartData(monthlyData);
+                setMonthlyHydrationData(monthlyHydration);
+            } else {
+                setMonthlyChartData([]);
+                setMonthlyHydrationData([]);
+            }
+
             setMedicineRows(rows);
             setIsLoading(false);
 
@@ -537,6 +648,8 @@ export function useSummaryChart() {
         overallSummary,
         weeklyChartData,
         weeklyHydrationData,
+        monthlyChartData,
+        monthlyHydrationData,
 
         // Refs
         scrollViewRef,

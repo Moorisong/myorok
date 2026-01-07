@@ -11,6 +11,7 @@ import {
     SummaryDailyCharts,
     SummaryMedicineChart
 } from '../../../components';
+import SummaryMonthlyCharts from '../../../components/summary-monthly-charts';
 import { useSummaryChart } from '../../../hooks/use-summary-chart';
 import type { Period } from '../../../types/chart-types';
 
@@ -28,6 +29,8 @@ export default function SummaryChartScreen() {
         overallSummary,
         weeklyChartData,
         weeklyHydrationData,
+        monthlyChartData,
+        monthlyHydrationData,
 
         // Refs
         scrollViewRef,
@@ -49,7 +52,7 @@ export default function SummaryChartScreen() {
 
             {/* Period Selector */}
             <View style={styles.periodSelector}>
-                {(['15d', '1m', '3m', 'all'] as Period[]).map((p) => (
+                {(['15d', '1m', '3m', '6m', 'all'] as Period[]).map((p) => (
                     <Pressable
                         key={p}
                         style={[
@@ -62,7 +65,7 @@ export default function SummaryChartScreen() {
                             styles.periodButtonText,
                             period === p && styles.periodButtonTextSelected
                         ]}>
-                            {p === '15d' ? '15일' : p === '1m' ? '1개월' : p === '3m' ? '3개월' : '전체'}
+                            {p === '15d' ? '15일' : p === '1m' ? '1개월' : p === '3m' ? '3개월' : p === '6m' ? '6개월' : '전체'}
                         </Text>
                     </Pressable>
                 ))}
@@ -78,15 +81,34 @@ export default function SummaryChartScreen() {
                             <Text style={styles.emptyText}>기록이 없습니다.</Text>
                         </View>
                     </Card>
+                ) : period === '6m' ? (
+                    <>
+                        <SummaryMonthlyCharts
+                            monthlyChartData={monthlyChartData}
+                            monthlyHydrationData={monthlyHydrationData}
+                        />
+                        <SummaryMedicineChart
+                            medicineRows={medicineRows}
+                            chartDates={chartDates}
+                            period={period}
+                        />
+                    </>
                 ) : period === '3m' ? (
-                    <SummaryWeeklyCharts
-                        weeklyChartData={weeklyChartData}
-                        weeklyHydrationData={weeklyHydrationData}
-                        scrollViewRef3m1={scrollViewRef3m1}
-                        scrollViewRef3m2={scrollViewRef3m2}
-                        scrollViewRef3m3={scrollViewRef3m3}
-                        scrollViewRef3m4={scrollViewRef3m4}
-                    />
+                    <>
+                        <SummaryWeeklyCharts
+                            weeklyChartData={weeklyChartData}
+                            weeklyHydrationData={weeklyHydrationData}
+                            scrollViewRef3m1={scrollViewRef3m1}
+                            scrollViewRef3m2={scrollViewRef3m2}
+                            scrollViewRef3m3={scrollViewRef3m3}
+                            scrollViewRef3m4={scrollViewRef3m4}
+                        />
+                        <SummaryMedicineChart
+                            medicineRows={medicineRows}
+                            chartDates={chartDates}
+                            period={period}
+                        />
+                    </>
                 ) : (
                     <>
                         <SummaryDailyCharts
