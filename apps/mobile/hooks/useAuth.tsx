@@ -1,7 +1,14 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import { getCurrentUserId, logout as logoutService, getIsAdmin } from '../services/auth';
 
-export type SubscriptionStatus = 'active' | 'trial' | 'expired' | null;
+/**
+ * UI 레이어 구독 상태 (SSOT와 호환)
+ * - loading: 검증 중 (스피너 표시)
+ * - active: 유효한 구독 (= SSOT의 'subscribed')
+ * - trial: 무료체험 중
+ * - expired: 차단 상태 (= SSOT의 'blocked')
+ */
+export type SubscriptionStatus = 'loading' | 'active' | 'trial' | 'expired' | null;
 
 interface AuthContextType {
     isLoggedIn: boolean | null;
@@ -34,9 +41,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setIsLoggedIn(!!currentUserId);
 
             if (currentUserId) {
-                // 실제 구독 상태 조회
+                // 구독 상태 조회 (레거시 호환 함수 사용)
                 const { getSubscriptionState, getSubscriptionStatus } = await import('../services/subscription');
                 const status = await getSubscriptionState();
+                // getSubscriptionState()는 'trial' | 'active' | 'expired' 반환
                 setSubscriptionStatus(status as SubscriptionStatus);
 
                 // 운영자 권한 조회

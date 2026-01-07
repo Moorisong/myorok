@@ -130,7 +130,7 @@ export default function SettingsScreen() {
 
         if (subscriptionState.status === 'trial') {
             return `${getTrialCountdownText(subscriptionState.daysRemaining || 0)}`;
-        } else if (subscriptionState.status === 'active') {
+        } else if (subscriptionState.status === 'subscribed') {
             return '구독 중';
         } else {
             return '무료 체험 종료';

@@ -2,7 +2,7 @@ import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { Platform, AppState } from 'react-native';
+import { Platform, AppState, View, ActivityIndicator, Text, StyleSheet } from 'react-native';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState, useRef } from 'react';
@@ -452,7 +452,7 @@ function AppContent() {
     }
   };
 
-  // 1. Initial Loading
+  // 1. Initial Loading (로그인 상태 확인 중)
   if (isLoggedIn === null) {
     return (
       <GestureHandlerRootView style={{ flex: 1 }}>
@@ -480,19 +480,26 @@ function AppContent() {
     );
   }
 
-  // 3. Logging In Or Checking Subscription (Logged In but status unknown)
-  if (isLoggingIn || (isLoggedIn === true && subscriptionStatus === null)) {
+  // 3. Logging In / Checking Subscription / SSOT Loading State
+  // SSOT: subscriptionStatus === 'loading'일 때도 로딩 UI 표시 (스토어 검증 중)
+  if (isLoggingIn || (isLoggedIn === true && (subscriptionStatus === null || subscriptionStatus === 'loading'))) {
     return (
       <GestureHandlerRootView style={{ flex: 1 }}>
         <SafeAreaProvider>
           <StatusBar style="dark" />
-          {/* Loading screen during login process */}
+          <View style={loadingStyles.container}>
+            <ActivityIndicator size="large" color={COLORS.primary} />
+            <Text style={loadingStyles.text}>
+              {isLoggingIn ? '로그인 중...' : '구독 상태 확인 중...'}
+            </Text>
+          </View>
         </SafeAreaProvider>
       </GestureHandlerRootView>
     );
   }
 
-  // 4. Logged In & Expired -> Block Screen
+  // 4. Logged In & Expired/Blocked -> Block Screen
+  // SSOT: 'expired' 상태 = 'blocked' 상태 (차단 화면 표시)
   if (isLoggedIn === true && subscriptionStatus === 'expired') {
     return (
       <GestureHandlerRootView style={{ flex: 1 }}>
@@ -507,6 +514,7 @@ function AppContent() {
   }
 
   // 5. Active / Trial -> Main App
+  // SSOT: 'active' = 'subscribed', 'trial' = trial
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
@@ -538,3 +546,19 @@ export default function RootLayout() {
     </AuthProvider>
   );
 }
+
+// Loading screen styles
+const loadingStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+  },
+  text: {
+    marginTop: 16,
+    fontSize: 16,
+    color: COLORS.textSecondary,
+    fontWeight: '500',
+  },
+});

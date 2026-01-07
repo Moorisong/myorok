@@ -24,30 +24,252 @@
 
 ---
 
-## 2.1 구독 정책
+## 2.1 구독 상태 판별 전체 케이스 (SSOT - 배포 안정화 기준)
 
-### 구독 유형
-- **월 단위 자동 갱신 구독**
-- Google Play In-App Subscription 사용
-- 구독 상태:
-  - **Trial**: 7일 체험 (앱 내부 로직)
-  - **Active**: 결제 완료, 월 단위 자동 갱신
-  - **Expired**: 만료 또는 결제 실패 시
+본 내용은 **앱 최초 실행 / 재설치 / 기기 변경 / 네트워크 지연** 등 실서비스에서 발생 가능한 모든 구독 관련 케이스를 포함한 **단일 진실 소스(Single Source of Truth)** 이다.
 
-### 앱에서 구독 처리
-| 역할 | 담당 |
-|------|------|
-| 자동 결제/갱신 | Google Play 서버 |
-| 구독 상태 조회 | 앱 |
-| 구독 해지 | Google Play (앱에서 링크 안내) |
+### 0. 전제 원칙 (절대 규칙)
 
-### 구독하기 버튼
-- **위치**: 설정 > 구독 관리 페이지
-- **현재 상태**: 결제 모듈 미연동
-- 버튼 클릭 시 안내 메시지 또는 테스트 플로우만 제공
+#### RULE 0-1. 검증 전에는 아무 상태도 확정하지 않는다
+- 앱 최초 실행 시 기본 상태는 반드시 `loading`
+- **절대 금지**
+  - 구독중 선표시
+  - 무료체험 선지급
 
-### 앱 내 수동 결제/갱신 로직
-- **없음** (Google Play가 모든 결제/갱신 관리)
+#### RULE 0-2. 로컬 데이터는 참고용일 뿐
+- 판단 기준은 **스토어 응답 (영수증 / Entitlement)** 이다
+- reinstall / 기기 변경 시 로컬 데이터는 신뢰하지 않는다
+
+#### RULE 0-3. 시간은 반드시 서버 기준
+- `now`는 **서버 시간** 기준으로 판단
+- **로컬 기기 시간 사용 금지** (시간 조작 방지)
+
+#### RULE 0-4. 캐시된 entitlement는 신뢰 금지
+- `source === 'cache'`인 경우 subscribed 처리 금지
+- 반드시 `source === 'server'` AND `verificationSucceeded === true`
+
+---
+
+### 1. 상태 정의 (최소 필요 상태)
+
+| 상태 | 설명 |
+|----|----|
+| `loading` | 스토어 검증 진행 중 |
+| `trial` | 무료체험 활성 |
+| `subscribed` | 유효한 구독 상태 |
+| `blocked` | 접근 차단 상태 |
+
+---
+
+### 2. 핵심 판별 기준 값
+
+#### 필수 체크 항목
+- `hasPurchaseHistory` : 결제 이력 존재 여부
+- `hasUsedTrial` : 무료체험 사용 여부 (**서버 기록 기준**)
+- `isEntitlementActive` : 구독 권한(Entitlement) 활성 여부
+- `expiresDate` : 만료일 (**유효한 Date 객체 필수**)
+- `now` : 현재 시각 (**서버 시간 기준**)
+- `verificationSucceeded` : 영수증 검증 성공 여부
+- `expectedProductId` : 앱에서 기대하는 상품 ID
+- `actualProductId` : 스토어에서 반환된 실제 상품 ID
+- `isPendingTransaction` : 결제 진행 중 여부
+- `restoreAttempted` : restore 시도 여부
+- `restoreSucceeded` : restore 성공 여부
+- `source` : 데이터 출처 (`'server'` | `'cache'`)
+
+#### VerificationResult 타입 정의 (구현 필수)
+```typescript
+type VerificationResult = {
+  success: boolean;
+  serverSyncSucceeded: boolean; // 서버 통신 성공 여부 (CASE H)
+  entitlementActive: boolean;
+  expiresDate?: Date;          // 유효한 Date 객체만
+  productId?: string;
+  isPending?: boolean;
+  source: 'server' | 'cache';
+  serverTime: Date;            // 서버 시간
+  hasUsedTrial: boolean;       // 서버에서 확인된 체험 사용 여부
+  hasPurchaseHistory: boolean; // 서버에서 확인된 결제 이력
+}
+```
+
+---
+
+### 3. 전체 케이스 테이블 (구현 기준)
+
+#### 기본 케이스
+
+| # | 상황 | 조건 | 시작 상태 |
+|--|----|----|----|
+| 1 | 완전 신규 | 결제 ❌ / 체험 ❌ / 검증 완료 | `trial` |
+| 2 | 체험만 사용 | 체험 O / 결제 ❌ | `blocked` |
+| 3 | 유효 구독 | entitlement O / expires > now / productId 일치 | `subscribed` |
+| 4 | 취소했지만 기간 남음 | willRenew ❌ / expires > now | `subscribed` |
+| 5 | 구독 만료 | entitlement ❌ / expires ≤ now | `blocked` |
+| 6 | 재설치 | 로컬 데이터 없음 / entitlement O | `subscribed` |
+| 7 | 기기 변경 | Google 계정 동일 / entitlement O | `subscribed` |
+| 8 | 영수증 검증 실패 | verification ❌ | `loading` |
+| 9 | 네트워크 지연 | 응답 미도착 | `loading` |
+| 10 | 스토어 오류 | store error | `loading` |
+| 11 | 샌드박스 꼬임 | entitlement ghost | `loading` |
+| 12 | 복원 미실행 | restore 안 했지만 entitlement O | `subscribed` |
+
+#### 🔴 치명적 엣지 케이스 (CASE A~J)
+
+| # | 상황 | 조건 | 시작 상태 | 비고 |
+|--|----|----|----|----|  
+| A | 불완전 데이터 | expiresDate 없음/파싱실패/null | `loading` | 절대 subscribed 금지 |
+| B | Product ID 불일치 | entitlement O / actualProductId ≠ expectedProductId | `loading` | 상품 migration 고려 |
+| C | 캐시된 entitlement | source === 'cache' | `loading` | 서버 검증 필수 |
+| D-1 | restore 미시도 | restoreAttempted ❌ | `loading` | restore 먼저 시도 |
+| D-2 | restore 실패 | restoreAttempted O / restoreSucceeded ❌ | `loading` | 재시도 안내 |
+| D-3 | restore 성공 | restoreAttempted O / restoreSucceeded O | 다음 판별 | 정상 플로우 |
+| E | trial 기록 전 크래시 | trial 시작 / 서버 기록 전 앱 종료 | `loading` | hasUsedTrial 서버 확인 필수 |
+| F | 시간 조작 | 기기 시간 ≠ 서버 시간 (>5분 차이) | `loading` | 서버 시간으로 재검증 |
+| G | 결제 진행 중 | isPendingTransaction O | `loading` | 결제 확정 전 subscribed 금지 |
+| H | 서버 통신 실패 | 스토어 OK / serverSyncSucceeded ❌ | `loading` | 재시도 필요 |
+| I | Legacy Product ID | entitlement O / id ∈ allowlist | `subscribed` | 레거시 지원 |
+| J | 결제 O / Entitlement ❌ | hasPurchaseHistory O / entitlement ❌ | `blocked` | 복원 유도 안내 메시지 |
+
+---
+
+### 4. 무료체험 관련 절대 규칙
+
+#### 무료체험 지급 조건
+```text
+결제 이력 ❌ (서버 확인)
+AND 무료체험 사용 ❌ (서버 확인)
+AND 검증 완료 (source === 'server' AND serverSyncSucceeded)
+```
+
+#### 무료체험 차단 조건
+```text
+무료체험 사용 이력 O (서버 기록)
+OR 재설치 (서버에서 이미 체험 기록 확인)
+OR 기기 변경 (동일 계정 = 서버 기록 공유)
+
+➡️ 무료체험은 계정 단위, 기기 단위 아님
+```
+
+#### hasUsedTrial 신뢰 기준
+```text
+⚠️ 로컬 AsyncStorage의 hasUsedTrial → 참고용
+✅ 서버 API의 hasUsedTrial → 진실
+```
+
+- trial 시작 시점에 **즉시 서버에 기록** (비동기 X, 동기 필수)
+- 앱 크래시/강제종료 대비: trial 시작 → 서버 기록 → UI 업데이트 순서
+
+---
+
+### 5. 상태 결정 우선순위 (최종 권장판)
+
+```text
+1. verification 실패 OR 불완전 데이터 OR 서버 통신 실패 (CASE H) → loading
+2. pending transaction 존재 → loading
+3. source === 'cache' (서버 미검증) → loading
+4. restore 미시도 OR restore 실패 → loading
+5. productId 불일치 (AND not in allowlist) → loading
+6. 시간 차이 > 5분 (조작 의심) → loading
+7. entitlement 활성 AND verification 성공 AND (productId 일치 OR allowlist) → subscribed
+8. 체험 가능 (결제 ❌ AND 체험 ❌ AND 검증 완료) → trial
+9. 그 외 (결제 이력 O 포함 CASE J) → blocked
+```
+
+---
+
+### 6. 구현용 의사코드 (최종 권장)
+
+```typescript
+const EXPECTED_PRODUCT_ID = 'myorok_monthly_premium';
+const LEGACY_PRODUCT_IDS = ['myorok_monthly_legacy_v1']; // CASE I
+
+function determineSubscriptionState(result: VerificationResult): SubscriptionStatus {
+  const { 
+    success, serverSyncSucceeded, entitlementActive, expiresDate, productId, 
+    isPending, source, serverTime, hasUsedTrial, hasPurchaseHistory 
+  } = result;
+  
+  // 1. 검증 실패, 불완전 데이터, 또는 서버 통신 실패 (CASE A, H)
+  if (!success || !serverSyncSucceeded) {
+    return 'loading';
+  }
+  
+  // 2. 결제 진행 중 (CASE G)
+  if (isPending) {
+    return 'loading';
+  }
+  
+  // 3. 캐시 데이터 (서버 미검증) (CASE C)
+  if (source === 'cache') {
+    return 'loading';
+  }
+  
+  // 4. expiresDate 유효성 검사 (CASE A)
+  if (entitlementActive && (!expiresDate || isNaN(expiresDate.getTime()))) {
+    return 'loading';
+  }
+  
+  // 5. Product ID 검사 (CASE B, I)
+  if (entitlementActive && productId !== EXPECTED_PRODUCT_ID && !LEGACY_PRODUCT_IDS.includes(productId || '')) {
+    return 'loading';
+  }
+  
+  // 6. 유효한 구독 상태
+  if (entitlementActive && expiresDate && expiresDate > serverTime) {
+    return 'subscribed';
+  }
+  
+  // 7. 체험 가능 조건
+  if (!hasPurchaseHistory && !hasUsedTrial) {
+    return 'trial';
+  }
+  
+  // 8. 그 외 (CASE J 포함)
+  return 'blocked';
+}
+```
+
+---
+
+### 7. 절대 하면 안 되는 실수 TOP 7
+
+| ❌ 금지 사항 | 이유 |
+|-------------|------|
+| entitlement 조회 전 subscribed 처리 | CASE C 위반 |
+| 로컬 플래그만 보고 무료체험 재지급 | CASE E 위반 |
+| 취소됨 = 만료됨 으로 처리 | 기간 남은 구독자 차단 |
+| expiresDate null인데 subscribed 처리 | CASE A 위반 |
+| cache 데이터로 상태 결정 | CASE C 위반 |
+| 로컬 기기 시간으로 만료 판단 | CASE F 위반 |
+| pending 상태에서 subscribed 처리 | CASE G 위반 |
+
+---
+
+### 8. QA 체크리스트 (필수 테스트)
+
+#### 기본 케이스
+- [ ] 앱 삭제 후 재설치 (결제 없음) → `trial`
+- [ ] 무료체험만 사용 후 재설치 → `blocked`
+- [ ] 유효 구독 상태에서 재설치 → `subscribed`
+- [ ] 구독 취소 후 기간 남은 상태 → `subscribed`
+- [ ] 구독 만료 상태 → `blocked`
+- [ ] 네트워크 끊은 상태 최초 실행 → `loading` 유지
+- [ ] 기기 변경 후 설치 (동일 계정) → `subscribed`
+
+#### 엣지 케이스 (CASE A~G)
+- [ ] expiresDate null 응답 → `loading`
+- [ ] 다른 productId 구독 → `loading`
+- [ ] restore 실패 → `loading` + 재시도 안내
+- [ ] trial 시작 직후 앱 강제종료 → 재실행 시 서버 확인
+- [ ] 기기 시간 1일 앞으로 설정 → `loading` (서버 시간 기준 재검증)
+- [ ] 결제 중 앱 종료 → `loading` (pending 상태)
+
+---
+
+### 9. 내부 기준 문장 (문서용)
+> "구독 상태는 로컬이 아닌 **서버/스토어 기준**으로 판단하며, 검증 완료 전에는 어떤 접근 권한도 확정하지 않는다.
+> 불완전한 데이터, 캐시, pending 상태에서는 **무조건 loading**으로 처리한다."
 
 ---
 
@@ -74,43 +296,7 @@
 
 ---
 
-## 5. 결제 플로우
 
-### 5.1 앱 시작 시
-
-1. Google Play 결제 연결 초기화
-2. 기존 구매 내역 조회
-3. 유효한 구독 존재 시:
-   - `subscription.state = 'active'`
-4. 없을 경우:
-   - 상태 유지
-
-### 5.2 무료 체험 로직
-
-1. 최초 앱 실행 시:
-   - `trial_start_at` 기록
-   - `state = 'trial'`
-2. 7일 경과 전:
-   - 결제 버튼 노출
-3. 7일 경과 후:
-   - 결제 없으면 `state = 'expired'`
-
-### 5.3 구독 결제 시
-
-1. Google 결제 요청 실행
-2. 결제 성공 시:
-   - `subscription.state = 'active'`
-   - `subscription_start_at` 저장
-3. 결제 실패/취소 시:
-   - 상태 변경 없음
-
-### 5.4 구독 복원
-
-- 앱 재설치 / 기기 변경 시
-- Google 구매 내역 재조회
-- active 구독 있으면 `state = 'active'`
-
----
 
 ## 6. UI 요구사항
 

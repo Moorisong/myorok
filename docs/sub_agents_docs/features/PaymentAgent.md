@@ -28,26 +28,368 @@
 
 ---
 
-## 2.1 구독 정책
+## 2.1 구독 상태 판별 전체 케이스 (SSOT - 배포 안정화 기준)
 
-### 구독 유형
-- **월 단위 자동 갱신 구독**
-- Google Play In-App Subscription 사용
-- 구독 상태:
-  - **Trial**: 7일 체험 (앱 내부 로직)
-  - **Active**: 결제 완료, 월 단위 자동 갱신
-  - **Expired**: 만료 또는 결제 실패 시
+본 내용은 **앱 최초 실행 / 재설치 / 기기 변경 / 네트워크 지연** 등 실서비스에서 발생 가능한 모든 구독 관련 케이스를 포함한 **단일 진실 소스(Single Source of Truth)** 이다.
 
-### 앱에서 구독 처리
-| 역할 | 담당 |
-|------|------|
-| 자동 결제/갱신 | Google Play 서버 |
-| 구독 상태 조회 | 앱 |
-| 구독 해지 | Google Play (앱에서 링크 안내) |
+### 0. 전제 원칙 (절대 규칙)
+
+#### RULE 0-1. 검증 전에는 아무 상태도 확정하지 않는다
+- 앱 최초 실행 시 기본 상태는 반드시 `loading`
+- **절대 금지**
+  - 구독중 선표시
+  - 무료체험 선지급
+
+#### RULE 0-2. 로컬 데이터는 참고용일 뿐
+- 판단 기준은 **스토어 응답 (영수증 / Entitlement)** 이다
+- reinstall / 기기 변경 시 로컬 데이터는 신뢰하지 않는다
+
+#### RULE 0-3. 시간은 반드시 서버 기준
+- `now`는 **서버 시간** 기준으로 판단
+- **로컬 기기 시간 사용 금지** (시간 조작 방지)
+
+#### RULE 0-4. 캐시된 entitlement는 신뢰 금지
+- `source === 'cache'`인 경우 subscribed 처리 금지
+- 반드시 `source === 'server'` AND `verificationSucceeded === true`
 
 ---
 
+### 1. 상태 정의 (최소 필요 상태)
+
+| 상태 | 설명 |
+|----|----|
+| `loading` | 스토어 검증 진행 중 |
+| `trial` | 무료체험 활성 |
+| `subscribed` | 유효한 구독 상태 |
+| `blocked` | 접근 차단 상태 |
+
+---
+
+### 2. 핵심 판별 기준 값
+
+#### 필수 체크 항목
+- `hasPurchaseHistory` : 결제 이력 존재 여부
+- `hasUsedTrial` : 무료체험 사용 여부 (**서버 기록 기준**)
+- `isEntitlementActive` : 구독 권한(Entitlement) 활성 여부
+- `expiresDate` : 만료일 (**유효한 Date 객체 필수**)
+- `now` : 현재 시각 (**서버 시간 기준**)
+- `verificationSucceeded` : 영수증 검증 성공 여부
+- `expectedProductId` : 앱에서 기대하는 상품 ID
+- `actualProductId` : 스토어에서 반환된 실제 상품 ID
+- `isPendingTransaction` : 결제 진행 중 여부
+- `restoreAttempted` : restore 시도 여부
+- `restoreSucceeded` : restore 성공 여부
+- `source` : 데이터 출처 (`'server'` | `'cache'`)
+
+#### VerificationResult 타입 정의 (구현 필수)
+```typescript
+type VerificationResult = {
+  success: boolean;
+  serverSyncSucceeded: boolean; // 서버 통신 성공 여부 (CASE H)
+  entitlementActive: boolean;
+  expiresDate?: Date;          // 유효한 Date 객체만
+  productId?: string;
+  isPending?: boolean;
+  source: 'server' | 'cache';
+  serverTime: Date;            // 서버 시간
+  hasUsedTrial: boolean;       // 서버에서 확인된 체험 사용 여부
+  hasPurchaseHistory: boolean; // 서버에서 확인된 결제 이력
+}
+```
+
+---
+
+### 3. 전체 케이스 테이블 (구현 기준)
+
+#### 기본 케이스
+
+| # | 상황 | 조건 | 시작 상태 |
+|--|----|----|----|
+| 1 | 완전 신규 | 결제 ❌ / 체험 ❌ / 검증 완료 | `trial` |
+| 2 | 체험만 사용 | 체험 O / 결제 ❌ | `blocked` |
+| 3 | 유효 구독 | entitlement O / expires > now / productId 일치 | `subscribed` |
+| 4 | 취소했지만 기간 남음 | willRenew ❌ / expires > now | `subscribed` |
+| 5 | 구독 만료 | entitlement ❌ / expires ≤ now | `blocked` |
+| 6 | 재설치 | 로컬 데이터 없음 / entitlement O | `subscribed` |
+| 7 | 기기 변경 | Google 계정 동일 / entitlement O | `subscribed` |
+| 8 | 영수증 검증 실패 | verification ❌ | `loading` |
+| 9 | 네트워크 지연 | 응답 미도착 | `loading` |
+| 10 | 스토어 오류 | store error | `loading` |
+| 11 | 샌드박스 꼬임 | entitlement ghost | `loading` |
+| 12 | 복원 미실행 | restore 안 했지만 entitlement O | `subscribed` |
+
+#### 🔴 치명적 엣지 케이스 (CASE A~J)
+
+| # | 상황 | 조건 | 시작 상태 | 비고 |
+|--|----|----|----|----|  
+| A | 불완전 데이터 | expiresDate 없음/파싱실패/null | `loading` | 절대 subscribed 금지 |
+| B | Product ID 불일치 | entitlement O / actualProductId ≠ expectedProductId | `loading` | 상품 migration 고려 |
+| C | 캐시된 entitlement | source === 'cache' | `loading` | 서버 검증 필수 |
+| D-1 | restore 미시도 | restoreAttempted ❌ | `loading` | restore 먼저 시도 |
+| D-2 | restore 실패 | restoreAttempted O / restoreSucceeded ❌ | `loading` | 재시도 안내 |
+| D-3 | restore 성공 | restoreAttempted O / restoreSucceeded O | 다음 판별 | 정상 플로우 |
+| E | trial 기록 전 크래시 | trial 시작 / 서버 기록 전 앱 종료 | `loading` | hasUsedTrial 서버 확인 필수 |
+| F | 시간 조작 | 기기 시간 ≠ 서버 시간 (>5분 차이) | `loading` | 서버 시간으로 재검증 |
+| G | 결제 진행 중 | isPendingTransaction O | `loading` | 결제 확정 전 subscribed 금지 |
+| H | 서버 통신 실패 | 스토어 OK / serverSyncSucceeded ❌ | `loading` | 재시도 필요 |
+| I | Legacy Product ID | entitlement O / id ∈ allowlist | `subscribed` | 레거시 지원 |
+| J | 결제 O / Entitlement ❌ | hasPurchaseHistory O / entitlement ❌ | `blocked` | 복원 유도 안내 메시지 |
+
+---
+
+### 4. 무료체험 관련 절대 규칙
+
+#### 무료체험 지급 조건
+```text
+결제 이력 ❌ (서버 확인)
+AND 무료체험 사용 ❌ (서버 확인)
+AND 검증 완료 (source === 'server' AND serverSyncSucceeded)
+```
+
+#### 무료체험 차단 조건
+```text
+무료체험 사용 이력 O (서버 기록)
+OR 재설치 (서버에서 이미 체험 기록 확인)
+OR 기기 변경 (동일 계정 = 서버 기록 공유)
+
+➡️ 무료체험은 계정 단위, 기기 단위 아님
+```
+
+#### hasUsedTrial 신뢰 기준
+```text
+⚠️ 로컬 AsyncStorage의 hasUsedTrial → 참고용
+✅ 서버 API의 hasUsedTrial → 진실
+```
+
+- trial 시작 시점에 **즉시 서버에 기록** (비동기 X, 동기 필수)
+- 앱 크래시/강제종료 대비: trial 시작 → 서버 기록 → UI 업데이트 순서
+
+---
+
+### 5. 상태 결정 우선순위 (최종 권장판)
+
+```text
+1. verification 실패 OR 불완전 데이터 OR 서버 통신 실패 (CASE H) → loading
+2. pending transaction 존재 → loading
+3. source === 'cache' (서버 미검증) → loading
+4. restore 미시도 OR restore 실패 → loading
+5. productId 불일치 (AND not in allowlist) → loading
+6. 시간 차이 > 5분 (조작 의심) → loading
+7. entitlement 활성 AND verification 성공 AND (productId 일치 OR allowlist) → subscribed
+8. 체험 가능 (결제 ❌ AND 체험 ❌ AND 검증 완료) → trial
+9. 그 외 (결제 이력 O 포함 CASE J) → blocked
+```
+
+---
+
+### 6. 구현용 의사코드 (최종 권장)
+
+```typescript
+const EXPECTED_PRODUCT_ID = 'myorok_monthly_premium';
+const LEGACY_PRODUCT_IDS = ['myorok_monthly_legacy_v1']; // CASE I
+
+function determineSubscriptionState(result: VerificationResult): SubscriptionStatus {
+  const { 
+    success, serverSyncSucceeded, entitlementActive, expiresDate, productId, 
+    isPending, source, serverTime, hasUsedTrial, hasPurchaseHistory 
+  } = result;
+  
+  // 1. 검증 실패, 불완전 데이터, 또는 서버 통신 실패 (CASE A, H)
+  if (!success || !serverSyncSucceeded) {
+    return 'loading';
+  }
+  
+  // 2. 결제 진행 중 (CASE G)
+  if (isPending) {
+    return 'loading';
+  }
+  
+  // 3. 캐시 데이터 (서버 미검증) (CASE C)
+  if (source === 'cache') {
+    return 'loading';
+  }
+  
+  // 4. expiresDate 유효성 검사 (CASE A)
+  if (entitlementActive && (!expiresDate || isNaN(expiresDate.getTime()))) {
+    return 'loading';
+  }
+  
+  // 5. Product ID 검사 (CASE B, I)
+  if (entitlementActive && productId !== EXPECTED_PRODUCT_ID && !LEGACY_PRODUCT_IDS.includes(productId || '')) {
+    return 'loading';
+  }
+  
+  // 6. 유효한 구독 상태
+  if (entitlementActive && expiresDate && expiresDate > serverTime) {
+    return 'subscribed';
+  }
+  
+  // 7. 체험 가능 조건
+  if (!hasPurchaseHistory && !hasUsedTrial) {
+    return 'trial';
+  }
+  
+  // 8. 그 외 (CASE J 포함)
+  return 'blocked';
+}
+```
+
+---
+
+### 7. 절대 하면 안 되는 실수 TOP 7
+
+| ❌ 금지 사항 | 이유 |
+|-------------|------|
+| entitlement 조회 전 subscribed 처리 | CASE C 위반 |
+| 로컬 플래그만 보고 무료체험 재지급 | CASE E 위반 |
+| 취소됨 = 만료됨 으로 처리 | 기간 남은 구독자 차단 |
+| expiresDate null인데 subscribed 처리 | CASE A 위반 |
+| cache 데이터로 상태 결정 | CASE C 위반 |
+| 로컬 기기 시간으로 만료 판단 | CASE F 위반 |
+| pending 상태에서 subscribed 처리 | CASE G 위반 |
+
+---
+
+### 8. QA 체크리스트 (필수 테스트)
+
+#### 기본 케이스
+- [ ] 앱 삭제 후 재설치 (결제 없음) → `trial`
+- [ ] 무료체험만 사용 후 재설치 → `blocked`
+- [ ] 유효 구독 상태에서 재설치 → `subscribed`
+- [ ] 구독 취소 후 기간 남은 상태 → `subscribed`
+- [ ] 구독 만료 상태 → `blocked`
+- [ ] 네트워크 끊은 상태 최초 실행 → `loading` 유지
+- [ ] 기기 변경 후 설치 (동일 계정) → `subscribed`
+
+#### 엣지 케이스 (CASE A~G)
+- [ ] expiresDate null 응답 → `loading`
+- [ ] 다른 productId 구독 → `loading`
+- [ ] restore 실패 → `loading` + 재시도 안내
+- [ ] trial 시작 직후 앱 강제종료 → 재실행 시 서버 확인
+- [ ] 기기 시간 1일 앞으로 설정 → `loading` (서버 시간 기준 재검증)
+- [ ] 결제 중 앱 종료 → `loading` (pending 상태)
+
+
+### 9. 내부 기준 문장 (문서용)
+> "구독 상태는 로컬이 아닌 **서버/스토어 기준**으로 판단하며, 검증 완료 전에는 어떤 접근 권한도 확정하지 않는다.
+> 불완전한 데이터, 캐시, pending 상태에서는 **무조건 loading**으로 처리한다."
+```
+
+- trial 시작 시점에 **즉시 서버에 기록** (비동기 X, 동기 필수)
+- 앱 크래시/강제종료 대비: trial 시작 → 서버 기록 → UI 업데이트 순서
+
+---
+
+### 5. 상태 결정 우선순위 (최종 권장판)
+
+```text
+1. verification 실패 OR 불완전 데이터 → loading
+2. pending transaction 존재 → loading
+3. source === 'cache' (서버 미검증) → loading
+4. restore 미시도 OR restore 실패 → loading
+5. productId 불일치 → loading
+6. 시간 차이 > 5분 (조작 의심) → loading
+7. entitlement 활성 AND verification 성공 AND productId 일치 → subscribed
+8. 체험 가능 (결제 ❌ AND 체험 ❌ AND 검증 완료) → trial
+9. 그 외 → blocked
+```
+
+---
+
+### 6. 구현용 의사코드 (최종 권장)
+
+```typescript
+const EXPECTED_PRODUCT_ID = 'myorok_monthly_premium';
+
+function determineSubscriptionState(result: VerificationResult): SubscriptionStatus {
+  const { 
+    success, entitlementActive, expiresDate, productId, 
+    isPending, source, serverTime, hasUsedTrial, hasPurchaseHistory 
+  } = result;
+  
+  // 1. 검증 실패 또는 불완전 데이터
+  if (!success) {
+    return 'loading';
+  }
+  
+  // 2. 결제 진행 중
+  if (isPending) {
+    return 'loading';
+  }
+  
+  // 3. 캐시 데이터 (서버 미검증)
+  if (source === 'cache') {
+    return 'loading';
+  }
+  
+  // 4. expiresDate 유효성 검사
+  if (entitlementActive && (!expiresDate || isNaN(expiresDate.getTime()))) {
+    return 'loading';  // 불완전 데이터 (CASE A)
+  }
+  
+  // 5. Product ID 불일치 (CASE B)
+  if (entitlementActive && productId !== EXPECTED_PRODUCT_ID) {
+    return 'loading';
+  }
+  
+  // 6. 유효한 구독 상태
+  if (entitlementActive && expiresDate && expiresDate > serverTime) {
+    return 'subscribed';
+  }
+  
+  // 7. 체험 가능 조건
+  if (!hasPurchaseHistory && !hasUsedTrial) {
+    return 'trial';
+  }
+  
+  // 8. 그 외
+  return 'blocked';
+}
+```
+
+---
+
+### 7. 절대 하면 안 되는 실수 TOP 7
+
+| ❌ 금지 사항 | 이유 |
+|-------------|------|
+| entitlement 조회 전 subscribed 처리 | CASE C 위반 |
+| 로컬 플래그만 보고 무료체험 재지급 | CASE E 위반 |
+| 취소됨 = 만료됨 으로 처리 | 기간 남은 구독자 차단 |
+| expiresDate null인데 subscribed 처리 | CASE A 위반 |
+| cache 데이터로 상태 결정 | CASE C 위반 |
+| 로컬 기기 시간으로 만료 판단 | CASE F 위반 |
+| pending 상태에서 subscribed 처리 | CASE G 위반 |
+
+---
+
+### 8. QA 체크리스트 (필수 테스트)
+
+#### 기본 케이스
+- [ ] 앱 삭제 후 재설치 (결제 없음) → `trial`
+- [ ] 무료체험만 사용 후 재설치 → `blocked`
+- [ ] 유효 구독 상태에서 재설치 → `subscribed`
+- [ ] 구독 취소 후 기간 남은 상태 → `subscribed`
+- [ ] 구독 만료 상태 → `blocked`
+- [ ] 네트워크 끊은 상태 최초 실행 → `loading` 유지
+- [ ] 기기 변경 후 설치 (동일 계정) → `subscribed`
+
+#### 엣지 케이스 (CASE A~G)
+- [ ] expiresDate null 응답 → `loading`
+- [ ] 다른 productId 구독 → `loading`
+- [ ] restore 실패 → `loading` + 재시도 안내
+- [ ] trial 시작 직후 앱 강제종료 → 재실행 시 서버 확인
+- [ ] 기기 시간 1일 앞으로 설정 → `loading` (서버 시간 기준 재검증)
+- [ ] 결제 중 앱 종료 → `loading` (pending 상태)
+
+---
+
+### 9. 내부 기준 문장 (문서용)
+> "구독 상태는 로컬이 아닌 **서버/스토어 기준**으로 판단하며, 검증 완료 전에는 어떤 접근 권한도 확정하지 않는다.
+> 불완전한 데이터, 캐시, pending 상태에서는 **무조건 loading**으로 처리한다."
+
 ## 3. 사용 라이브러리
+
 - `expo-in-app-purchases` (또는 현재 Expo 권장 IAP 라이브러리)
 - `expo-sqlite`
 
@@ -65,37 +407,172 @@
 | subscription_start_at | INTEGER | timestamp, nullable |
 | updated_at | INTEGER | timestamp |
 
----
-
-## 5. 결제 플로우
-
-### 5.1 앱 시작 시
-1. Google Play 결제 연결 초기화
-2. 기존 구매 내역 조회
-3. 유효한 구독 존재 시: `state = 'active'`
-4. 없을 경우: 상태 유지
-
-### 5.2 무료 체험 로직
-1. 최초 앱 실행 시: `trial_start_at` 기록, `state = 'trial'`
-2. 7일 경과 전: 결제 버튼 노출
-3. 7일 경과 후: 결제 없으면 `state = 'expired'`
-
-### 5.3 구독 결제 시
-1. Google 결제 요청 실행
-2. 성공 시: `state = 'active'`, `subscription_start_at` 저장
-3. 실패/취소 시: 상태 변경 없음
-
-### 5.4 구독 복원
-- 앱 재설치/기기 변경 시 Google 구매 내역 재조회
-- active 구독 있으면 `state = 'active'`
+> ※ 하루 1 row 원칙 유지
 
 ---
+
+
 
 ## 6. UI 요구사항
 
-- 결제 버튼 노출: `state = 'trial'` 또는 `expired`
-- `state = 'active'`: "구독 중" 표시, 결제 버튼 비활성화
-- 에러 처리: 네트워크 오류/Google 결제 불가 시 안내
+### 결제 버튼
+
+- **노출 조건**: `state = 'trial'` 또는 `state = 'expired'`
+- **`state = 'active'` 일 때**:
+  - "구독 중" 표시
+  - 결제 버튼 비활성화
+
+### 에러 처리
+
+- 네트워크 오류 시: 토스트 또는 Alert 표시
+- Google 결제 불가 상태: 안내 문구 노출
+
+---
+
+## 7. 테스트 조건
+
+- Google Play 내부 테스트 트랙 사용
+- 라이선스 테스트 계정으로 로그인
+- 실제 결제 발생 ❌
+
+---
+
+## 8. 주의사항 ⚠️
+
+> [!CAUTION]
+> > - Google Play Billing 외 결제 수단 사용 ❌
+> > - 카드사 / PG사 직접 연동 ❌
+> > - 서버 영수증 검증 ❌ (MVP 단계)
+
+---
+
+## 9. 완료 기준
+
+- [ ] 내부 테스트에서 결제 성공
+- [ ] 결제 취소 정상 처리
+- [ ] 재설치 후 구독 복원 확인
+
+---
+
+## 10. 구독 해지 UI/UX 명세
+
+### 10.1 기본 원칙
+
+| 항목 | 정책 |
+|------|------|
+| 숨김 여부 | ❌ 숨기지 않음 |
+| 강조 수준 | 결제 버튼보다 낮게 |
+| 구현 방식 | 텍스트 링크 |
+| 해지 처리 | 앱 내부 ❌ / Google Play에서 처리 ✅ |
+
+### 10.2 위치
+
+- **페이지**: 구독 관리 페이지 (`settings/pro.tsx`)
+- **위치**: 페이지 최하단 (Footer 영역)
+- **구성 순서**:
+  1. 현재 구독 상태 (Active · 다음 결제일)
+  2. 구독하기 버튼 (주요 CTA)
+  3. 안내 문구 + 해지 링크
+
+### 10.3 UI 명세
+
+**텍스트 링크:**
+- 문구: `구독 해지하기 →`
+- 스타일: 텍스트 링크 (버튼 ❌)
+- 색상: 회색 (`#888` ~ `#999`)
+- 터치 영역: 최소 44px 확보
+
+**보조 안내 문구:**
+```
+ℹ️ 구독은 언제든지 취소할 수 있습니다.
+```
+
+### 10.4 동작
+
+- 링크 클릭 시 **Google Play 구독 관리 페이지로 이동**
+- URL: `https://play.google.com/store/account/subscriptions`
+- 앱 내 해지 처리 ❌
+
+### 10.5 정책 대응 포인트
+
+- ✔️ 해지 경로 명확히 인지 가능
+- ✔️ 해지 버튼 숨기지 않음
+- ✔️ Google Play 정책 준수
+
+---
+
+## 11. 환불 UI/UX 명세
+
+### 11.1 기본 원칙
+
+| 항목 | 정책 |
+|------|------|
+| 앱 내 환불 처리 | ❌ |
+| 앱 내 환불 요청 API | ❌ |
+| 환불 처리 주체 | Google Play에서만 처리 |
+| 앱 역할 | **안내 + 이동(UI)만 제공** |
+
+### 11.2 UI 위치 및 형태
+
+| 항목 | 값 |
+|------|------|
+| 페이지 | 구독 관리 페이지 (`settings/pro.tsx`) |
+| 위치 | 페이지 하단 (구독 해지 링크 아래 또는 동일 영역) |
+| UI 형태 | 텍스트 안내 + 텍스트 링크 (버튼 ❌, 강조 UI ❌) |
+
+### 11.3 UX 문구 명세
+
+**기본 안내 문구:**
+```
+환불은 Google Play 정책에 따라 처리됩니다.
+```
+
+**링크 문구:**
+```
+Google Play 구독 관리로 이동 →
+```
+
+**또는 (해지와 통합 시):**
+```
+구독 해지·환불 관리 → Google Play 이동
+```
+
+### 11.4 이동 링크
+
+- **URL**: `https://play.google.com/store/account/subscriptions`
+- **동작**: 클릭 시 외부 브라우저 또는 Play Store 앱 열기
+- **인앱 WebView**: ❌ 사용 금지
+- 환불 / 해지 / 결제 내역 모두 처리 가능
+
+### 11.5 구현 명세 (개발자용)
+
+**컴포넌트 규칙:**
+- `Text` + `TouchableOpacity` (또는 `Pressable`)
+- 색상: 기본 텍스트 색상 또는 secondary color
+- 밑줄 허용 (선택)
+- 터치 영역: 최소 44px 확보
+
+### 11.6 하지 않는 것 (명확화)
+
+| ❌ 금지 항목 |
+|-------------|
+| 앱 내 환불 버튼 |
+| 환불 요청 폼 |
+| 고객센터 환불 접수 |
+| 외부 웹 결제/환불 링크 (Google Play 외) |
+
+### 11.7 정책 및 심사 대응
+
+**Google Play 정책 준수 사항:**
+- ✔️ 앱 내 환불 차단
+- ✔️ 사용자에게 명확한 환불 경로 제공
+- ✔️ Google Play 구독 관리 페이지 직접 연결
+
+**심사 대응 문구:**
+```
+This app does not process refunds directly.
+Refunds are handled by Google Play according to their policies.
+```
 
 ---
 
@@ -127,6 +604,8 @@
 | **구독 시작 / 결제하기** | 홈 화면 상단 배너 하단, 또는 내 정보 화면 | 클릭 시 결제 모달 / 결제창 오픈 |
 | **무료 체험 시작** | 구독 안내 팝업 | 클릭 시 무료 체험 시작, 로컬 DB `isPro=false` |
 
+> 모든 버튼은 **클릭 시 결제 모달**을 띄우고, 결제 완료 여부를 로컬 DB와 동기화
+
 ### 13.2 결제 플로우
 
 1. 사용자 앱 실행
@@ -138,6 +617,8 @@
 7. 무료 체험 종료 시 → 로컬 DB `isPro` 갱신
 
 ### 13.3 License Response 처리
+
+Google Play License Response 코드에 따른 처리:
 
 | Response Code | 의미 | 처리 |
 |---------------|------|------|
@@ -157,31 +638,46 @@
 | 무료 체험 시작 | **무료 체험 시작** | 로컬 DB `isPro=false`, 기능 사용 가능 |
 | 구독 결제 성공 | **구독 시작 / 결제하기** | Response: `LICENSED`, 로컬 DB `isPro=true`, UI 구독 상태 반영 |
 | 구독 결제 실패 | **구독 시작 / 결제하기** | Response: `NOT_LICENSED`, 로컬 DB `isPro=false`, 알림 표시 |
-| 구독 갱신 | **구독 갱신 / 재결제** | 샌드박스 반복 결제 → 로컬 DB 상태 갱신 |
-| 구독 만료 | - | 테스트 샌드박스 만료 시 알림 표시 |
+| 구독 갱신 | **구독 갱신 / 재결제** | 샌드박스 반복 결제 → 로컬 DB 상태 갱신, 알림 확인 |
+| 구독 만료 | - | 테스트 샌드박스 만료 시 알림 표시, 기능 제한 없음 |
 
 ### 14.2 에러 응답 테스트 시나리오
 
 | 시나리오 | Response Code | 예상 처리 |
 |----------|---------------|-----------|
-| 서버 오류 발생 | `ERROR_SERVER_FAILURE` | 재시도 안내 메시지 |
-| 마켓 관리 불가 | `ERROR_NOT_MARKET_MANAGED` | 오류 안내 메시지 |
+| 서버 오류 발생 | `ERROR_SERVER_FAILURE` | 재시도 안내 메시지, 기존 `isPro` 상태 유지 |
+| 마켓 관리 불가 | `ERROR_NOT_MARKET_MANAGED` | 오류 안내 메시지, Google Play 설정 확인 요청 |
+
+> 모든 버튼 클릭 시 **결제창(모달)이 제대로 떠야 함**  
+> UI/UX 체크: 버튼 활성화/비활성화, 텍스트 상태, 팝업 닫기/취소 동작
 
 ---
 
 ## 15. 로컬 DB 연동 체크리스트
 
 ### 15.1 로컬 SQLite 처리
-- `subscription` 테이블의 `state` 필드 업데이트
-- License Response 매핑:
-  - `LICENSED` → `state = 'active'`, `isPro=true`
-  - `NOT_LICENSED` → `state = 'expired'` or `state = 'free'`, `isPro=false`
-  - 에러 응답 → 기존 상태 유지 + 에러 메시지 로깅
+
+1. **구독 상태 테이블 업데이트**
+   - `subscription` 테이블의 `state` 필드 업데이트
+   - License Response 코드에 따른 상태 매핑
+
+2. **License Response 매핑**
+   - `LICENSED` → `state = 'active'`, `isPro=true`
+   - `NOT_LICENSED` → `state = 'expired'` or `state = 'free'`, `isPro=false`
+   - 에러 응답 → 기존 상태 유지 + 에러 메시지 로깅
 
 ### 15.2 클라이언트 UI
-- 결제 성공/실패 메시지 표시
-- UI 구독 상태 표시 (아이콘, 텍스트)
-- 버튼 상태 관리
+
+1. **결제 성공/실패 메시지 표시**
+   - 토스트 또는 Alert로 결과 표시
+   - 성공: "구독이 활성화되었습니다"
+   - 실패: "결제가 취소되었습니다"
+   - 에러: "일시적인 오류가 발생했습니다. 다시 시도해주세요"
+
+2. **UI 구독 상태 표시**
+   - 아이콘 변경 (Pro 뱃지 등)
+   - 텍스트 상태: "구독 중" / "무료"
+   - 버튼 상태: 구독 중일 때 "구독 중" 표시, 결제 버튼 비활성화
 
 ---
 
@@ -189,19 +685,39 @@
 
 > [!CAUTION]
 > - 테스트 계정 외 결제 금지
-> - **Google Play 샌드박스 환경 필수**
+> - 실제 결제 청구되지 않도록 **Google Play 샌드박스 환경 필수**
 > - 테스트 완료 후 샌드박스 계정 로그아웃
 > - keystore/API key 절대 공유 금지
+
+### 16.1 보안 체크리스트
+
+- [ ] Google Play Console 테스트 트랙 설정 확인
+- [ ] 라이선스 테스터 계정 등록
+- [ ] 실제 결제 발생 여부 재확인
+- [ ] API key 및 keystore 보안 관리
+- [ ] 테스트 완료 후 테스트 계정 정리
 
 ---
 
 ## 17. 테스트 최종 목표
 
-- 계좌 없이도 결제 모듈 연동과 동작 확인
-- 버튼 클릭 시 결제창 정상 표시
-- License Response 코드별 처리 확인
-- 로컬 DB 상태 동기화 정상 확인
-- 정식 결제 연동 전 플로우 안전 검증
+### 17.1 검증 항목
+
+- [x] 계좌 없이도 결제 모듈 연동과 동작 확인
+- [x] 버튼 클릭 시 결제창 정상 표시
+- [x] License Response 코드별 처리 확인
+- [x] 로컬 DB 상태 동기화 정상 확인
+- [x] UI 상태 변화 정상 반영
+- [x] 에러 케이스 처리 확인
+- [x] 정식 결제 연동 전 플로우 안전 검증
+
+### 17.2 완료 기준
+
+- Google Play 샌드박스에서 결제 성공
+- 모든 License Response 코드 처리 확인
+- 로컬 DB와 UI 상태 정상 동기화
+- 에러 케이스 적절한 메시지 표시
+- 재설치 후 구독 복원 정상 동작
 
 ---
 
@@ -273,6 +789,9 @@
 ---
 
 ## AI 작업 지침
+
+> [!IMPORTANT]
+> **SSOT 준수 필수**: 위 `PAYMENT_SPEC.md`의 **Section 2.1 구독 상태 판별 전체 케이스**를 Single Source of Truth로 간주하고, 모든 구현 시 해당 규칙을 최우선으로 따라야 한다. **특히 앱 시작 시 `loading` 상태 처리와 무료체험 악용 방지 로직**을 철저히 구현하시오.
 
 ### 목적
 Google Play In-App Purchase를 통한 월 구독 결제 시스템 구현 및 샌드박스 환경에서 테스트
@@ -468,7 +987,6 @@ useEffect(() => {
    - 앱 재설치
    - 자동 복원 확인
    - `isPro` 상태 정상 복원 확인
-
 
 #### 9. 구독 만료 체크 로직 구현 (운영 환경 대비)
 

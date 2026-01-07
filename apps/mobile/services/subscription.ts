@@ -11,9 +11,45 @@ const SUBSCRIPTION_KEYS = {
     SUBSCRIPTION_STATUS: 'subscription_status',
     SUBSCRIPTION_START_DATE: 'subscription_start_date',
     SUBSCRIPTION_EXPIRY_DATE: 'subscription_expiry_date',
+    HAS_USED_TRIAL: 'has_used_trial',
+    RESTORE_ATTEMPTED: 'restore_attempted',
 };
 
-export type SubscriptionStatus = 'trial' | 'active' | 'expired';
+// ============================================================
+// SSOT Types (구독 상태 판별 단일 진실 소스)
+// ============================================================
+
+/**
+ * 구독 상태 (SSOT)
+ * - loading: 스토어 검증 진행 중 / 데이터 불완전
+ * - trial: 무료체험 활성
+ * - subscribed: 유효한 구독 상태
+ * - blocked: 접근 차단 상태
+ */
+export type SubscriptionStatus = 'loading' | 'trial' | 'subscribed' | 'blocked';
+
+/**
+ * 레거시 호환 상태 (기존 코드 호환용)
+ */
+export type LegacySubscriptionStatus = 'trial' | 'active' | 'expired';
+
+/**
+ * 스토어/서버 검증 결과 (SSOT 판별 기준)
+ */
+export interface VerificationResult {
+    success: boolean;                    // 스토어 검증 성공 여부
+    serverSyncSucceeded: boolean;        // 서버 통신 성공 여부 (CASE H)
+    entitlementActive: boolean;          // 구독 권한 활성 여부
+    expiresDate?: Date;                  // 만료일 (유효한 Date 객체만)
+    productId?: string;                  // 스토어에서 반환된 상품 ID
+    isPending?: boolean;                 // 결제 진행 중 여부 (CASE G)
+    source: 'server' | 'cache';          // 데이터 출처
+    serverTime: Date;                    // 서버 시간
+    hasUsedTrial: boolean;               // 서버에서 확인된 체험 사용 여부
+    hasPurchaseHistory: boolean;         // 서버에서 확인된 결제 이력
+    restoreAttempted?: boolean;          // restore 시도 여부 (CASE D)
+    restoreSucceeded?: boolean;          // restore 성공 여부
+}
 
 export interface SubscriptionState {
     status: SubscriptionStatus;
@@ -21,10 +57,145 @@ export interface SubscriptionState {
     daysRemaining?: number;
     subscriptionStartDate?: string;
     subscriptionExpiryDate?: string;
+    hasPurchaseHistory?: boolean;        // CASE J 대응
 }
+
+// ============================================================
+// SSOT Constants
+// ============================================================
 
 const TRIAL_DAYS = 7;
 const API_URL = CONFIG.API_BASE_URL;
+const EXPECTED_PRODUCT_ID = 'myorok_monthly_premium';
+const LEGACY_PRODUCT_IDS = ['myorok_monthly_legacy_v1']; // CASE I: 레거시 상품 ID 허용 목록
+const TIME_SYNC_TOLERANCE_MS = 5 * 60 * 1000; // 5분 (CASE F: 시간 조작 감지 허용치)
+
+// ============================================================
+// SSOT Core Function (핵심 상태 판별 함수)
+// ============================================================
+
+/**
+ * 구독 상태 판별 (SSOT - 단일 진실 소스)
+ * 
+ * 우선순위:
+ * 1. verification 실패 OR 불완전 데이터 OR 서버 통신 실패 (CASE H) → loading
+ * 2. pending transaction 존재 (CASE G) → loading
+ * 3. source === 'cache' (CASE C) → loading
+ * 4. restore 미시도 OR restore 실패 (CASE D) → loading
+ * 5. productId 불일치 AND not in allowlist (CASE B) → loading
+ * 6. 시간 차이 > 5분 (CASE F) → loading
+ * 7. entitlement 활성 AND verification 성공 AND (productId 일치 OR allowlist) → subscribed
+ * 8. 체험 가능 (결제 ❌ AND 체험 ❌ AND 검증 완료) → trial
+ * 9. 그 외 (CASE J 포함) → blocked
+ */
+export function determineSubscriptionState(result: VerificationResult): SubscriptionStatus {
+    const {
+        success,
+        serverSyncSucceeded,
+        entitlementActive,
+        expiresDate,
+        productId,
+        isPending,
+        source,
+        serverTime,
+        hasUsedTrial,
+        hasPurchaseHistory,
+        restoreAttempted,
+        restoreSucceeded,
+    } = result;
+
+    // 1. 검증 실패, 불완전 데이터, 또는 서버 통신 실패 (CASE A, H)
+    if (!success || !serverSyncSucceeded) {
+        console.log('[SSOT] State: loading (verification or server sync failed)');
+        return 'loading';
+    }
+
+    // 2. 결제 진행 중 (CASE G)
+    if (isPending) {
+        console.log('[SSOT] State: loading (pending transaction)');
+        return 'loading';
+    }
+
+    // 3. 캐시 데이터 (서버 미검증) (CASE C)
+    if (source === 'cache') {
+        console.log('[SSOT] State: loading (cache data, server verification required)');
+        return 'loading';
+    }
+
+    // 4. restore 미시도 또는 실패 (CASE D) - 첫 설치가 아닌 경우에만 적용
+    // Note: 최초 설치에서는 restore 없이도 trial 가능
+    if (restoreAttempted === false && hasPurchaseHistory) {
+        console.log('[SSOT] State: loading (restore not attempted but has purchase history)');
+        return 'loading';
+    }
+    if (restoreAttempted === true && restoreSucceeded === false && hasPurchaseHistory) {
+        console.log('[SSOT] State: loading (restore failed but has purchase history)');
+        return 'loading';
+    }
+
+    // 5. expiresDate 유효성 검사 (CASE A)
+    if (entitlementActive && (!expiresDate || isNaN(expiresDate.getTime()))) {
+        console.log('[SSOT] State: loading (expiresDate invalid)');
+        return 'loading';
+    }
+
+    // 6. Product ID 검사 (CASE B, I)
+    const isValidProductId = productId === EXPECTED_PRODUCT_ID || LEGACY_PRODUCT_IDS.includes(productId || '');
+    if (entitlementActive && !isValidProductId) {
+        console.log('[SSOT] State: loading (productId mismatch:', productId, ')');
+        return 'loading';
+    }
+
+    // 7. 유효한 구독 상태
+    if (entitlementActive && expiresDate && expiresDate > serverTime) {
+        console.log('[SSOT] State: subscribed (entitlement active, expires:', expiresDate, ')');
+        return 'subscribed';
+    }
+
+    // 8. 체험 가능 조건
+    if (!hasPurchaseHistory && !hasUsedTrial) {
+        console.log('[SSOT] State: trial (new user, no purchase history, no trial used)');
+        return 'trial';
+    }
+
+    // 9. 그 외 (CASE J 포함)
+    console.log('[SSOT] State: blocked (hasPurchaseHistory:', hasPurchaseHistory, ', hasUsedTrial:', hasUsedTrial, ')');
+    return 'blocked';
+}
+
+/**
+ * 레거시 상태를 새 SSOT 상태로 변환
+ */
+export function convertLegacyStatus(legacy: LegacySubscriptionStatus): SubscriptionStatus {
+    switch (legacy) {
+        case 'active':
+            return 'subscribed';
+        case 'expired':
+            return 'blocked';
+        case 'trial':
+            return 'trial';
+        default:
+            return 'blocked';
+    }
+}
+
+/**
+ * 새 SSOT 상태를 레거시 상태로 변환 (기존 코드 호환용)
+ */
+export function convertToLegacyStatus(status: SubscriptionStatus): LegacySubscriptionStatus {
+    switch (status) {
+        case 'subscribed':
+            return 'active';
+        case 'blocked':
+            return 'expired';
+        case 'loading':
+            return 'expired'; // loading은 기존에 없으므로 expired로 처리 (안전 측)
+        case 'trial':
+            return 'trial';
+        default:
+            return 'expired';
+    }
+}
 
 /**
  * Initialize subscription on first app launch
@@ -59,21 +230,34 @@ export async function initializeSubscription(): Promise<void> {
 
 /**
  * Get current subscription status with detailed information
+ * Note: 이 함수는 로컬 상태를 반환합니다. 최종 상태 판별은 verifySubscriptionWithStore()를 사용하세요.
  */
 export async function getSubscriptionStatus(): Promise<SubscriptionState> {
     const trialStartDate = await AsyncStorage.getItem(SUBSCRIPTION_KEYS.TRIAL_START_DATE);
-    const status = await AsyncStorage.getItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS) as SubscriptionStatus || 'trial';
+    const rawStatus = await AsyncStorage.getItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS);
     const subscriptionStartDate = await AsyncStorage.getItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_START_DATE);
     const subscriptionExpiryDate = await AsyncStorage.getItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_EXPIRY_DATE);
+
+    // 레거시 상태 값 변환 ('active' -> 'subscribed', 'expired' -> 'blocked')
+    let status: SubscriptionStatus;
+    if (rawStatus === 'active') {
+        status = 'subscribed';
+    } else if (rawStatus === 'expired') {
+        status = 'blocked';
+    } else if (rawStatus === 'trial' || rawStatus === 'subscribed' || rawStatus === 'blocked' || rawStatus === 'loading') {
+        status = rawStatus as SubscriptionStatus;
+    } else {
+        status = 'trial'; // 기본값
+    }
 
     if (status === 'trial' && trialStartDate) {
         const daysRemaining = calculateDaysRemaining(trialStartDate);
 
         // Auto-expire trial if time is up
         if (daysRemaining <= 0) {
-            await setSubscriptionStatus('expired');
+            await setSubscriptionStatus('blocked');
             return {
-                status: 'expired',
+                status: 'blocked',
                 trialStartDate,
                 daysRemaining: 0,
             };
@@ -86,7 +270,7 @@ export async function getSubscriptionStatus(): Promise<SubscriptionState> {
         };
     }
 
-    if (status === 'active') {
+    if (status === 'subscribed') {
         // Active 구독 만료 체크
         if (subscriptionExpiryDate) {
             const expiryDate = new Date(subscriptionExpiryDate);
@@ -94,9 +278,9 @@ export async function getSubscriptionStatus(): Promise<SubscriptionState> {
 
             if (expiryDate < now) {
                 // 구독 만료됨
-                await setSubscriptionStatus('expired');
+                await setSubscriptionStatus('blocked');
                 return {
-                    status: 'expired',
+                    status: 'blocked',
                     subscriptionStartDate: subscriptionStartDate || undefined,
                     subscriptionExpiryDate: subscriptionExpiryDate,
                     daysRemaining: 0,
@@ -105,14 +289,14 @@ export async function getSubscriptionStatus(): Promise<SubscriptionState> {
         }
 
         return {
-            status: 'active',
+            status: 'subscribed',
             subscriptionStartDate: subscriptionStartDate || undefined,
             subscriptionExpiryDate: subscriptionExpiryDate || undefined,
         };
     }
 
     return {
-        status: 'expired',
+        status: 'blocked',
         trialStartDate: trialStartDate || undefined,
         daysRemaining: 0,
     };
@@ -139,7 +323,7 @@ function calculateDaysRemaining(trialStartDate: string): number {
  */
 export async function isAppAccessAllowed(): Promise<boolean> {
     const state = await getSubscriptionStatus();
-    return state.status === 'trial' || state.status === 'active';
+    return state.status === 'trial' || state.status === 'subscribed';
 }
 
 /**
@@ -149,7 +333,7 @@ export async function activateSubscription(expiryDate?: string): Promise<void> {
     const now = new Date().toISOString();
     const expiry = expiryDate || getDefaultExpiryDate();
 
-    await AsyncStorage.setItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS, 'active');
+    await AsyncStorage.setItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS, 'subscribed');
     await AsyncStorage.setItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_START_DATE, now);
     await AsyncStorage.setItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_EXPIRY_DATE, expiry);
 
@@ -159,7 +343,7 @@ export async function activateSubscription(expiryDate?: string): Promise<void> {
         `UPDATE subscription_state
      SET subscriptionStatus = ?, subscriptionStartDate = ?, subscriptionExpiryDate = ?, updatedAt = ?
      WHERE id = 1`,
-        ['active', now, expiry, now]
+        ['subscribed', now, expiry, now]
     );
 
     // Cancel trial end notification
@@ -170,7 +354,7 @@ export async function activateSubscription(expiryDate?: string): Promise<void> {
     if (userId) {
         const trialStartDate = await AsyncStorage.getItem(SUBSCRIPTION_KEYS.TRIAL_START_DATE);
         await syncSubscriptionToServer(userId, {
-            status: 'active',
+            status: 'subscribed',
             trialStartDate: trialStartDate || undefined,
             subscriptionStartDate: now,
             subscriptionExpiryDate: expiry,
@@ -305,7 +489,7 @@ export async function getSubscriptionStatusForUser(userId: string): Promise<Subs
         const db = await getDatabase();
         const record = await db.getFirstAsync<{
             trialStartDate: string;
-            subscriptionStatus: SubscriptionStatus;
+            subscriptionStatus: string; // DB에 레거시 값('active', 'expired')이 저장될 수 있음
             subscriptionStartDate: string | null;
             subscriptionExpiryDate: string | null;
         }>(
@@ -316,7 +500,7 @@ export async function getSubscriptionStatusForUser(userId: string): Promise<Subs
         if (!record) {
             // No subscription record for this user
             return {
-                status: 'expired',
+                status: 'blocked',
                 daysRemaining: 0,
             };
         }
@@ -329,7 +513,7 @@ export async function getSubscriptionStatusForUser(userId: string): Promise<Subs
             if (daysRemaining <= 0) {
                 await expireSubscriptionForUser(userId);
                 return {
-                    status: 'expired',
+                    status: 'blocked',
                     trialStartDate,
                     daysRemaining: 0,
                 };
@@ -342,16 +526,17 @@ export async function getSubscriptionStatusForUser(userId: string): Promise<Subs
             };
         }
 
-        if (subscriptionStatus === 'active') {
+        // DB에서 읽은 레거시 상태 값 변환
+        if (subscriptionStatus === 'active' || subscriptionStatus === 'subscribed') {
             return {
-                status: 'active',
+                status: 'subscribed',
                 subscriptionStartDate: subscriptionStartDate || undefined,
                 subscriptionExpiryDate: subscriptionExpiryDate || undefined,
             };
         }
 
         return {
-            status: 'expired',
+            status: 'blocked',
             trialStartDate: trialStartDate || undefined,
             daysRemaining: 0,
         };
@@ -426,7 +611,7 @@ export async function activateSubscriptionForUser(
             `UPDATE subscription_state 
              SET subscriptionStatus = ?, subscriptionStartDate = ?, subscriptionExpiryDate = ?, updatedAt = ?
              WHERE userId = ?`,
-            ['active', startDate, expiryDate, now, userId]
+            ['subscribed', startDate, expiryDate, now, userId]
         );
     } catch (error) {
         console.error('[Subscription] Activate subscription failed:', error);
@@ -444,7 +629,7 @@ export async function expireSubscriptionForUser(userId: string): Promise<void> {
 
         await db.runAsync(
             `UPDATE subscription_state SET subscriptionStatus = ?, updatedAt = ? WHERE userId = ?`,
-            ['expired', now, userId]
+            ['blocked', now, userId]
         );
     } catch (error) {
         console.error('[Subscription] Expire subscription failed:', error);
@@ -637,16 +822,19 @@ export async function startTrialSubscription(): Promise<void> {
 }
 
 /**
- * 구독 상태 조회 (단순 버전)
+ * 구독 상태 조회 (단순 버전) - 레거시 호환용 리턴 타입
  */
 export async function getSubscriptionState(): Promise<'free' | 'trial' | 'active' | 'expired'> {
     const status = await getSubscriptionStatus();
-    return status.status === 'trial' ? 'trial' : status.status === 'active' ? 'active' : 'expired';
+    // 새 SSOT 상태를 레거시 상태로 변환
+    if (status.status === 'trial') return 'trial';
+    if (status.status === 'subscribed') return 'active';
+    return 'expired'; // loading, blocked -> expired
 }
 
 /**
  * 구독 비활성화
  */
 export async function deactivateSubscription(): Promise<void> {
-    await setSubscriptionStatus('expired');
+    await setSubscriptionStatus('blocked');
 }
