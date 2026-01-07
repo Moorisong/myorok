@@ -290,9 +290,10 @@ const styles = StyleSheet.create({
         height: 16,
     },
     weeklyLabel: {
-        fontSize: 11,
+        fontSize: 9,
         color: COLORS.textSecondary,
         marginTop: 6,
+        textAlign: 'center',
     },
     legend: {
         flexDirection: 'row',

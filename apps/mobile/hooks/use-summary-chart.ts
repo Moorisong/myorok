@@ -432,23 +432,35 @@ export function useSummaryChart() {
 
                 const numWeeks = Math.min(Math.ceil(days / 7), 13);
 
+                const todayDate = new Date();
+                const startDate = new Date(todayDate);
+                startDate.setDate(startDate.getDate() - days + 1);
+
                 for (let i = 0; i < numWeeks; i++) {
+                    // 해당 주의 시작일 계산
+                    const weekStartDate = new Date(startDate);
+                    weekStartDate.setDate(startDate.getDate() + (i * 7));
+
+                    // 해당 월에서 몇째 주인지 계산
+                    const year = weekStartDate.getFullYear() % 100; // 2자리 연도
+                    const month = String(weekStartDate.getMonth() + 1).padStart(2, '0');
+                    const dayOfMonth = weekStartDate.getDate();
+                    const weekOfMonth = String(Math.ceil(dayOfMonth / 7)).padStart(2, '0');
+
+                    const weekLabel = `${year}년\n${month}월 ${weekOfMonth}주`;
+
                     weeklyData.push({
-                        weekLabel: `W${i + 1}`,
+                        weekLabel,
                         poop: 0,
                         diarrhea: 0,
                         vomit: 0
                     });
                     weeklyHydration.push({
-                        weekLabel: `W${i + 1}`,
+                        weekLabel,
                         force: 0,
                         fluid: 0
                     });
                 }
-
-                const todayDate = new Date();
-                const startDate = new Date(todayDate);
-                startDate.setDate(startDate.getDate() - days + 1);
 
                 sortedRecords.forEach(r => {
                     const recordDate = new Date(r.date);
