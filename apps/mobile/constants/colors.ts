@@ -35,4 +35,12 @@ export const COLORS = {
   yellowDark: '#FDE68A',    // Dark Yellow
   avatarBg: '#FFF3E0',      // Avatar Background
   pink: '#E91E63',          // Pink (Like)
+
+  // Pastel Tones (for buttons)
+  pastelGray: '#F3F4F6',
+  pastelGreen: '#D1FAE5',
+  pastelRed: '#FEF2F2',
+  textGreen: '#059669',
+  textRed: '#DC2626',
+  textGray: '#9CA3AF',
 } as const;

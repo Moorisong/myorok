@@ -54,9 +54,13 @@ export default function TodayScreen() {
 
         // Handlers
         handlePeeAdd,
+        handlePeeSubtract,
         handlePoopAdd,
+        handlePoopSubtract,
         handleDiarrheaAdd,
+        handleDiarrheaSubtract,
         handleVomitAdd,
+        handleVomitSubtract,
         handleVomitColorSelect,
         handleFluidDelete,
         handleSupplementToggle,
@@ -158,6 +162,7 @@ export default function TodayScreen() {
                                 label="소변"
                                 count={peeCount}
                                 onPressAdd={handlePeeAdd}
+                                onPressSubtract={handlePeeSubtract}
                                 onPressCount={() => openEditModal('pee')}
                             />
                             <CounterButton
@@ -165,6 +170,7 @@ export default function TodayScreen() {
                                 label="배변"
                                 count={poopCount}
                                 onPressAdd={handlePoopAdd}
+                                onPressSubtract={handlePoopSubtract}
                                 onPressCount={() => openEditModal('poop')}
                             />
                             <CounterButton
@@ -172,6 +178,7 @@ export default function TodayScreen() {
                                 label="묽은 변"
                                 count={diarrheaCount}
                                 onPressAdd={handleDiarrheaAdd}
+                                onPressSubtract={handleDiarrheaSubtract}
                                 onPressCount={() => openEditModal('diarrhea')}
                                 warning
                             />
@@ -180,6 +187,7 @@ export default function TodayScreen() {
                                 label="구토"
                                 count={vomitCount}
                                 onPressAdd={handleVomitAdd}
+                                onPressSubtract={handleVomitSubtract}
                                 onPressCount={() => openEditModal('vomit')}
                                 warning
                             />

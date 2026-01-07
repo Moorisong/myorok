@@ -82,73 +82,71 @@ export default function NumberEditModal({
             animationType="fade"
             onRequestClose={onCancel}
         >
-            <TouchableWithoutFeedback onPress={onCancel}>
+            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
                 <View style={styles.overlay}>
-                    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-                        <KeyboardAvoidingView
-                            behavior="height"
-                            style={styles.keyboardView}
-                        >
-                            <View style={styles.contentContainer}>
-                                <Text style={styles.title}>{title}</Text>
+                    <KeyboardAvoidingView
+                        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                        style={styles.keyboardView}
+                    >
+                        <View style={styles.contentContainer}>
+                            <Text style={styles.title}>{title}</Text>
 
-                                <View style={styles.inputContainer}>
-                                    <TextInput
-                                        ref={inputRef}
-                                        style={styles.input}
-                                        value={value}
-                                        onChangeText={setValue}
-                                        keyboardType="number-pad"
-                                        selectTextOnFocus
-                                    />
-                                    <Text style={styles.unitText}>회</Text>
-                                </View>
-
-                                {isVomitMode && parseInt(value, 10) > 0 && (
-                                    <View style={styles.colorSection}>
-                                        <Text style={styles.colorSectionTitle}>남겨둘 색상 선택 ({selectedColors.length}/{value})</Text>
-                                        <View style={styles.colorGrid}>
-                                            {vomitColors.map((color, index) => (
-                                                <Pressable
-                                                    key={index}
-                                                    style={[
-                                                        styles.colorChip,
-                                                        selectedColors.includes(color) && styles.colorChipSelected
-                                                    ]}
-                                                    onPress={() => toggleColor(color)}
-                                                >
-                                                    <Text style={[
-                                                        styles.colorChipText,
-                                                        selectedColors.includes(color) && styles.colorChipTextSelected
-                                                    ]}>{color}</Text>
-                                                </Pressable>
-                                            ))}
-                                        </View>
-                                        <Text style={styles.colorHint}>
-                                            {parseInt(value, 10) > selectedColors.length
-                                                ? `${parseInt(value, 10) - selectedColors.length}개 더 선택해주세요`
-                                                : '선택 완료'}
-                                        </Text>
-                                    </View>
-                                )}
-
-                                <View style={styles.buttonContainer}>
-                                    <Pressable
-                                        style={[styles.button, styles.cancelButton]}
-                                        onPress={onCancel}
-                                    >
-                                        <Text style={styles.cancelText}>취소</Text>
-                                    </Pressable>
-                                    <Pressable
-                                        style={[styles.button, styles.saveButton]}
-                                        onPress={handleSave}
-                                    >
-                                        <Text style={styles.saveText}>확인</Text>
-                                    </Pressable>
-                                </View>
+                            <View style={styles.inputContainer}>
+                                <TextInput
+                                    ref={inputRef}
+                                    style={styles.input}
+                                    value={value}
+                                    onChangeText={setValue}
+                                    keyboardType="number-pad"
+                                    selectTextOnFocus
+                                />
+                                <Text style={styles.unitText}>회</Text>
                             </View>
-                        </KeyboardAvoidingView>
-                    </TouchableWithoutFeedback>
+
+                            {isVomitMode && parseInt(value, 10) > 0 && (
+                                <View style={styles.colorSection}>
+                                    <Text style={styles.colorSectionTitle}>남겨둘 색상 선택 ({selectedColors.length}/{value})</Text>
+                                    <View style={styles.colorGrid}>
+                                        {vomitColors.map((color, index) => (
+                                            <Pressable
+                                                key={index}
+                                                style={[
+                                                    styles.colorChip,
+                                                    selectedColors.includes(color) && styles.colorChipSelected
+                                                ]}
+                                                onPress={() => toggleColor(color)}
+                                            >
+                                                <Text style={[
+                                                    styles.colorChipText,
+                                                    selectedColors.includes(color) && styles.colorChipTextSelected
+                                                ]}>{color}</Text>
+                                            </Pressable>
+                                        ))}
+                                    </View>
+                                    <Text style={styles.colorHint}>
+                                        {parseInt(value, 10) > selectedColors.length
+                                            ? `${parseInt(value, 10) - selectedColors.length}개 더 선택해주세요`
+                                            : '선택 완료'}
+                                    </Text>
+                                </View>
+                            )}
+
+                            <View style={styles.buttonContainer}>
+                                <Pressable
+                                    style={[styles.button, styles.cancelButton]}
+                                    onPress={onCancel}
+                                >
+                                    <Text style={styles.cancelText}>취소</Text>
+                                </Pressable>
+                                <Pressable
+                                    style={[styles.button, styles.saveButton]}
+                                    onPress={handleSave}
+                                >
+                                    <Text style={styles.saveText}>확인</Text>
+                                </Pressable>
+                            </View>
+                        </View>
+                    </KeyboardAvoidingView>
                 </View>
             </TouchableWithoutFeedback>
         </Modal>

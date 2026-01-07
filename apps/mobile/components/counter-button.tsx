@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import React, { useRef } from 'react';
+import { View, Text, StyleSheet, Pressable, Animated } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 
 import { COLORS } from '../constants';
@@ -9,6 +9,7 @@ interface CounterButtonProps {
     label: string;
     count: number;
     onPressAdd: () => void;
+    onPressSubtract?: () => void;
     onPressCount: () => void;
     warning?: boolean;
 }
@@ -18,9 +19,38 @@ export default function CounterButton({
     label,
     count,
     onPressAdd,
+    onPressSubtract,
     onPressCount,
     warning = false,
 }: CounterButtonProps) {
+    const addScaleAnim = useRef(new Animated.Value(1)).current;
+    const subtractScaleAnim = useRef(new Animated.Value(1)).current;
+
+    const animateButton = (scaleAnim: Animated.Value) => {
+        Animated.sequence([
+            Animated.timing(scaleAnim, {
+                toValue: 1.15,
+                duration: 100,
+                useNativeDriver: true,
+            }),
+            Animated.timing(scaleAnim, {
+                toValue: 1,
+                duration: 100,
+                useNativeDriver: true,
+            }),
+        ]).start();
+    };
+
+    const handleAddPress = () => {
+        animateButton(addScaleAnim);
+        onPressAdd();
+    };
+
+    const handleSubtractPress = () => {
+        animateButton(subtractScaleAnim);
+        onPressSubtract?.();
+    };
+
     return (
         <View style={[styles.counterBtn, warning && styles.counterBtnWarning]}>
             {/* Edit Area (Top) */}
@@ -31,9 +61,9 @@ export default function CounterButton({
                 ]}
                 onPress={onPressCount}
             >
-                <View style={styles.editIconContainer}>
+                {/* <View style={styles.editIconContainer}>
                     <Feather name="edit-2" size={12} color={COLORS.textSecondary} style={{ opacity: 0.5 }} />
-                </View>
+                </View> */}
                 <View style={{ height: 40, justifyContent: 'center', marginBottom: 4 }}>
                     {typeof emoji === 'string' ? (
                         <Text style={styles.counterEmoji}>{emoji}</Text>
@@ -45,18 +75,45 @@ export default function CounterButton({
                 <Text style={styles.counterCount}>{count}회</Text>
             </Pressable>
 
-            {/* +1 Button (Bottom) */}
-            <Pressable
-                style={({ pressed }) => [
-                    styles.plusButton,
-                    { backgroundColor: warning ? COLORS.error : COLORS.primary },
-                    pressed && { opacity: 0.8 },
-                ]}
-                onPress={onPressAdd}
-            >
-                <Feather name="plus" size={16} color="#FFFFFF" style={{ marginRight: 4 }} />
-                <Text style={styles.counterPlusWhite}>1</Text>
-            </Pressable>
+            {/* Button Row (Bottom) */}
+            <View style={styles.buttonRow}>
+                {onPressSubtract && (
+                    <Animated.View style={{ flex: 1, transform: [{ scale: subtractScaleAnim }] }}>
+                        <Pressable
+                            style={styles.subtractButton}
+                            onPress={handleSubtractPress}
+                        >
+                            <Feather name="minus" size={14} color={COLORS.textSecondary} style={{ marginRight: 2 }} />
+                            <Text style={[styles.counterPlusText, { color: COLORS.textSecondary }]}>1</Text>
+                        </Pressable>
+                    </Animated.View>
+                )}
+                <Animated.View
+                    style={[
+                        onPressSubtract && { flex: 1 },
+                        { transform: [{ scale: addScaleAnim }] }
+                    ]}
+                >
+                    <Pressable
+                        style={[
+                            styles.plusButton,
+                            { backgroundColor: COLORS.primary },
+                        ]}
+                        onPress={handleAddPress}
+                    >
+                        <Feather
+                            name="plus"
+                            size={14}
+                            color="#FFFFFF"
+                            style={{ marginRight: 2 }}
+                        />
+                        <Text style={[
+                            styles.counterPlusText,
+                            { color: '#FFFFFF' }
+                        ]}>1</Text>
+                    </Pressable>
+                </Animated.View>
+            </View>
         </View>
     );
 }
@@ -67,11 +124,9 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.surface,
         borderRadius: 16,
         overflow: 'hidden',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 4,
-        elevation: 2,
+        // Shadow removed
+        borderWidth: 1,
+        borderColor: COLORS.lightGray,
         marginBottom: 10,
     },
     counterContent: {
@@ -86,10 +141,22 @@ const styles = StyleSheet.create({
         top: 6,
         right: 6,
     },
+    buttonRow: {
+        flexDirection: 'row',
+        width: '100%',
+    },
+    subtractButton: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        paddingVertical: 12,
+        alignItems: 'center',
+        backgroundColor: COLORS.background,
+        width: '100%',
+    },
     plusButton: {
         flexDirection: 'row',
         justifyContent: 'center',
-        paddingVertical: 10,
+        paddingVertical: 12,
         alignItems: 'center',
         width: '100%',
     },
@@ -97,22 +164,22 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.warningBg,
     },
     counterEmoji: {
-        fontSize: 24,
-        marginBottom: 2,
+        fontSize: 20,
+        marginBottom: 4,
     },
     counterLabel: {
         fontSize: 12,
         color: COLORS.textSecondary,
-        marginBottom: 0,
+        marginBottom: 2,
     },
     counterCount: {
-        fontSize: 20,
+        fontSize: 18,
         fontWeight: '800',
         color: COLORS.textPrimary,
+        marginBottom: 4,
     },
-    counterPlusWhite: {
-        fontSize: 14,
-        color: '#FFFFFF',
-        fontWeight: '800',
+    counterPlusText: {
+        fontSize: 13,
+        fontWeight: '700',
     },
 });
