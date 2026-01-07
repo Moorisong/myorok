@@ -20,7 +20,7 @@ export const COLORS = {
 
   // Status Colors
   error: '#E57373',         // Soft Red
-  warning: '#FFB300',       // Amber
+  warning: '#D4915C',       // Soft Amber (less harsh)
   warningBg: '#FFF8E1',     // Warning Background
 
   // Chart & Data Colors

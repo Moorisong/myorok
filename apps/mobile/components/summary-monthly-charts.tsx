@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Circle, Path } from 'react-native-svg';
 
 import { COLORS } from '../constants';
 import Card from './card';
@@ -53,6 +53,144 @@ function findContinuousSegments(data: MonthlyChartData[], key: 'poop' | 'diarrhe
     return segments;
 }
 
+// 차트 상수 (6개월 - 월간)
+const CHART_CONFIG = {
+    columnWidth: 60,
+    chartHeight: 110,
+    dotRadius: 6,
+    valueAreaHeight: 60,
+    topPadding: 20,
+};
+
+// Y 좌표 계산 함수
+function getYPosition(value: number, maxValue: number): number {
+    const normalizedValue = value / maxValue;
+    return CHART_CONFIG.chartHeight - CHART_CONFIG.topPadding - (normalizedValue * CHART_CONFIG.valueAreaHeight);
+}
+
+function getXPosition(index: number): number {
+    return index * CHART_CONFIG.columnWidth + CHART_CONFIG.columnWidth / 2;
+}
+
+interface DotLineChartProps {
+    data: MonthlyChartData[];
+    dataKey: 'poop' | 'diarrhea' | 'vomit';
+    maxValue: number;
+    color: string;
+    title: string;
+}
+
+function DotLineChart({ data, dataKey, maxValue, color, title }: DotLineChartProps) {
+    const chartWidth = Math.max(data.length * CHART_CONFIG.columnWidth, 300);
+    const maxDisplayValue = Math.max(maxValue, 10);
+
+    if (data.length === 0) {
+        return (
+            <Card style={styles.card}>
+                <Text style={styles.sectionTitle}>{title}</Text>
+                <View style={styles.emptyContainer}>
+                    <Text style={styles.emptyText}>기록이 없습니다.</Text>
+                </View>
+            </Card>
+        );
+    }
+
+    return (
+        <Card style={styles.card}>
+            <Text style={styles.sectionTitle}>{title}</Text>
+            <Text style={styles.chartHint}>좌우로 스크롤하여 확인하세요</Text>
+
+            <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{
+                    flexGrow: 1,
+                    justifyContent: 'center',
+                }}
+            >
+                <View style={{ width: data.length <= 5 ? undefined : chartWidth, height: CHART_CONFIG.chartHeight + 40, backgroundColor: 'rgba(0, 0, 0, 0.02)', borderRadius: 8, padding: 8 }}>
+                    {/* SVG로 선과 점 그리기 */}
+                    <Svg width={chartWidth} height={CHART_CONFIG.chartHeight}>
+                        {/* 1. 연속 라인 */}
+                        {findContinuousSegments(data, dataKey).map((segment, segIndex) => {
+                            const pathData = segment.points
+                                .map((point, i) => {
+                                    const x = getXPosition(point.index);
+                                    const y = getYPosition(point.value, maxDisplayValue);
+                                    return i === 0 ? `M ${x} ${y}` : `L ${x} ${y}`;
+                                })
+                                .join(' ');
+
+                            return (
+                                <Path
+                                    key={segIndex}
+                                    d={pathData}
+                                    stroke={color}
+                                    strokeWidth={1.5}
+                                    fill="none"
+                                    opacity={0.5}
+                                />
+                            );
+                        })}
+
+                        {/* 2. 점 */}
+                        {data.map((month, index) => {
+                            const value = month[dataKey];
+                            if (value <= 0) return null;
+
+                            const x = getXPosition(index);
+                            const y = getYPosition(value, maxDisplayValue);
+
+                            return (
+                                <Circle
+                                    key={index}
+                                    cx={x}
+                                    cy={y}
+                                    r={CHART_CONFIG.dotRadius}
+                                    fill={color}
+                                />
+                            );
+                        })}
+                    </Svg>
+
+                    {/* 값 라벨 */}
+                    <View style={styles.labelsContainer}>
+                        {data.map((month, index) => {
+                            const value = month[dataKey];
+                            const hasData = value > 0;
+                            const y = hasData ? getYPosition(value, maxDisplayValue) : 0;
+
+                            return (
+                                <View key={index} style={[styles.labelColumn, { width: CHART_CONFIG.columnWidth }]}>
+                                    {hasData && (
+                                        <Text
+                                            style={[
+                                                styles.valueLabel,
+                                                { color, top: y - CHART_CONFIG.dotRadius - 14 }
+                                            ]}
+                                        >
+                                            {value}회
+                                        </Text>
+                                    )}
+                                </View>
+                            );
+                        })}
+                    </View>
+
+                    {/* 월 라벨 */}
+                    <View style={styles.dateLabelsContainer}>
+                        {data.map((month, index) => (
+                            <View key={index} style={[styles.labelColumn, { width: CHART_CONFIG.columnWidth }]}>
+                                <Text style={styles.dateLabel}>{month.monthLabel}</Text>
+                            </View>
+                        ))}
+                    </View>
+                </View>
+            </ScrollView>
+        </Card>
+    );
+}
+
 export default function SummaryMonthlyCharts({
     monthlyChartData,
     monthlyHydrationData
@@ -67,228 +205,37 @@ export default function SummaryMonthlyCharts({
         );
     }
 
+    const maxPoopValue = Math.max(...monthlyChartData.map(m => m.poop), 10);
+    const maxDiarrheaValue = Math.max(...monthlyChartData.map(m => m.diarrhea), 10);
+    const maxVomitValue = Math.max(...monthlyChartData.map(m => m.vomit), 10);
+
     return (
         <>
-            {/* 배변 횟수 차트 */}
-            <Card style={styles.card}>
-                <Text style={styles.sectionTitle}>배변 횟수 (월간)</Text>
-                <Text style={styles.chartHint}>
-                    점은 증상이 발생한 월입니다. 선은 연속으로 발생한 월을 연결한 표시이며, 발생하지 않은 월(0회)은 표시하지 않습니다.
-                </Text>
-                <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={{
-                        paddingRight: 20,
-                        flexGrow: monthlyChartData.length <= 5 ? 1 : 0,
-                        justifyContent: monthlyChartData.length <= 5 ? 'center' : 'flex-start',
-                    }}
-                >
-                    <View style={[styles.chartRow, { width: monthlyChartData.length * 60 }]}>
-                        {/* SVG로 연속 라인 그리기 */}
-                        <Svg
-                            style={StyleSheet.absoluteFill}
-                            width={Math.max(monthlyChartData.length * 60, 300)}
-                            height={110}
-                        >
-                            {findContinuousSegments(monthlyChartData, 'poop').map((segment, segIndex) => {
-                                const maxValue = Math.max(...monthlyChartData.map(m => m.poop), 10);
-                                const pathData = segment.points
-                                    .map((point, i) => {
-                                        const x = point.index * 60 + 30;
-                                        const y = 90 - (point.value / maxValue) * 60;
-                                        return i === 0 ? `M ${x} ${y}` : `L ${x} ${y}`;
-                                    })
-                                    .join(' ');
+            <DotLineChart
+                data={monthlyChartData}
+                dataKey="poop"
+                maxValue={maxPoopValue}
+                color={COLORS.primary}
+                title="배변 횟수 (월간)"
+            />
 
-                                return (
-                                    <Path
-                                        key={segIndex}
-                                        d={pathData}
-                                        stroke={COLORS.primary}
-                                        strokeWidth={1.5}
-                                        fill="none"
-                                        opacity={0.5}
-                                    />
-                                );
-                            })}
-                        </Svg>
+            <DotLineChart
+                data={monthlyChartData}
+                dataKey="diarrhea"
+                maxValue={maxDiarrheaValue}
+                color={COLORS.warning}
+                title="설사 횟수 (월간)"
+            />
 
-                        {/* 점과 라벨 */}
-                        {monthlyChartData.map((month, index) => {
-                            const maxValue = Math.max(...monthlyChartData.map(m => m.poop), 10);
-                            const hasData = month.poop > 0;
-                            return (
-                                <View key={index} style={styles.monthColumn}>
-                                    <View style={styles.dotArea}>
-                                        {hasData && (
-                                            <>
-                                                <Text style={styles.dotLabel}>{month.poop}회</Text>
-                                                <View
-                                                    style={[
-                                                        styles.dot,
-                                                        styles.dotPoop,
-                                                        { bottom: (month.poop / maxValue) * 60 }
-                                                    ]}
-                                                />
-                                            </>
-                                        )}
-                                    </View>
-                                    <Text style={styles.monthLabel}>{month.monthLabel}</Text>
-                                </View>
-                            );
-                        })}
-                    </View>
-                </ScrollView>
-            </Card>
+            <DotLineChart
+                data={monthlyChartData}
+                dataKey="vomit"
+                maxValue={maxVomitValue}
+                color={COLORS.error}
+                title="구토 횟수 (월간)"
+            />
 
-            {/* 설사 횟수 차트 */}
-            <Card style={styles.card}>
-                <Text style={styles.sectionTitle}>설사 횟수 (월간)</Text>
-                <Text style={styles.chartHint}>
-                    점은 증상이 발생한 월입니다. 선은 연속으로 발생한 월을 연결한 표시이며, 발생하지 않은 월(0회)은 표시하지 않습니다.
-                </Text>
-                <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={{
-                        paddingRight: 20,
-                        flexGrow: monthlyChartData.length <= 5 ? 1 : 0,
-                        justifyContent: monthlyChartData.length <= 5 ? 'center' : 'flex-start',
-                    }}
-                >
-                    <View style={[styles.chartRow, { width: monthlyChartData.length * 60 }]}>
-                        {/* SVG로 연속 라인 그리기 */}
-                        <Svg
-                            style={StyleSheet.absoluteFill}
-                            width={Math.max(monthlyChartData.length * 60, 300)}
-                            height={110}
-                        >
-                            {findContinuousSegments(monthlyChartData, 'diarrhea').map((segment, segIndex) => {
-                                const maxValue = Math.max(...monthlyChartData.map(m => m.diarrhea), 10);
-                                const pathData = segment.points
-                                    .map((point, i) => {
-                                        const x = point.index * 60 + 30;
-                                        const y = 90 - (point.value / maxValue) * 60;
-                                        return i === 0 ? `M ${x} ${y}` : `L ${x} ${y}`;
-                                    })
-                                    .join(' ');
-
-                                return (
-                                    <Path
-                                        key={segIndex}
-                                        d={pathData}
-                                        stroke={COLORS.warning}
-                                        strokeWidth={1.5}
-                                        fill="none"
-                                        opacity={0.5}
-                                    />
-                                );
-                            })}
-                        </Svg>
-
-                        {/* 점과 라벨 */}
-                        {monthlyChartData.map((month, index) => {
-                            const maxValue = Math.max(...monthlyChartData.map(m => m.diarrhea), 10);
-                            const hasData = month.diarrhea > 0;
-                            return (
-                                <View key={index} style={styles.monthColumn}>
-                                    <View style={styles.dotArea}>
-                                        {hasData && (
-                                            <>
-                                                <Text style={[styles.dotLabel, styles.dotLabelWarning]}>{month.diarrhea}회</Text>
-                                                <View
-                                                    style={[
-                                                        styles.dot,
-                                                        styles.dotWarning,
-                                                        { bottom: (month.diarrhea / maxValue) * 60 }
-                                                    ]}
-                                                />
-                                            </>
-                                        )}
-                                    </View>
-                                    <Text style={styles.monthLabel}>{month.monthLabel}</Text>
-                                </View>
-                            );
-                        })}
-                    </View>
-                </ScrollView>
-            </Card>
-
-            {/* 구토 횟수 차트 */}
-            <Card style={styles.card}>
-                <Text style={styles.sectionTitle}>구토 횟수 (월간)</Text>
-                <Text style={styles.chartHint}>
-                    점은 증상이 발생한 월입니다. 선은 연속으로 발생한 월을 연결한 표시이며, 발생하지 않은 월(0회)은 표시하지 않습니다.
-                </Text>
-                <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={{
-                        paddingRight: 20,
-                        flexGrow: monthlyChartData.length <= 5 ? 1 : 0,
-                        justifyContent: monthlyChartData.length <= 5 ? 'center' : 'flex-start',
-                    }}
-                >
-                    <View style={[styles.chartRow, { width: monthlyChartData.length * 60 }]}>
-                        {/* SVG로 연속 라인 그리기 */}
-                        <Svg
-                            style={StyleSheet.absoluteFill}
-                            width={Math.max(monthlyChartData.length * 60, 300)}
-                            height={110}
-                        >
-                            {findContinuousSegments(monthlyChartData, 'vomit').map((segment, segIndex) => {
-                                const maxValue = Math.max(...monthlyChartData.map(m => m.vomit), 10);
-                                const pathData = segment.points
-                                    .map((point, i) => {
-                                        const x = point.index * 60 + 30;
-                                        const y = 90 - (point.value / maxValue) * 60;
-                                        return i === 0 ? `M ${x} ${y}` : `L ${x} ${y}`;
-                                    })
-                                    .join(' ');
-
-                                return (
-                                    <Path
-                                        key={segIndex}
-                                        d={pathData}
-                                        stroke={COLORS.error}
-                                        strokeWidth={1.5}
-                                        fill="none"
-                                        opacity={0.5}
-                                    />
-                                );
-                            })}
-                        </Svg>
-
-                        {/* 점과 라벨 */}
-                        {monthlyChartData.map((month, index) => {
-                            const maxValue = Math.max(...monthlyChartData.map(m => m.vomit), 10);
-                            const hasData = month.vomit > 0;
-                            return (
-                                <View key={index} style={styles.monthColumn}>
-                                    <View style={styles.dotArea}>
-                                        {hasData && (
-                                            <>
-                                                <Text style={[styles.dotLabel, styles.dotLabelError]}>{month.vomit}회</Text>
-                                                <View
-                                                    style={[
-                                                        styles.dot,
-                                                        styles.dotError,
-                                                        { bottom: (month.vomit / maxValue) * 60 }
-                                                    ]}
-                                                />
-                                            </>
-                                        )}
-                                    </View>
-                                    <Text style={styles.monthLabel}>{month.monthLabel}</Text>
-                                </View>
-                            );
-                        })}
-                    </View>
-                </ScrollView>
-            </Card>
-
-            {/* 강수/수액 차트 */}
+            {/* 강수/수액 월간 차트 */}
             <Card style={styles.card}>
                 <Text style={styles.sectionTitle}>강수 / 수액 (월간)</Text>
                 <ScrollView
@@ -296,22 +243,22 @@ export default function SummaryMonthlyCharts({
                     showsHorizontalScrollIndicator={false}
                     contentContainerStyle={{ paddingRight: 20 }}
                 >
-                    <View style={styles.chartRow}>
+                    <View style={styles.hydrationChart}>
                         {monthlyHydrationData.map((month, index) => (
-                            <View key={index} style={styles.monthColumn}>
-                                <View style={styles.barArea}>
+                            <View key={index} style={styles.hydrationColumn}>
+                                <View style={styles.hydrationBarArea}>
                                     {(month.hasForce || month.hasFluid) && (
                                         <View style={styles.hydrationStack}>
                                             {month.hasForce && (
-                                                <View style={[styles.barSmall, styles.barForce]} />
+                                                <View style={[styles.hydrationBar, styles.barForce]} />
                                             )}
                                             {month.hasFluid && (
-                                                <View style={[styles.barSmall, styles.barFluid]} />
+                                                <View style={[styles.hydrationBar, styles.barFluid]} />
                                             )}
                                         </View>
                                     )}
                                 </View>
-                                <Text style={styles.monthLabel}>{month.monthLabel}</Text>
+                                <Text style={styles.dateLabel}>{month.monthLabel}</Text>
                             </View>
                         ))}
                     </View>
@@ -320,12 +267,12 @@ export default function SummaryMonthlyCharts({
                     <View style={styles.legendItem}>
                         <Text style={styles.legendEmoji}>💧</Text>
                         <View style={[styles.legendColor, styles.barForce]} />
-                        <Text style={styles.legendItemText}>강수</Text>
+                        <Text style={styles.legendText}>강수</Text>
                     </View>
                     <View style={styles.legendItem}>
                         <Text style={styles.legendEmoji}>💉</Text>
                         <View style={[styles.legendColor, styles.barFluid]} />
-                        <Text style={styles.legendItemText}>수액</Text>
+                        <Text style={styles.legendText}>수액</Text>
                     </View>
                 </View>
             </Card>
@@ -343,12 +290,14 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         color: COLORS.textPrimary,
         marginBottom: 4,
+        textAlign: 'center',
     },
     chartHint: {
         fontSize: 11,
         color: COLORS.textSecondary,
         marginBottom: 8,
         lineHeight: 16,
+        textAlign: 'center',
     },
     emptyContainer: {
         flex: 1,
@@ -362,60 +311,55 @@ const styles = StyleSheet.create({
         color: COLORS.textSecondary,
         textAlign: 'center',
     },
-    chartRow: {
+    labelsContainer: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        flexDirection: 'row',
+    },
+    dateLabelsContainer: {
+        flexDirection: 'row',
+        marginTop: 4,
+    },
+    labelColumn: {
+        alignItems: 'center',
+    },
+    valueLabel: {
+        fontSize: 10,
+        fontWeight: '600',
+        position: 'absolute',
+        textAlign: 'center',
+        width: '100%',
+        left: 7,
+    },
+    dateLabel: {
+        fontSize: 9,
+        color: COLORS.textSecondary,
+        textAlign: 'center',
+    },
+    hydrationChart: {
         flexDirection: 'row',
         alignItems: 'flex-end',
         height: 110,
         paddingTop: 10,
-        position: 'relative',
     },
-    monthColumn: {
+    hydrationColumn: {
         alignItems: 'center',
         width: 60,
     },
-    dotArea: {
-        height: 80,
-        width: '100%',
-        justifyContent: 'flex-end',
-        alignItems: 'center',
-        position: 'relative',
-    },
-    dot: {
-        width: 12,
-        height: 12,
-        borderRadius: 6,
-        position: 'absolute',
-    },
-    dotPoop: {
-        backgroundColor: COLORS.primary,
-    },
-    dotWarning: {
-        backgroundColor: COLORS.warning,
-    },
-    dotError: {
-        backgroundColor: COLORS.error,
-    },
-    dotLabel: {
-        fontSize: 10,
-        fontWeight: '600',
-        color: COLORS.primary,
-        position: 'absolute',
-        top: -6,
-        textAlign: 'center',
-    },
-    dotLabelWarning: {
-        color: COLORS.warning,
-    },
-    dotLabelError: {
-        color: COLORS.error,
-    },
-    barArea: {
+    hydrationBarArea: {
         height: 70,
         width: '100%',
         justifyContent: 'flex-end',
         alignItems: 'center',
     },
-    barSmall: {
+    hydrationStack: {
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 2,
+    },
+    hydrationBar: {
         width: 28,
         height: 22,
         borderRadius: 4,
@@ -425,16 +369,6 @@ const styles = StyleSheet.create({
     },
     barFluid: {
         backgroundColor: COLORS.emeraldDeep,
-    },
-    hydrationStack: {
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: 2,
-    },
-    monthLabel: {
-        fontSize: 9,
-        color: COLORS.textSecondary,
-        marginTop: 4,
     },
     legend: {
         flexDirection: 'row',
@@ -456,7 +390,7 @@ const styles = StyleSheet.create({
         borderRadius: 3,
         marginRight: 6,
     },
-    legendItemText: {
+    legendText: {
         fontSize: 13,
         color: COLORS.textSecondary,
     },
