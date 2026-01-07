@@ -6,11 +6,9 @@ import { COLORS } from '../../../constants';
 import {
     Header,
     Card,
-    SummaryOverallCards,
-    SummaryWeeklyCharts,
-    SummaryDailyCharts
+    SummaryOverallCards
 } from '../../../components';
-import SummaryMonthlyCharts from '../../../components/summary-monthly-charts';
+import SummaryCharts from '../../../components/summary-charts';
 import { useSummaryChart } from '../../../hooks/use-summary-chart';
 import type { Period } from '../../../types/chart-types';
 
@@ -81,30 +79,21 @@ export default function SummaryChartScreen() {
                             <Text style={styles.emptyText}>기록이 없습니다.</Text>
                         </View>
                     </Card>
-                ) : period === '6m' ? (
-                    <SummaryMonthlyCharts
-                        monthlyChartData={monthlyChartData}
-                        monthlyHydrationData={monthlyHydrationData}
-                    />
-                ) : period === '3m' ? (
-                    <SummaryWeeklyCharts
-                        weeklyChartData={weeklyChartData}
-                        weeklyHydrationData={weeklyHydrationData}
-                        scrollViewRef3m1={scrollViewRef3m1}
-                        scrollViewRef3m2={scrollViewRef3m2}
-                        scrollViewRef3m3={scrollViewRef3m3}
-                        scrollViewRef3m4={scrollViewRef3m4}
-                    />
                 ) : (
-                    <SummaryDailyCharts
+                    <SummaryCharts
+                        period={period}
                         chartData={chartData}
                         hydrationData={hydrationData}
                         maxValue={maxValue}
                         maxVolValue={maxVolValue}
-                        scrollViewRef={scrollViewRef}
-                        scrollViewRef2={scrollViewRef2}
-                        scrollViewRef3={scrollViewRef3}
-                        scrollViewRef4={scrollViewRef4}
+                        weeklyChartData={weeklyChartData}
+                        weeklyHydrationData={weeklyHydrationData}
+                        monthlyChartData={monthlyChartData}
+                        monthlyHydrationData={monthlyHydrationData}
+                        scrollViewRefs={{
+                            daily: [scrollViewRef, scrollViewRef2, scrollViewRef3, scrollViewRef4],
+                            weekly: [scrollViewRef3m1, scrollViewRef3m2, scrollViewRef3m3, scrollViewRef3m4]
+                        }}
                     />
                 )}
             </ScrollView>
