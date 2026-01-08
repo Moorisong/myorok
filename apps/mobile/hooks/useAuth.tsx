@@ -36,6 +36,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const checkAuthStatus = useCallback(async () => {
         try {
+            // DEV 모드: admin 계정 자동 로그인 (테스트용)
+            if (__DEV__ && process.env.EXPO_PUBLIC_DEV_ADMIN_ID) {
+                const AsyncStorage = await import('@react-native-async-storage/async-storage').then(m => m.default);
+                const existingUserId = await AsyncStorage.getItem('current_user_id');
+
+                if (!existingUserId) {
+                    console.log('[AuthContext] DEV mode: Auto-login with admin account');
+                    const adminId = process.env.EXPO_PUBLIC_DEV_ADMIN_ID;
+                    await AsyncStorage.setItem('current_user_id', adminId);
+                    await AsyncStorage.setItem('is_admin', 'true');
+                    await AsyncStorage.setItem('dev_auto_login', 'true'); // Deep link handler에서 trial 시작 건너뛰기
+                    await AsyncStorage.setItem('kakao_user_info', JSON.stringify({
+                        id: adminId,
+                        nickname: 'Dev Admin',
+                        isAdmin: true,
+                    }));
+                }
+            }
+
             const currentUserId = await getCurrentUserId();
             setUserId(currentUserId);
             setIsLoggedIn(!!currentUserId);

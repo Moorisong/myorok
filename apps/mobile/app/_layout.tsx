@@ -35,6 +35,7 @@ function AppContent() {
   const NotificationsRef = useRef<any>(null);
   const appState = useRef(AppState.currentState);
   const subscriptionCheckInterval = useRef<NodeJS.Timeout | null>(null);
+  const subscriptionStatusRef = useRef(subscriptionStatus); // For closure access
 
   // Direct OAuth URL construction (bypasses expo-auth-session to avoid PKCE issues)
 
@@ -316,13 +317,20 @@ function AppContent() {
             const now = new Date().toISOString();
 
             if (!existingUser) {
-              // New user - create in DB and start trial
+              // New user - create in DB
               await db.runAsync(
                 `INSERT INTO users (id, nickname, profileImage, createdAt, lastLogin)
                  VALUES (?, ?, ?, ?, ?)`,
                 [user.id, user.nickname, user.profileImage || null, now, now]
               );
-              await startTrialForUser(user.id);
+
+              // Dev auto-login에서는 trial 시작 건너뛰기 (이미 서버에 기록된 사용자일 수 있음)
+              const isDevAutoLogin = await AsyncStorage.getItem('dev_auto_login');
+              if (!isDevAutoLogin) {
+                await startTrialForUser(user.id);
+              } else {
+                console.log('[DeepLink] Skipping trial start for dev auto-login');
+              }
 
               // Migrate legacy data (data created before login)
               await migrateLegacyDataToUser(user.id);
@@ -424,9 +432,23 @@ function AppContent() {
       return;
     }
 
+    // Ref를 현재 값으로 업데이트 (closure 문제 해결)
+    subscriptionStatusRef.current = subscriptionStatus;
+
     // 구독 상태 체크 함수
     const checkSubscriptionStatus = async () => {
       try {
+        // Ref에서 현재 상태 읽기 (closure가 아닌 최신 값)
+        const currentStatus = subscriptionStatusRef.current;
+
+        // SSOT가 아직 실행되지 않았거나 'loading'을 반환한 경우, 로컬 상태로 덮어쓰지 않음
+        // null: 아직 SSOT가 실행되지 않음
+        // 'loading': 서버 검증 실패 (D-1 SSOT)
+        if (currentStatus === null || currentStatus === 'loading') {
+          console.log('[AppState] Skipping status check - status is', currentStatus, '(D-1 SSOT)');
+          return;
+        }
+
         const { getSubscriptionState } = await import('../services/subscription');
         const currentState = await getSubscriptionState();
 

@@ -117,6 +117,13 @@ export async function getCurrentUserId(): Promise<string | null> {
             return null;
         }
 
+        // Dev auto-login: 세션 검증 건너뛰기 (오프라인 테스트용)
+        const isDevAutoLogin = await AsyncStorage.getItem('dev_auto_login');
+        if (isDevAutoLogin === 'true') {
+            console.log('[UserService] Skipping session check for dev auto-login');
+            return userId;
+        }
+
         // Verify session is still valid
         const session = await getAuthSession();
         if (!session) {
