@@ -297,6 +297,62 @@ export default function SettingsScreen() {
                             }}
                         />
                         <SettingItem
+                            emoji="📜"
+                            title="Test Case C-1 (결제이력O+만료)"
+                            type="link"
+                            onPress={() => {
+                                Alert.alert(
+                                    'Test Case C-1',
+                                    '결제 이력은 있지만 만료된 상태(CASE J)를 시뮬레이션합니다.\n앱 데이터가 초기화됩니다.',
+                                    [
+                                        { text: '취소', style: 'cancel' },
+                                        {
+                                            text: '실행',
+                                            style: 'destructive',
+                                            onPress: async () => {
+                                                try {
+                                                    const { setupTestCase_C1 } = await import('../../../services/subscription');
+                                                    await setupTestCase_C1();
+                                                    Alert.alert('완료', '설정 완료. 앱을 수동으로 재실행(r)해주세요.');
+                                                } catch (e) {
+                                                    console.error(e);
+                                                    Alert.alert('오류', '설정 실패');
+                                                }
+                                            }
+                                        }
+                                    ]
+                                );
+                            }}
+                        />
+                        <SettingItem
+                            emoji="🔄"
+                            title="Test Case C-2 (Restore 실패)"
+                            description="결제 이력 O, Restore 시도 O, Restore 실패"
+                            onPress={() => {
+                                Alert.alert(
+                                    'Test Case C-2',
+                                    '복원을 시도했으나 실패한 상태(CASE D)를 시뮬레이션합니다.\n앱 데이터가 초기화됩니다.',
+                                    [
+                                        { text: '취소', style: 'cancel' },
+                                        {
+                                            text: '실행',
+                                            style: 'destructive',
+                                            onPress: async () => {
+                                                try {
+                                                    const { setupTestCase_C2 } = await import('../../../services/subscription');
+                                                    await setupTestCase_C2();
+                                                    Alert.alert('완료', '설정 완료. 앱을 수동으로 재실행(r)해주세요.');
+                                                } catch (e) {
+                                                    console.error(e);
+                                                    Alert.alert('오류', '설정 실패');
+                                                }
+                                            }
+                                        }
+                                    ]
+                                );
+                            }}
+                        />
+                        <SettingItem
                             emoji="📊"
                             title="1년 테스트 데이터 생성 (Dev)"
                             description="365일치 무작위 기록 생성"

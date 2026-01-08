@@ -13,6 +13,7 @@ const SUBSCRIPTION_KEYS = {
     SUBSCRIPTION_EXPIRY_DATE: 'subscription_expiry_date',
     HAS_USED_TRIAL: 'has_used_trial',
     RESTORE_ATTEMPTED: 'restore_attempted',
+    RESTORE_SUCCEEDED: 'restore_succeeded',
 };
 
 // ============================================================
@@ -377,15 +378,22 @@ export async function verifySubscriptionWithServer(): Promise<{
         };
     }
 
-    // 2. restore 시도 여부 확인 (로컬)
+    // 2. restore 시도 여부 및 성공 여부 확인 (로컬)
     const restoreAttempted = await AsyncStorage.getItem(SUBSCRIPTION_KEYS.RESTORE_ATTEMPTED);
+    const restoreSucceeded = await AsyncStorage.getItem(SUBSCRIPTION_KEYS.RESTORE_SUCCEEDED);
     serverResult.restoreAttempted = restoreAttempted === 'true';
+    serverResult.restoreSucceeded = restoreSucceeded === 'true';
 
     // 3. SSOT 판별
     const status = determineSubscriptionState(serverResult);
 
     // 4. 로컬 상태 업데이트
     await setSubscriptionStatus(status);
+
+    // hasPurchaseHistory도 로컬에 저장 (CASE J 판별용)
+    if (serverResult.hasPurchaseHistory !== undefined) {
+        await AsyncStorage.setItem('has_purchase_history', serverResult.hasPurchaseHistory ? 'true' : 'false');
+    }
 
     // 5. SubscriptionState 구성
     const state: SubscriptionState = {
@@ -415,6 +423,14 @@ export async function verifySubscriptionWithServer(): Promise<{
  */
 export async function initializeSubscription(): Promise<void> {
     const trialStartDate = await AsyncStorage.getItem(SUBSCRIPTION_KEYS.TRIAL_START_DATE);
+    const existingStatus = await AsyncStorage.getItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS);
+
+    // 이미 상태가 설정되어 있다면 (blocked, subscribed 등) 덮어쓰지 않음
+    // 단, trial 상태이면서 날짜가 없는 경우(오류)는 복구
+    if (existingStatus && existingStatus !== 'trial') {
+        console.log('[Subscription] Skipping initialization, existing status:', existingStatus);
+        return;
+    }
 
     if (!trialStartDate) {
         const now = new Date().toISOString();
@@ -449,6 +465,7 @@ export async function getSubscriptionStatus(): Promise<SubscriptionState> {
     const rawStatus = await AsyncStorage.getItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS);
     const subscriptionStartDate = await AsyncStorage.getItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_START_DATE);
     const subscriptionExpiryDate = await AsyncStorage.getItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_EXPIRY_DATE);
+    const hasPurchaseHistoryStr = await AsyncStorage.getItem('has_purchase_history');
 
     // 레거시 상태 값 변환 ('active' -> 'subscribed', 'expired' -> 'blocked')
     let status: SubscriptionStatus;
@@ -461,6 +478,8 @@ export async function getSubscriptionStatus(): Promise<SubscriptionState> {
     } else {
         status = 'blocked'; // 안전한 기본값 (실수/오류 시 체험 부여 방지)
     }
+
+    const hasPurchaseHistory = hasPurchaseHistoryStr === 'true';
 
     if (status === 'trial' && trialStartDate) {
         const daysRemaining = calculateDaysRemaining(trialStartDate);
@@ -479,6 +498,7 @@ export async function getSubscriptionStatus(): Promise<SubscriptionState> {
             status: 'trial',
             trialStartDate,
             daysRemaining,
+            hasPurchaseHistory,
         };
     }
 
@@ -496,6 +516,7 @@ export async function getSubscriptionStatus(): Promise<SubscriptionState> {
                     subscriptionStartDate: subscriptionStartDate || undefined,
                     subscriptionExpiryDate: subscriptionExpiryDate,
                     daysRemaining: 0,
+                    hasPurchaseHistory,
                 };
             }
         }
@@ -504,6 +525,7 @@ export async function getSubscriptionStatus(): Promise<SubscriptionState> {
             status: 'subscribed',
             subscriptionStartDate: subscriptionStartDate || undefined,
             subscriptionExpiryDate: subscriptionExpiryDate || undefined,
+            hasPurchaseHistory,
         };
     }
 
@@ -511,6 +533,7 @@ export async function getSubscriptionStatus(): Promise<SubscriptionState> {
         status: 'blocked',
         trialStartDate: trialStartDate || undefined,
         daysRemaining: 0,
+        hasPurchaseHistory,
     };
 }
 
@@ -696,7 +719,8 @@ async function syncSubscriptionToServer(
     userId: string,
     state: SubscriptionState,
     productId?: string,
-    purchaseToken?: string
+    purchaseToken?: string,
+    throwOnError: boolean = false
 ): Promise<void> {
     try {
         const token = await AsyncStorage.getItem('jwt_token');
@@ -707,12 +731,19 @@ async function syncSubscriptionToServer(
 
         const deviceId = await getDeviceId();
 
+        // Timeout implementation
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+
+        console.log(`[Subscription] Syncing to ${API_URL}/api/subscription/sync...`);
+
         const response = await fetch(`${API_URL}/api/subscription/sync`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json',
             },
+            signal: controller.signal,
             body: JSON.stringify({
                 userId,
                 deviceId,
@@ -725,14 +756,21 @@ async function syncSubscriptionToServer(
             }),
         });
 
+        clearTimeout(timeoutId);
+
         if (!response.ok) {
-            console.error('[Subscription] Server sync failed:', response.status);
-        } else {
-            console.log('[Subscription] Server sync successful');
+            const errorText = await response.text();
+            console.error('[Subscription] Server sync failed:', response.status, errorText);
+            throw new Error(`Server sync failed: ${response.status}`);
         }
+
+        console.log('[Subscription] Server sync successful');
     } catch (error) {
         console.error('[Subscription] Server sync error:', error);
-        // Don't throw - sync is optional
+        if (throwOnError) {
+            throw error;
+        }
+        // Don't throw - sync is optional for normal usage
     }
 }
 
@@ -1161,6 +1199,128 @@ export async function setupTestCase_A2(): Promise<void> {
         console.log('[Subscription] Case A-2 Setup Complete. Restarting...');
     } catch (error) {
         console.error('[Subscription] Setup Case A-2 failed:', error);
+        throw error;
+    }
+}
+
+/**
+ * Setup Test Case C-1: Purchase History O, Entitlement X (CASE J)
+ * 1. Sync as subscribed (past date) -> Server records hasPurchaseHistory = true
+ * 2. Sync as blocked (current) -> Server records status = blocked
+ * 3. Clear local data (Simulate fresh login)
+ * 4. Set RESTORE_ATTEMPTED flag (simulate restore attempt without Google Play subscription)
+ */
+export async function setupTestCase_C1(): Promise<void> {
+    try {
+        console.log('[Subscription] Setting up Case C-1...');
+        const userId = await AsyncStorage.getItem('current_user_id');
+        if (!userId) throw new Error('No user logged in');
+
+        // 1. Sync as subscribed (Past)
+        const pastDate = new Date();
+        pastDate.setFullYear(pastDate.getFullYear() - 1); // 1 year ago
+        const pastExpiry = new Date(pastDate);
+        pastExpiry.setMonth(pastExpiry.getMonth() + 1); // 1 month subscription
+
+        await syncSubscriptionToServer(userId, {
+            status: 'subscribed',
+            subscriptionStartDate: pastDate.toISOString(),
+            subscriptionExpiryDate: pastExpiry.toISOString(),
+        }, 'test_product_id', 'test_token', true); // throwOnError = true
+
+        console.log('[Subscription] Step 1: Simulated past subscription');
+
+        // 2. Sync as blocked (Current)
+        await syncSubscriptionToServer(userId, {
+            status: 'blocked',
+            // No start/expiry dates needed, just status update
+        }, undefined, undefined, true); // throwOnError = true
+
+        console.log('[Subscription] Step 2: Set status to blocked');
+
+        // 3. Clear local data
+        console.log('[Subscription] Clearing local data...');
+        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.TRIAL_START_DATE);
+        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS);
+        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_START_DATE);
+        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_EXPIRY_DATE);
+        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.HAS_USED_TRIAL);
+        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.RESTORE_ATTEMPTED);
+
+        const db = await getDatabase();
+        await db.execAsync('DELETE FROM subscription_state');
+
+        // 4. Set RESTORE_ATTEMPTED flag to simulate restore attempt
+        // This is needed for SSOT to show block screen instead of loading state
+        // Note: In real C-1 scenario, user would attempt restore and fail because
+        // there's no actual Google Play subscription
+        await AsyncStorage.setItem(SUBSCRIPTION_KEYS.RESTORE_ATTEMPTED, 'true');
+
+        console.log('[Subscription] Step 3: Set RESTORE_ATTEMPTED flag (simulating failed restore)');
+        console.log('[Subscription] Case C-1 Setup Complete. Restarting...');
+    } catch (error) {
+        console.error('[Subscription] Setup Case C-1 failed:', error);
+        throw error;
+    }
+}
+
+/**
+ * Setup Test Case C-2: Restore 시도했으나 실패 (CASE D)
+ * 1. Sync as subscribed (past date) -> Server records hasPurchaseHistory = true
+ * 2. Sync as blocked (current) -> Server records status = blocked
+ * 3. Clear local data (Simulate fresh login)
+ * 4. Set RESTORE_ATTEMPTED = true, RESTORE_SUCCEEDED = false (simulate restore failure)
+ */
+export async function setupTestCase_C2(): Promise<void> {
+    try {
+        console.log('[Subscription] Setting up Case C-2...');
+        const userId = await AsyncStorage.getItem('current_user_id');
+        if (!userId) throw new Error('No user logged in');
+
+        // 1. Sync as subscribed (Past)
+        const pastDate = new Date();
+        pastDate.setFullYear(pastDate.getFullYear() - 1); // 1 year ago
+        const pastExpiry = new Date(pastDate);
+        pastExpiry.setMonth(pastExpiry.getMonth() + 1); // 1 month subscription
+
+        await syncSubscriptionToServer(userId, {
+            status: 'subscribed',
+            subscriptionStartDate: pastDate.toISOString(),
+            subscriptionExpiryDate: pastExpiry.toISOString(),
+        }, 'test_product_id', 'test_token', true); // throwOnError = true
+
+        console.log('[Subscription] Step 1: Simulated past subscription');
+
+        // 2. Sync as blocked (Current)
+        await syncSubscriptionToServer(userId, {
+            status: 'blocked',
+            // No start/expiry dates needed, just status update
+        }, undefined, undefined, true); // throwOnError = true
+
+        console.log('[Subscription] Step 2: Set status to blocked');
+
+        // 3. Clear local data
+        console.log('[Subscription] Clearing local data...');
+        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.TRIAL_START_DATE);
+        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS);
+        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_START_DATE);
+        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_EXPIRY_DATE);
+        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.HAS_USED_TRIAL);
+        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.RESTORE_ATTEMPTED);
+        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.RESTORE_SUCCEEDED);
+
+        const db = await getDatabase();
+        await db.execAsync('DELETE FROM subscription_state');
+
+        // 4. Set RESTORE flags to simulate restore failure
+        // This will trigger loading state with restore retry screen
+        await AsyncStorage.setItem(SUBSCRIPTION_KEYS.RESTORE_ATTEMPTED, 'true');
+        await AsyncStorage.setItem(SUBSCRIPTION_KEYS.RESTORE_SUCCEEDED, 'false');
+
+        console.log('[Subscription] Step 3: Set RESTORE flags (simulating restore failure)');
+        console.log('[Subscription] Case C-2 Setup Complete. Restarting...');
+    } catch (error) {
+        console.error('[Subscription] Setup Case C-2 failed:', error);
         throw error;
     }
 }
