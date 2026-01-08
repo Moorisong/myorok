@@ -45,7 +45,7 @@ const config: Config = {
     kakaoIds: process.env.ADMIN_KAKAO_IDS || '',
   },
   database: {
-    url: process.env.DATABASE_URL || 'postgresql://localhost:5432/myorok',
+    url: process.env.MONGODB_URI || 'mongodb://localhost:27017/myorok',
   },
   googlePlay: {
     packageName: process.env.GOOGLE_PLAY_PACKAGE_NAME || 'com.haroo.myorok',
@@ -73,7 +73,7 @@ const validateConfig = (): void => {
   }
 
   // Warn for optional but recommended vars
-  const optionalVars = ['DATABASE_URL', 'GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL'];
+  const optionalVars = ['MONGODB_URI', 'GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL'];
   optionalVars.forEach(varName => {
     if (!process.env[varName]) {
       console.warn(`[Config] Warning: ${varName} not set, using default/mock`);

@@ -2,7 +2,6 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import path from 'path';
 import { config, validateConfig } from './config';
-import { initializeDatabase } from './config/database';
 import authRoutes from './routes/authRoutes';
 import subscriptionRoutes from './routes/subscriptionRoutes';
 
@@ -63,12 +62,13 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 // Start server with database initialization
 const startServer = async () => {
   try {
-    // Initialize database tables (optional - will warn if DATABASE_URL not set)
-    if (process.env.DATABASE_URL) {
-      await initializeDatabase();
-      console.log('[Server] Database initialized');
+    // Initialize MongoDB connection (optional - will warn if MONGODB_URI not set)
+    if (process.env.MONGODB_URI) {
+      const { connectDatabase } = await import('./config/database');
+      await connectDatabase();
+      console.log('[Server] MongoDB connected');
     } else {
-      console.warn('[Server] DATABASE_URL not set, running without persistent storage');
+      console.warn('[Server] MONGODB_URI not set, running without persistent storage');
     }
 
     const PORT = config.server.port;

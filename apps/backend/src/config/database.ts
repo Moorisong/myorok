@@ -1,94 +1,89 @@
-import { Pool } from 'pg';
+import mongoose from 'mongoose';
 import { config } from './index';
 
-// PostgreSQL connection pool
-const pool = new Pool({
-    connectionString: config.database.url,
-    max: 10,
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 2000,
-});
-
-// Test database connection
-pool.on('connect', () => {
-    console.log('[Database] Connected to PostgreSQL');
-});
-
-pool.on('error', (err) => {
-    console.error('[Database] Unexpected error on idle client', err);
-});
-
-export { pool };
-
 /**
- * Initialize database tables
+ * MongoDB 연결 초기화
  */
-export async function initializeDatabase(): Promise<void> {
-    const client = await pool.connect();
+export async function connectDatabase(): Promise<void> {
+    const mongoUrl = config.database.url;
+
+    if (!mongoUrl || mongoUrl === 'mongodb://localhost:27017/myorok') {
+        console.warn('[Database] MONGODB_URL not set, using default local connection');
+    }
+
     try {
-        // Create trial_records table
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS trial_records (
-                id SERIAL PRIMARY KEY,
-                user_id VARCHAR(255) UNIQUE NOT NULL,
-                trial_started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                device_id VARCHAR(255),
-                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-            );
-        `);
-
-        // Create subscription_records table
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS subscription_records (
-                id SERIAL PRIMARY KEY,
-                user_id VARCHAR(255) UNIQUE NOT NULL,
-                status VARCHAR(50) NOT NULL DEFAULT 'blocked',
-                trial_started_at TIMESTAMPTZ,
-                subscription_started_at TIMESTAMPTZ,
-                subscription_expires_at TIMESTAMPTZ,
-                product_id VARCHAR(255),
-                purchase_token TEXT,
-                order_id VARCHAR(255),
-                last_verified_at TIMESTAMPTZ,
-                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-            );
-        `);
-
-        // Create purchase_verifications table (for audit trail)
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS purchase_verifications (
-                id SERIAL PRIMARY KEY,
-                user_id VARCHAR(255) NOT NULL,
-                purchase_token TEXT NOT NULL,
-                order_id VARCHAR(255),
-                product_id VARCHAR(255),
-                verification_result JSONB,
-                verified_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-            );
-        `);
-
-        // Create indexes
-        await client.query(`
-            CREATE INDEX IF NOT EXISTS idx_trial_records_user_id ON trial_records(user_id);
-            CREATE INDEX IF NOT EXISTS idx_subscription_records_user_id ON subscription_records(user_id);
-            CREATE INDEX IF NOT EXISTS idx_subscription_records_status ON subscription_records(status);
-            CREATE INDEX IF NOT EXISTS idx_purchase_verifications_user_id ON purchase_verifications(user_id);
-        `);
-
-        console.log('[Database] Tables initialized successfully');
+        await mongoose.connect(mongoUrl, {
+            // Mongoose 6+ 기본 옵션
+        });
+        console.log('[Database] Connected to MongoDB');
     } catch (error) {
-        console.error('[Database] Failed to initialize tables:', error);
+        console.error('[Database] MongoDB connection failed:', error);
         throw error;
-    } finally {
-        client.release();
     }
 }
 
 /**
- * Close database connection pool
+ * MongoDB 연결 종료
  */
-export async function closeDatabase(): Promise<void> {
-    await pool.end();
-    console.log('[Database] Connection pool closed');
+export async function disconnectDatabase(): Promise<void> {
+    await mongoose.disconnect();
+    console.log('[Database] Disconnected from MongoDB');
 }
+
+// ============================================================
+// Schemas
+// ============================================================
+
+/**
+ * Trial Record Schema - 무료체험 사용 기록
+ */
+const trialRecordSchema = new mongoose.Schema({
+    userId: { type: String, required: true, unique: true, index: true },
+    trialStartedAt: { type: Date, required: true, default: Date.now },
+    deviceId: { type: String, default: 'unknown' },
+}, {
+    timestamps: true,
+});
+
+/**
+ * Subscription Record Schema - 구독 상태 기록
+ */
+const subscriptionRecordSchema = new mongoose.Schema({
+    userId: { type: String, required: true, unique: true, index: true },
+    status: {
+        type: String,
+        enum: ['trial', 'subscribed', 'blocked'],
+        default: 'blocked'
+    },
+    trialStartedAt: { type: Date },
+    subscriptionStartedAt: { type: Date },
+    subscriptionExpiresAt: { type: Date },
+    productId: { type: String },
+    purchaseToken: { type: String },
+    orderId: { type: String },
+    lastVerifiedAt: { type: Date },
+}, {
+    timestamps: true,
+});
+
+/**
+ * Purchase Verification Schema - 구매 검증 기록 (감사 로그)
+ */
+const purchaseVerificationSchema = new mongoose.Schema({
+    userId: { type: String, required: true, index: true },
+    purchaseToken: { type: String, required: true },
+    orderId: { type: String },
+    productId: { type: String },
+    verificationResult: { type: mongoose.Schema.Types.Mixed },
+    verifiedAt: { type: Date, default: Date.now },
+}, {
+    timestamps: true,
+});
+
+// ============================================================
+// Models
+// ============================================================
+
+export const TrialRecord = mongoose.model('TrialRecord', trialRecordSchema);
+export const SubscriptionRecord = mongoose.model('SubscriptionRecord', subscriptionRecordSchema);
+export const PurchaseVerification = mongoose.model('PurchaseVerification', purchaseVerificationSchema);

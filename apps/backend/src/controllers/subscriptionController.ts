@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { pool } from '../config/database';
+import { TrialRecord, SubscriptionRecord, PurchaseVerification } from '../config/database';
 import { googlePlayVerifier } from '../services/googlePlayVerifier';
 
 /**
@@ -34,12 +34,7 @@ export const getTrialStatus = async (req: Request, res: Response): Promise<void>
     }
 
     try {
-        const result = await pool.query(
-            'SELECT user_id, trial_started_at FROM trial_records WHERE user_id = $1',
-            [userId]
-        );
-
-        const record = result.rows[0];
+        const record = await TrialRecord.findOne({ userId });
         const hasUsedTrial = !!record;
 
         res.json({
@@ -47,7 +42,7 @@ export const getTrialStatus = async (req: Request, res: Response): Promise<void>
             data: {
                 userId,
                 hasUsedTrial,
-                trialStartedAt: record?.trial_started_at?.toISOString() || null,
+                trialStartedAt: record?.trialStartedAt?.toISOString() || null,
                 serverTime: new Date().toISOString(),
             },
         });
@@ -78,18 +73,15 @@ export const recordTrialStart = async (req: Request, res: Response): Promise<voi
 
     try {
         // 이미 체험 기록이 있는지 확인
-        const existing = await pool.query(
-            'SELECT user_id, trial_started_at FROM trial_records WHERE user_id = $1',
-            [userId]
-        );
+        const existing = await TrialRecord.findOne({ userId });
 
-        if (existing.rows.length > 0) {
+        if (existing) {
             res.status(409).json({
                 success: false,
                 error: 'Trial already used',
                 data: {
                     hasUsedTrial: true,
-                    trialStartedAt: existing.rows[0].trial_started_at?.toISOString(),
+                    trialStartedAt: existing.trialStartedAt?.toISOString(),
                 },
             });
             return;
@@ -98,18 +90,22 @@ export const recordTrialStart = async (req: Request, res: Response): Promise<voi
         const now = new Date();
 
         // 새 체험 기록 생성
-        await pool.query(
-            'INSERT INTO trial_records (user_id, device_id, trial_started_at) VALUES ($1, $2, $3)',
-            [userId, deviceId || 'unknown', now]
-        );
+        await TrialRecord.create({
+            userId,
+            deviceId: deviceId || 'unknown',
+            trialStartedAt: now,
+        });
 
         // 구독 상태도 업데이트 (upsert)
-        await pool.query(`
-            INSERT INTO subscription_records (user_id, status, trial_started_at, updated_at)
-            VALUES ($1, 'trial', $2, $2)
-            ON CONFLICT (user_id)
-            DO UPDATE SET status = 'trial', trial_started_at = $2, updated_at = $2
-        `, [userId, now]);
+        await SubscriptionRecord.findOneAndUpdate(
+            { userId },
+            {
+                userId,
+                status: 'trial',
+                trialStartedAt: now,
+            },
+            { upsert: true, new: true }
+        );
 
         console.log(`[Subscription] Trial started for user ${userId} at ${now.toISOString()}`);
 
@@ -146,17 +142,8 @@ export const getSubscriptionStatus = async (req: Request, res: Response): Promis
     }
 
     try {
-        const subscriptionResult = await pool.query(
-            'SELECT * FROM subscription_records WHERE user_id = $1',
-            [userId]
-        );
-        const trialResult = await pool.query(
-            'SELECT * FROM trial_records WHERE user_id = $1',
-            [userId]
-        );
-
-        const subscription = subscriptionResult.rows[0];
-        const trial = trialResult.rows[0];
+        const subscription = await SubscriptionRecord.findOne({ userId });
+        const trial = await TrialRecord.findOne({ userId });
         const serverTime = new Date();
 
         // 구독 레코드가 없고 trial도 없으면 신규 유저
@@ -179,13 +166,13 @@ export const getSubscriptionStatus = async (req: Request, res: Response): Promis
             data: {
                 userId,
                 hasUsedTrial: !!trial,
-                hasPurchaseHistory: !!subscription?.subscription_started_at,
+                hasPurchaseHistory: !!subscription?.subscriptionStartedAt,
                 status: subscription?.status || null,
-                trialStartedAt: trial?.trial_started_at?.toISOString() || null,
-                subscriptionStartedAt: subscription?.subscription_started_at?.toISOString() || null,
-                subscriptionExpiresAt: subscription?.subscription_expires_at?.toISOString() || null,
-                productId: subscription?.product_id || null,
-                lastVerifiedAt: subscription?.last_verified_at?.toISOString() || null,
+                trialStartedAt: trial?.trialStartedAt?.toISOString() || null,
+                subscriptionStartedAt: subscription?.subscriptionStartedAt?.toISOString() || null,
+                subscriptionExpiresAt: subscription?.subscriptionExpiresAt?.toISOString() || null,
+                productId: subscription?.productId || null,
+                lastVerifiedAt: subscription?.lastVerifiedAt?.toISOString() || null,
                 serverTime: serverTime.toISOString(),
             },
         });
@@ -217,21 +204,18 @@ export const syncSubscription = async (req: Request, res: Response): Promise<voi
     try {
         const now = new Date();
 
-        await pool.query(`
-            INSERT INTO subscription_records (
-                user_id, status, product_id, subscription_expires_at, 
-                purchase_token, last_verified_at, updated_at
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $6)
-            ON CONFLICT (user_id)
-            DO UPDATE SET 
-                status = COALESCE($2, subscription_records.status),
-                product_id = COALESCE($3, subscription_records.product_id),
-                subscription_expires_at = COALESCE($4, subscription_records.subscription_expires_at),
-                purchase_token = COALESCE($5, subscription_records.purchase_token),
-                last_verified_at = $6,
-                updated_at = $6
-        `, [userId, status || 'blocked', productId, expiresAt, purchaseToken, now]);
+        await SubscriptionRecord.findOneAndUpdate(
+            { userId },
+            {
+                userId,
+                status: status || 'blocked',
+                productId,
+                subscriptionExpiresAt: expiresAt ? new Date(expiresAt) : undefined,
+                purchaseToken,
+                lastVerifiedAt: now,
+            },
+            { upsert: true, new: true }
+        );
 
         console.log(`[Subscription] Synced for user ${userId}: ${status}`);
 
@@ -269,17 +253,8 @@ export const verifySubscription = async (req: Request, res: Response): Promise<v
     }
 
     try {
-        const subscriptionResult = await pool.query(
-            'SELECT * FROM subscription_records WHERE user_id = $1',
-            [userId]
-        );
-        const trialResult = await pool.query(
-            'SELECT * FROM trial_records WHERE user_id = $1',
-            [userId]
-        );
-
-        const subscription = subscriptionResult.rows[0];
-        const trial = trialResult.rows[0];
+        const subscription = await SubscriptionRecord.findOne({ userId });
+        const trial = await TrialRecord.findOne({ userId });
         const serverTime = new Date();
 
         // VerificationResult 형식으로 응답
@@ -287,13 +262,13 @@ export const verifySubscription = async (req: Request, res: Response): Promise<v
             success: true,
             serverSyncSucceeded: true,
             entitlementActive: subscription?.status === 'subscribed',
-            expiresDate: subscription?.subscription_expires_at?.toISOString() || null,
-            productId: subscription?.product_id || null,
+            expiresDate: subscription?.subscriptionExpiresAt?.toISOString() || null,
+            productId: subscription?.productId || null,
             isPending: false,
             source: 'server' as const,
             serverTime: serverTime.toISOString(),
             hasUsedTrial: !!trial,
-            hasPurchaseHistory: !!subscription?.subscription_started_at,
+            hasPurchaseHistory: !!subscription?.subscriptionStartedAt,
         };
 
         console.log(`[Subscription] Verify for user ${userId}:`, result);
@@ -345,32 +320,31 @@ export const verifyPurchase = async (req: Request, res: Response): Promise<void>
             : null;
 
         // 검증 결과 저장 (감사 로그)
-        await pool.query(`
-            INSERT INTO purchase_verifications (
-                user_id, purchase_token, order_id, product_id, verification_result
-            )
-            VALUES ($1, $2, $3, $4, $5)
-        `, [userId, purchaseToken, verifyResult.orderId, productId, JSON.stringify(verifyResult)]);
+        await PurchaseVerification.create({
+            userId,
+            purchaseToken,
+            orderId: verifyResult.orderId,
+            productId,
+            verificationResult: verifyResult,
+            verifiedAt: now,
+        });
 
-        // 구독이 활성 상태면 subscription_records 업데이트
+        // 구독이 활성 상태면 SubscriptionRecord 업데이트
         if (verifyResult.isActive) {
-            await pool.query(`
-                INSERT INTO subscription_records (
-                    user_id, status, subscription_started_at, subscription_expires_at,
-                    product_id, purchase_token, order_id, last_verified_at, updated_at
-                )
-                VALUES ($1, 'subscribed', $2, $3, $4, $5, $6, $2, $2)
-                ON CONFLICT (user_id)
-                DO UPDATE SET 
-                    status = 'subscribed',
-                    subscription_started_at = COALESCE(subscription_records.subscription_started_at, $2),
-                    subscription_expires_at = $3,
-                    product_id = $4,
-                    purchase_token = $5,
-                    order_id = $6,
-                    last_verified_at = $2,
-                    updated_at = $2
-            `, [userId, now, expiresAt, productId, purchaseToken, verifyResult.orderId]);
+            await SubscriptionRecord.findOneAndUpdate(
+                { userId },
+                {
+                    userId,
+                    status: 'subscribed',
+                    subscriptionStartedAt: now,
+                    subscriptionExpiresAt: expiresAt,
+                    productId,
+                    purchaseToken,
+                    orderId: verifyResult.orderId,
+                    lastVerifiedAt: now,
+                },
+                { upsert: true, new: true }
+            );
 
             console.log(`[Subscription] Purchase verified and activated for user ${userId}`);
         }
