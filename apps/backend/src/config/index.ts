@@ -18,6 +18,14 @@ interface Config {
   admin: {
     kakaoIds: string;
   };
+  database: {
+    url: string;
+  };
+  googlePlay: {
+    packageName: string;
+    serviceAccountEmail: string;
+    serviceAccountPrivateKey: string;
+  };
 }
 
 const config: Config = {
@@ -35,6 +43,14 @@ const config: Config = {
   },
   admin: {
     kakaoIds: process.env.ADMIN_KAKAO_IDS || '',
+  },
+  database: {
+    url: process.env.DATABASE_URL || 'postgresql://localhost:5432/myorok',
+  },
+  googlePlay: {
+    packageName: process.env.GOOGLE_PLAY_PACKAGE_NAME || 'com.haroo.myorok',
+    serviceAccountEmail: process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL || '',
+    serviceAccountPrivateKey: (process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_KEY || '').replace(/\\n/g, '\n'),
   },
 };
 
@@ -55,6 +71,15 @@ const validateConfig = (): void => {
       `Missing required environment variables: ${missingVars.join(', ')}`
     );
   }
+
+  // Warn for optional but recommended vars
+  const optionalVars = ['DATABASE_URL', 'GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL'];
+  optionalVars.forEach(varName => {
+    if (!process.env[varName]) {
+      console.warn(`[Config] Warning: ${varName} not set, using default/mock`);
+    }
+  });
 };
 
 export { config, validateConfig };
+

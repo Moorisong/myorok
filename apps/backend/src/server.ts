@@ -2,6 +2,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import path from 'path';
 import { config, validateConfig } from './config';
+import { initializeDatabase } from './config/database';
 import authRoutes from './routes/authRoutes';
 import subscriptionRoutes from './routes/subscriptionRoutes';
 
@@ -59,12 +60,30 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   });
 });
 
-// Start server
-const PORT = config.server.port;
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-  console.log(`Environment: ${config.server.nodeEnv}`);
-  console.log(`Health check: http://localhost:${PORT}/health`);
-});
+// Start server with database initialization
+const startServer = async () => {
+  try {
+    // Initialize database tables (optional - will warn if DATABASE_URL not set)
+    if (process.env.DATABASE_URL) {
+      await initializeDatabase();
+      console.log('[Server] Database initialized');
+    } else {
+      console.warn('[Server] DATABASE_URL not set, running without persistent storage');
+    }
+
+    const PORT = config.server.port;
+    app.listen(PORT, () => {
+      console.log(`Server is running on port ${PORT}`);
+      console.log(`Environment: ${config.server.nodeEnv}`);
+      console.log(`Health check: http://localhost:${PORT}/health`);
+    });
+  } catch (error) {
+    console.error('[Server] Failed to start:', error);
+    process.exit(1);
+  }
+};
+
+startServer();
 
 export default app;
+

@@ -6,6 +6,7 @@ import {
     getSubscriptionStatus,
     syncSubscription,
     verifySubscription,
+    verifyPurchase,
 } from '../controllers/subscriptionController';
 import { verifyToken } from '../middleware/authMiddleware';
 
@@ -28,5 +29,8 @@ router.post('/sync', verifyToken, syncSubscription);
 
 // 구독 상태 검증 - SSOT (인증 필요)
 router.post('/verify', verifyToken, verifySubscription);
+
+// Google Play 구매 검증 (인증 필요)
+router.post('/verify-purchase', verifyToken, verifyPurchase);
 
 export default router;
