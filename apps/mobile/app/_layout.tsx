@@ -377,10 +377,16 @@ function AppContent() {
         const { getSubscriptionState } = await import('../services/subscription');
         const currentState = await getSubscriptionState();
 
+        // SSOT status -> UI status mapping
+        // getSubscriptionState returns legacy string ('active', 'expired', etc)
+        let uiStatus = currentState;
+        if (uiStatus === 'subscribed') uiStatus = 'active'; // Compatibility
+        else if (uiStatus === 'blocked') uiStatus = 'expired';
+
         // 상태가 변경되었으면 context 업데이트
-        if (currentState !== subscriptionStatus) {
-          console.log('[AppState] Subscription status changed:', subscriptionStatus, '→', currentState);
-          setSubscriptionStatus(currentState as any);
+        if (uiStatus !== subscriptionStatus) {
+          console.log('[AppState] Subscription status changed:', subscriptionStatus, '→', uiStatus);
+          setSubscriptionStatus(uiStatus);
         }
       } catch (error) {
         console.error('[AppState] Failed to check subscription status:', error);

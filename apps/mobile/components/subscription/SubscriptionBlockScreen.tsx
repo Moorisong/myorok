@@ -67,6 +67,11 @@ export function SubscriptionBlockScreen() {
 
             if (restored) {
                 showToast('구독이 복원되었습니다!');
+
+                // SSOT: 복원 성공 시 서버 동기화를 위해 handlePurchaseSuccess 호출
+                const { handlePurchaseSuccess } = await import('../../services/subscription');
+                await handlePurchaseSuccess();
+
                 // Auth 상태 다시 확인하여 화면 전환
                 await checkAuthStatus();
             } else {

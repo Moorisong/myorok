@@ -10,6 +10,9 @@ let dbInstance: SQLite.SQLiteDatabase | null = null;
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
 export function getDatabase(): Promise<SQLite.SQLiteDatabase> {
+  // Check if dbInstance exists and is open (not closed)
+  // Note: internal "closed" property check might be needed if expo-sqlite supports it, 
+  // but for now we rely on singleton. Ideally we shouldn't close the DB during app runtime.
   if (dbInstance) return Promise.resolve(dbInstance);
   if (dbPromise) return dbPromise;
 

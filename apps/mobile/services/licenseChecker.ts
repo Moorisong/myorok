@@ -17,12 +17,17 @@ export type LicenseResponse =
  * @param response - License response from Google Play
  * @param expiryDate - Optional expiry date from Google Play subscription details
  */
-export async function handleLicenseResponse(response: LicenseResponse, expiryDate?: string): Promise<void> {
+export async function handleLicenseResponse(
+  response: LicenseResponse,
+  expiryDate?: string,
+  productId?: string,
+  purchaseToken?: string
+): Promise<void> {
   switch (response) {
     case 'LICENSED':
       // 구독 활성화 (실제 만료일 사용)
       console.log('License valid - activating subscription with expiry:', expiryDate);
-      await activateSubscription(expiryDate); // state = 'active', isPro=true
+      await activateSubscription(expiryDate, productId, purchaseToken); // state = 'active', isPro=true
       break;
 
     case 'NOT_LICENSED':

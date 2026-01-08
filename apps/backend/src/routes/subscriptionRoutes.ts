@@ -7,6 +7,7 @@ import {
     syncSubscription,
     verifySubscription,
     verifyPurchase,
+    resetSubscriptionData,
 } from '../controllers/subscriptionController';
 import { verifyToken } from '../middleware/authMiddleware';
 
@@ -32,5 +33,8 @@ router.post('/verify', verifyToken, verifySubscription);
 
 // Google Play 구매 검증 (인증 필요)
 router.post('/verify-purchase', verifyToken, verifyPurchase);
+
+// 데이터 초기화 (테스트용, 인증 필요)
+router.delete('/reset/:userId', verifyToken, resetSubscriptionData);
 
 export default router;

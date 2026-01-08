@@ -18,6 +18,7 @@ import type { SubscriptionState } from '../../../services';
 import { purchaseSubscription, getSubscriptionDetails } from '../../../services/paymentService';
 import type { SubscriptionDetails } from '../../../services/paymentService';
 import { showToast } from '../../../utils/toast';
+import { useAuth } from '../../../hooks/useAuth';
 
 const FEATURES = [
     { emoji: '📝', title: '모든 기록 기능', description: '배변/구토/사료/약/병원 기록' },
@@ -28,6 +29,7 @@ const FEATURES = [
 
 export default function ProScreen() {
     const router = useRouter();
+    const { checkAuthStatus } = useAuth();
     const appState = useRef(AppState.currentState);
     const [subscriptionState, setSubscriptionState] = useState<SubscriptionState | null>(null);
     const [simpleState, setSimpleState] = useState<'free' | 'trial' | 'active' | 'expired'>('free');
@@ -45,8 +47,9 @@ export default function ProScreen() {
     useEffect(() => {
         const handleAppStateChange = async (nextAppState: AppStateStatus) => {
             if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-                // Google Play 구독 상태 동기화 후 로컬 상태 업데이트
+                // Google Play 구독 상태 동기화 후 SSOT 재검증
                 await checkAndRestoreSubscription();
+                await checkAuthStatus(); // SSOT 재검증
                 await loadSubscriptionStatus();
             }
             appState.current = nextAppState;
@@ -54,7 +57,7 @@ export default function ProScreen() {
 
         const subscription = AppState.addEventListener('change', handleAppStateChange);
         return () => subscription.remove();
-    }, []);
+    }, [checkAuthStatus]);
 
     const loadSubscriptionStatus = async () => {
         const status = await getSubscriptionStatus();

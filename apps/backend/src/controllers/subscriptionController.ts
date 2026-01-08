@@ -188,10 +188,10 @@ export const getSubscriptionStatus = async (req: Request, res: Response): Promis
 /**
  * POST /api/subscription/sync
  * 클라이언트에서 구독 상태 동기화
- * Body: { userId, status, productId, expiresAt, purchaseToken }
+ * Body: { userId, status, productId, subscriptionStartDate, subscriptionExpiryDate, purchaseToken }
  */
 export const syncSubscription = async (req: Request, res: Response): Promise<void> => {
-    const { userId, status, productId, expiresAt, purchaseToken } = req.body;
+    const { userId, status, productId, subscriptionStartDate, subscriptionExpiryDate, expiresAt, purchaseToken } = req.body;
 
     if (!userId) {
         res.status(400).json({
@@ -204,20 +204,30 @@ export const syncSubscription = async (req: Request, res: Response): Promise<voi
     try {
         const now = new Date();
 
+        // subscriptionExpiryDate 또는 expiresAt 둘 중 하나 사용 (호환성)
+        const expiryDate = subscriptionExpiryDate || expiresAt;
+
+        const updateData: any = {
+            userId,
+            status: status || 'blocked',
+            productId,
+            subscriptionExpiresAt: expiryDate ? new Date(expiryDate) : undefined,
+            purchaseToken,
+            lastVerifiedAt: now,
+        };
+
+        // status가 'subscribed'이고 subscriptionStartDate가 있으면 subscriptionStartedAt 설정
+        if (status === 'subscribed' && subscriptionStartDate) {
+            updateData.subscriptionStartedAt = new Date(subscriptionStartDate);
+        }
+
         await SubscriptionRecord.findOneAndUpdate(
             { userId },
-            {
-                userId,
-                status: status || 'blocked',
-                productId,
-                subscriptionExpiresAt: expiresAt ? new Date(expiresAt) : undefined,
-                purchaseToken,
-                lastVerifiedAt: now,
-            },
+            updateData,
             { upsert: true, new: true }
         );
 
-        console.log(`[Subscription] Synced for user ${userId}: ${status}`);
+        console.log(`[Subscription] Synced for user ${userId}: ${status} (startedAt: ${subscriptionStartDate || 'N/A'})`);
 
         res.json({
             success: true,
@@ -364,6 +374,46 @@ export const verifyPurchase = async (req: Request, res: Response): Promise<void>
         res.status(500).json({
             success: false,
             error: 'Verification error',
+        });
+    }
+};
+
+/**
+ * DELETE /api/subscription/reset/:userId
+ * 구독 데이터 초기화 (테스트용)
+ */
+export const resetSubscriptionData = async (req: Request, res: Response): Promise<void> => {
+    const { userId } = req.params;
+
+    if (!userId) {
+        res.status(400).json({
+            success: false,
+            error: 'userId is required',
+        });
+        return;
+    }
+
+    try {
+        console.log(`[Subscription] Resetting data for user ${userId}...`);
+
+        // 구독 및 체험 기록 삭제
+        await SubscriptionRecord.deleteOne({ userId });
+        await TrialRecord.deleteOne({ userId });
+
+        // 구매 검증 기록은 감사 로그이므로 남겨둘 수도 있지만, 완전 초기화를 위해 삭제
+        // await PurchaseVerification.deleteMany({ userId });
+
+        console.log(`[Subscription] Reset complete for user ${userId}`);
+
+        res.json({
+            success: true,
+            message: 'Subscription data reset successfully',
+        });
+    } catch (error) {
+        console.error('[Subscription] resetSubscriptionData error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Database error',
         });
     }
 };

@@ -250,7 +250,7 @@ export default function SettingsScreen() {
                             onPress={async () => {
                                 const { resetSubscription } = await import('../../../services');
                                 await resetSubscription();
-                                Alert.alert('완료', '구독 상태가 리셋되었습니다. 앱을 다시 시작하세요.');
+                                Alert.alert('완료', '구독 상태가 리셋되었습니다. 앱을 수동으로 재실행(r)해주세요.');
                             }}
                         />
                         <SettingItem
@@ -265,8 +265,35 @@ export default function SettingsScreen() {
                                     Alert.alert('완료', '구독이 만료 상태로 변경되었습니다.');
                                 } catch (error) {
                                     console.error('[Settings] Deactivate subscription failed:', error);
-                                    Alert.alert('오류', '구독 만료 설정에 실패했습니다.');
                                 }
+                            }}
+                        />
+                        <SettingItem
+                            emoji="🅰️"
+                            title="Test Case A-2 (체험만료+재설치)"
+                            description="서버에 체험기록 남김 → 로컬삭제 → 재시작"
+                            onPress={async () => {
+                                Alert.alert(
+                                    'Case A-2 설정',
+                                    '서버에 체험 사용 기록을 남기고, 로컬 데이터를 삭제합니다.\n\n앱이 재시작되면 로그인 후 차단 화면이 떠야 합니다.',
+                                    [
+                                        { text: '취소', style: 'cancel' },
+                                        {
+                                            text: '실행',
+                                            style: 'destructive',
+                                            onPress: async () => {
+                                                try {
+                                                    const { setupTestCase_A2 } = await import('../../../services/subscription');
+                                                    await setupTestCase_A2();
+                                                    Alert.alert('완료', '설정 완료. 앱을 수동으로 재실행(r)해주세요.');
+                                                } catch (e) {
+                                                    console.error(e);
+                                                    Alert.alert('오류', '설정 실패');
+                                                }
+                                            }
+                                        }
+                                    ]
+                                );
                             }}
                         />
                         <SettingItem

@@ -149,6 +149,8 @@ export interface SubscriptionDetails {
   autoRenewing: boolean;  // true면 구독중, false면 해지 예정
   transactionDate?: string;  // 마지막 결제일
   expiryDate?: string;  // 만료 예정일 (다음 결제일)
+  productId?: string;
+  purchaseToken?: string;
 }
 
 /**
@@ -189,6 +191,8 @@ export async function getSubscriptionDetails(): Promise<SubscriptionDetails> {
       autoRenewing,
       transactionDate,
       expiryDate,
+      productId: subscription.productId,
+      purchaseToken: subscription.purchaseToken || undefined,
     };
   } catch (error) {
     console.error('Failed to get subscription details:', error);

@@ -459,7 +459,7 @@ export async function getSubscriptionStatus(): Promise<SubscriptionState> {
     } else if (rawStatus === 'trial' || rawStatus === 'subscribed' || rawStatus === 'blocked' || rawStatus === 'loading') {
         status = rawStatus as SubscriptionStatus;
     } else {
-        status = 'trial'; // 기본값
+        status = 'blocked'; // 안전한 기본값 (실수/오류 시 체험 부여 방지)
     }
 
     if (status === 'trial' && trialStartDate) {
@@ -541,7 +541,11 @@ export async function isAppAccessAllowed(): Promise<boolean> {
 /**
  * Activate subscription after successful purchase
  */
-export async function activateSubscription(expiryDate?: string): Promise<void> {
+export async function activateSubscription(
+    expiryDate?: string,
+    productId?: string,
+    purchaseToken?: string
+): Promise<void> {
     const now = new Date().toISOString();
     const expiry = expiryDate || getDefaultExpiryDate();
 
@@ -570,7 +574,7 @@ export async function activateSubscription(expiryDate?: string): Promise<void> {
             trialStartDate: trialStartDate || undefined,
             subscriptionStartDate: now,
             subscriptionExpiryDate: expiry,
-        });
+        }, productId, purchaseToken);
     }
 }
 
@@ -627,20 +631,28 @@ export async function resetSubscription(): Promise<void> {
     try {
         console.log('[Subscription] Resetting subscription state...');
 
-        // Clear AsyncStorage
+        // 1. Reset Server Data
+        const userId = await AsyncStorage.getItem('current_user_id');
+        if (userId) {
+            await resetServerSubscription(userId);
+        }
+
+        // 2. Clear AsyncStorage
         await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.TRIAL_START_DATE);
         await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS);
         await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_START_DATE);
         await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_EXPIRY_DATE);
+        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.HAS_USED_TRIAL);
+        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.RESTORE_ATTEMPTED);
 
-        // Clear database
+        // 3. Clear database
         const db = await getDatabase();
         await db.execAsync('DELETE FROM subscription_state');
 
-        // Re-initialize
+        // 4. Re-initialize
         await initializeSubscription();
 
-        // Verify
+        // 5. Verify
         const status = await getSubscriptionStatus();
         console.log('[Subscription] Reset complete, new status:', status);
     } catch (error) {
@@ -650,9 +662,42 @@ export async function resetSubscription(): Promise<void> {
 }
 
 /**
+ * Reset server subscription data (Helper)
+ */
+async function resetServerSubscription(userId: string): Promise<void> {
+    try {
+        const token = await AsyncStorage.getItem('jwt_token');
+        if (!token) {
+            console.log('[Subscription] No JWT token for server reset');
+            return;
+        }
+
+        const response = await fetch(`${API_URL}/api/subscription/reset/${userId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+            },
+        });
+
+        if (!response.ok) {
+            console.log('[Subscription] Server reset failed:', response.status);
+        } else {
+            console.log('[Subscription] Server data reset successful');
+        }
+    } catch (error) {
+        console.error('[Subscription] Server reset error:', error);
+    }
+}
+
+/**
  * Sync subscription state to server
  */
-async function syncSubscriptionToServer(userId: string, state: SubscriptionState): Promise<void> {
+async function syncSubscriptionToServer(
+    userId: string,
+    state: SubscriptionState,
+    productId?: string,
+    purchaseToken?: string
+): Promise<void> {
     try {
         const token = await AsyncStorage.getItem('jwt_token');
         if (!token) {
@@ -669,11 +714,14 @@ async function syncSubscriptionToServer(userId: string, state: SubscriptionState
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
+                userId,
                 deviceId,
                 status: state.status,
                 trialStartDate: state.trialStartDate,
                 subscriptionStartDate: state.subscriptionStartDate,
                 subscriptionExpiryDate: state.subscriptionExpiryDate,
+                productId,
+                purchaseToken,
             }),
         });
 
@@ -986,7 +1034,12 @@ export async function handlePurchaseSuccess(): Promise<void> {
     const licenseResponse = await checkLicenseAfterPurchase();
 
     // License Response 처리 (실제 만료일 전달)
-    await handleLicenseResponse(licenseResponse, subscriptionDetails.expiryDate);
+    await handleLicenseResponse(
+        licenseResponse,
+        subscriptionDetails.expiryDate,
+        subscriptionDetails.productId,
+        subscriptionDetails.purchaseToken
+    );
 }
 
 /**
@@ -1054,4 +1107,60 @@ export async function getSubscriptionState(): Promise<'free' | 'trial' | 'active
  */
 export async function deactivateSubscription(): Promise<void> {
     await setSubscriptionStatus('blocked');
+}
+
+/**
+ * Setup Test Case A-2: Trial Used -> Expired -> App Reinstall
+ * 1. Ensure server knows trial is used.
+ * 2. Ensure server knows subscription is blocked.
+ * 3. Clear local data (simulate reinstall).
+ */
+export async function setupTestCase_A2(): Promise<void> {
+    try {
+        console.log('[Subscription] Setting up Case A-2...');
+        const userId = await AsyncStorage.getItem('current_user_id');
+        if (!userId) throw new Error('No user logged in');
+
+        // 1. Force start trial on server (to ensure hasUsedTrial = true)
+        // We use the raw API because startTrialForUser might throw if already used
+        try {
+            await recordTrialStartOnServer(userId);
+        } catch (e) {
+            // Include 409 Conflict - that's good, means already used
+            console.log('[Subscription] Trial start record check:', e);
+        }
+
+        // 2. Set status to blocked on server
+        await setSubscriptionStatus('blocked');
+
+        // 3. Clear local data (Simulate App Delete/Reinstall)
+        // We keep the user ID to simulate "logging in with same account" after reinstall
+        // But the requirement says "App Delete -> Reinstall".
+        // Usually this means all local data is gone.
+        // But to test "Login", we need to relogin.
+        // "Reset Subscription (Dev)" cleared everything including user ID?
+        // Let's check resetSubscription: yes, clears everything.
+
+        // For A-2, we should clear everything.
+        // User will have to Login again.
+        // Upon Login, SSOT check will happen.
+
+        console.log('[Subscription] Clearing local data...');
+        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.TRIAL_START_DATE);
+        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS);
+        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_START_DATE);
+        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_EXPIRY_DATE);
+        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.HAS_USED_TRIAL);
+        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.RESTORE_ATTEMPTED);
+
+        const db = await getDatabase();
+        await db.execAsync('DELETE FROM subscription_state');
+
+        // Note: We DO NOT delete server data here. That's the key diff/ from A-1 reset.
+
+        console.log('[Subscription] Case A-2 Setup Complete. Restarting...');
+    } catch (error) {
+        console.error('[Subscription] Setup Case A-2 failed:', error);
+        throw error;
+    }
 }
