@@ -563,14 +563,45 @@ export async function isAppAccessAllowed(): Promise<boolean> {
 
 /**
  * Activate subscription after successful purchase
+ * @param expiryDate - Subscription expiry date
+ * @param productId - Product ID from store
+ * @param purchaseToken - Purchase token for verification
+ * @param requireServerSync - If true, rollback to 'loading' if server sync fails (SSOT D-1 compliance)
  */
 export async function activateSubscription(
     expiryDate?: string,
     productId?: string,
-    purchaseToken?: string
+    purchaseToken?: string,
+    requireServerSync: boolean = false
 ): Promise<void> {
     const now = new Date().toISOString();
     const expiry = expiryDate || getDefaultExpiryDate();
+
+    // 서버 동기화가 필요한 경우, 먼저 서버에 동기화 시도
+    if (requireServerSync) {
+        const userId = await AsyncStorage.getItem('current_user_id');
+        if (!userId) {
+            // userId 없으면 서버 동기화 불가 -> 구독 활성화 거부
+            console.log('[Subscription] No userId, cannot activate subscription (SSOT D-1)');
+            await AsyncStorage.setItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS, 'loading');
+            throw new Error('No userId for server sync');
+        }
+
+        const trialStartDate = await AsyncStorage.getItem(SUBSCRIPTION_KEYS.TRIAL_START_DATE);
+        try {
+            await syncSubscriptionToServer(userId, {
+                status: 'subscribed',
+                trialStartDate: trialStartDate || undefined,
+                subscriptionStartDate: now,
+                subscriptionExpiryDate: expiry,
+            }, productId, purchaseToken, true); // throwOnError = true
+        } catch (error) {
+            // 서버 동기화 실패 시 구독 활성화하지 않음 (SSOT D-1: 네트워크 없으면 loading 유지)
+            console.log('[Subscription] Server sync failed, not activating subscription (SSOT D-1)');
+            await AsyncStorage.setItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS, 'loading');
+            throw error;
+        }
+    }
 
     await AsyncStorage.setItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS, 'subscribed');
     await AsyncStorage.setItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_START_DATE, now);
@@ -588,16 +619,18 @@ export async function activateSubscription(
     // Cancel trial end notification
     await cancelTrialEndNotification();
 
-    // Sync to server
-    const userId = await AsyncStorage.getItem('current_user_id');
-    if (userId) {
-        const trialStartDate = await AsyncStorage.getItem(SUBSCRIPTION_KEYS.TRIAL_START_DATE);
-        await syncSubscriptionToServer(userId, {
-            status: 'subscribed',
-            trialStartDate: trialStartDate || undefined,
-            subscriptionStartDate: now,
-            subscriptionExpiryDate: expiry,
-        }, productId, purchaseToken);
+    // Sync to server (if not already done above)
+    if (!requireServerSync) {
+        const userId = await AsyncStorage.getItem('current_user_id');
+        if (userId) {
+            const trialStartDate = await AsyncStorage.getItem(SUBSCRIPTION_KEYS.TRIAL_START_DATE);
+            await syncSubscriptionToServer(userId, {
+                status: 'subscribed',
+                trialStartDate: trialStartDate || undefined,
+                subscriptionStartDate: now,
+                subscriptionExpiryDate: expiry,
+            }, productId, purchaseToken);
+        }
     }
 }
 
@@ -1083,7 +1116,7 @@ export async function handlePurchaseSuccess(): Promise<void> {
 /**
  * 앱 시작 시 구독 복원 및 확인
  * 주의: 이 함수는 로컬 상태가 expired일 때만 호출해야 합니다.
- * Google Play에서 구독을 찾으면 활성화하지만, 찾지 못해도 기존 상태를 변경하지 않습니다.
+ * Google Play에서 구독을 찾으면 활성화하지만, 서버 동기화가 실패하면 loading 상태를 유지합니다 (D-1 SSOT).
  */
 export async function checkAndRestoreSubscription(): Promise<void> {
     console.log('Checking and restoring subscription');
@@ -1097,15 +1130,22 @@ export async function checkAndRestoreSubscription(): Promise<void> {
         if (hasActive) {
             // 활성 구독 있음 - 실제 만료일 가져오기
             const subscriptionDetails = await getSubscriptionDetails();
-            await handleLicenseResponse('LICENSED', subscriptionDetails.expiryDate);
+            // requireServerSync=true: 서버 동기화 실패 시 구독 활성화하지 않음 (D-1 SSOT)
+            await handleLicenseResponse(
+                'LICENSED',
+                subscriptionDetails.expiryDate,
+                subscriptionDetails.productId,
+                subscriptionDetails.purchaseToken,
+                true // requireServerSync
+            );
             console.log('[Subscription] Subscription restored successfully');
         } else {
             // 활성 구독 없음 - 기존 상태 유지 (NOT_LICENSED를 보내지 않음)
             console.log('[Subscription] No active subscription found in Google Play, keeping local state');
         }
     } catch (error) {
-        // Google Play 연결 실패 시에도 기존 상태 유지
-        console.error('[Subscription] Failed to check Google Play subscription:', error);
+        // Google Play 연결 실패 또는 서버 동기화 실패 시 loading 상태 유지 (D-1 SSOT)
+        console.log('[Subscription] Restore failed, keeping loading state (D-1 SSOT):', error);
     }
 }
 
