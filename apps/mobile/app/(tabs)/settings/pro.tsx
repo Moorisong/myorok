@@ -44,12 +44,13 @@ export default function ProScreen() {
 
     // 앱이 foreground로 돌아올 때 구독 상태 새로고침
     // (결제 완료 후 또는 Google Play에서 해지하고 돌아왔을 때)
+    // NOTE: _layout.tsx의 전역 AppState 리스너가 먼저 동작하므로,
+    // 여기서는 단순히 로컬 상태만 업데이트
     useEffect(() => {
         const handleAppStateChange = async (nextAppState: AppStateStatus) => {
             if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-                // Google Play 구독 상태 동기화 후 SSOT 재검증
-                await checkAndRestoreSubscription();
-                await checkAuthStatus(); // SSOT 재검증
+                console.log('[ProScreen] App returned to foreground, reloading subscription status');
+                // 로컬 상태만 새로고침 (_layout.tsx가 이미 SSOT 검증을 수행함)
                 await loadSubscriptionStatus();
             }
             appState.current = nextAppState;
@@ -57,7 +58,7 @@ export default function ProScreen() {
 
         const subscription = AppState.addEventListener('change', handleAppStateChange);
         return () => subscription.remove();
-    }, [checkAuthStatus]);
+    }, []);
 
     const loadSubscriptionStatus = async () => {
         const status = await getSubscriptionStatus();

@@ -131,6 +131,9 @@ export async function restorePurchases(): Promise<boolean> {
         LEGACY_PRODUCT_IDS.includes(purchase.productId)
     );
 
+    // restore 결과 기록 (SSOT 판별용)
+    await AsyncStorage.setItem('restore_succeeded', hasActiveSubscription ? 'true' : 'false');
+
     if (hasActiveSubscription) {
       console.log('[Payment] Restore successful');
     } else {
@@ -140,6 +143,7 @@ export async function restorePurchases(): Promise<boolean> {
     return hasActiveSubscription;
   } catch (error) {
     console.error('Failed to restore purchases:', error);
+    await AsyncStorage.setItem('restore_succeeded', 'false');
     return false;
   }
 }
