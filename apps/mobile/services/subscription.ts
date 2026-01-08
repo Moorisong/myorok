@@ -197,6 +197,218 @@ export function convertToLegacyStatus(status: SubscriptionStatus): LegacySubscri
     }
 }
 
+// ============================================================
+// Server Integration Functions (서버 연동)
+// ============================================================
+
+/**
+ * 서버 시간 조회 (CASE F: 기기 시간 조작 방지)
+ */
+export async function fetchServerTime(): Promise<Date | null> {
+    try {
+        const response = await fetch(`${API_URL}/api/subscription/server-time`);
+        if (!response.ok) {
+            console.log('[SSOT] Server time fetch failed:', response.status);
+            return null;
+        }
+        const data = await response.json();
+        return new Date(data.data.serverTime);
+    } catch (error) {
+        console.error('[SSOT] Server time fetch error:', error);
+        return null;
+    }
+}
+
+/**
+ * 서버에서 체험 사용 여부 조회 (CASE E)
+ */
+export async function fetchTrialStatus(userId: string): Promise<{
+    hasUsedTrial: boolean;
+    trialStartedAt: string | null;
+    serverTime: Date;
+} | null> {
+    try {
+        const token = await AsyncStorage.getItem('jwt_token');
+        if (!token) {
+            console.log('[SSOT] No JWT token');
+            return null;
+        }
+
+        const response = await fetch(`${API_URL}/api/subscription/trial-status/${userId}`, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+            },
+        });
+
+        if (!response.ok) {
+            console.log('[SSOT] Trial status fetch failed:', response.status);
+            return null;
+        }
+
+        const data = await response.json();
+        return {
+            hasUsedTrial: data.data.hasUsedTrial,
+            trialStartedAt: data.data.trialStartedAt,
+            serverTime: new Date(data.data.serverTime),
+        };
+    } catch (error) {
+        console.error('[SSOT] Trial status fetch error:', error);
+        return null;
+    }
+}
+
+/**
+ * 서버에 체험 시작 기록 (CASE E: 즉시 동기 기록)
+ */
+export async function recordTrialStartOnServer(userId: string): Promise<boolean> {
+    try {
+        const token = await AsyncStorage.getItem('jwt_token');
+        if (!token) {
+            console.log('[SSOT] No JWT token for trial start');
+            return false;
+        }
+
+        const deviceId = await getDeviceId();
+
+        const response = await fetch(`${API_URL}/api/subscription/trial-start`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ userId, deviceId }),
+        });
+
+        if (response.status === 409) {
+            // 이미 체험 사용함
+            console.log('[SSOT] Trial already used on server');
+            return false;
+        }
+
+        if (!response.ok) {
+            console.log('[SSOT] Trial start record failed:', response.status);
+            return false;
+        }
+
+        console.log('[SSOT] Trial start recorded on server');
+        return true;
+    } catch (error) {
+        console.error('[SSOT] Trial start record error:', error);
+        return false;
+    }
+}
+
+/**
+ * 서버에서 구독 상태 검증 (SSOT 메인 함수)
+ */
+export async function fetchSubscriptionVerification(userId: string): Promise<VerificationResult | null> {
+    try {
+        const token = await AsyncStorage.getItem('jwt_token');
+        if (!token) {
+            console.log('[SSOT] No JWT token for verification');
+            return null;
+        }
+
+        const response = await fetch(`${API_URL}/api/subscription/verify`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ userId }),
+        });
+
+        if (!response.ok) {
+            console.log('[SSOT] Verification fetch failed:', response.status);
+            return null;
+        }
+
+        const data = await response.json();
+        const result = data.data;
+
+        // 서버 응답을 VerificationResult로 변환
+        return {
+            success: result.success,
+            serverSyncSucceeded: result.serverSyncSucceeded,
+            entitlementActive: result.entitlementActive,
+            expiresDate: result.expiresDate ? new Date(result.expiresDate) : undefined,
+            productId: result.productId || undefined,
+            isPending: result.isPending || false,
+            source: result.source || 'server',
+            serverTime: new Date(result.serverTime),
+            hasUsedTrial: result.hasUsedTrial,
+            hasPurchaseHistory: result.hasPurchaseHistory,
+            restoreAttempted: undefined, // 클라이언트에서 별도 관리
+            restoreSucceeded: undefined,
+        };
+    } catch (error) {
+        console.error('[SSOT] Verification fetch error:', error);
+        return null;
+    }
+}
+
+/**
+ * 전체 SSOT 검증 수행 (서버 + 스토어 통합)
+ * 앱 시작 시, 포그라운드 전환 시 호출
+ */
+export async function verifySubscriptionWithServer(): Promise<{
+    status: SubscriptionStatus;
+    state: SubscriptionState;
+}> {
+    const userId = await AsyncStorage.getItem('current_user_id');
+
+    if (!userId) {
+        console.log('[SSOT] No user ID, returning blocked');
+        return {
+            status: 'blocked',
+            state: { status: 'blocked' },
+        };
+    }
+
+    // 1. 서버에서 검증 결과 가져오기
+    const serverResult = await fetchSubscriptionVerification(userId);
+
+    if (!serverResult) {
+        // 서버 통신 실패 = loading 상태 (CASE H)
+        console.log('[SSOT] Server verification failed, returning loading');
+        return {
+            status: 'loading',
+            state: { status: 'loading' },
+        };
+    }
+
+    // 2. restore 시도 여부 확인 (로컬)
+    const restoreAttempted = await AsyncStorage.getItem(SUBSCRIPTION_KEYS.RESTORE_ATTEMPTED);
+    serverResult.restoreAttempted = restoreAttempted === 'true';
+
+    // 3. SSOT 판별
+    const status = determineSubscriptionState(serverResult);
+
+    // 4. 로컬 상태 업데이트
+    await setSubscriptionStatus(status);
+
+    // 5. SubscriptionState 구성
+    const state: SubscriptionState = {
+        status,
+        hasPurchaseHistory: serverResult.hasPurchaseHistory,
+    };
+
+    if (status === 'trial') {
+        const trialStartDate = await AsyncStorage.getItem(SUBSCRIPTION_KEYS.TRIAL_START_DATE);
+        if (trialStartDate) {
+            state.trialStartDate = trialStartDate;
+            state.daysRemaining = calculateDaysRemaining(trialStartDate);
+        }
+    }
+
+    if (status === 'subscribed' && serverResult.expiresDate) {
+        state.subscriptionExpiryDate = serverResult.expiresDate.toISOString();
+    }
+
+    console.log('[SSOT] Final status:', status);
+    return { status, state };
+}
+
 /**
  * Initialize subscription on first app launch
  * Sets trial start date if not already set
@@ -548,16 +760,25 @@ export async function getSubscriptionStatusForUser(userId: string): Promise<Subs
 
 /**
  * Start trial for a specific user
- * Note: subscription_state has CHECK(id = 1) constraint, so we update the single row
+ * SSOT: 서버에 먼저 기록 후 로컬 저장 (CASE E: 즉시 동기 기록)
  */
 export async function startTrialForUser(userId: string): Promise<void> {
     try {
+        // 1. 서버에 먼저 체험 시작 기록 (CASE E: 크래시 방지)
+        const serverRecorded = await recordTrialStartOnServer(userId);
+        if (!serverRecorded) {
+            // 서버에 이미 기록이 있거나 실패 = 체험 불가
+            console.log('[Subscription] Trial not allowed - server rejected or already used');
+            throw new Error('Trial not allowed');
+        }
+
         const db = await getDatabase();
         const now = new Date().toISOString();
 
-        // Update AsyncStorage first (getSubscriptionStatus reads from here)
+        // 2. 로컬 저장
         await AsyncStorage.setItem(SUBSCRIPTION_KEYS.TRIAL_START_DATE, now);
         await AsyncStorage.setItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS, 'trial');
+        await AsyncStorage.setItem(SUBSCRIPTION_KEYS.HAS_USED_TRIAL, 'true');
 
         // Check if subscription_state row exists
         const existing = await db.getFirstAsync<{ id: number }>(
@@ -584,11 +805,7 @@ export async function startTrialForUser(userId: string): Promise<void> {
         // Schedule trial end notification
         await scheduleTrialEndNotificationIfNeeded(now);
 
-        // Sync to server
-        await syncSubscriptionToServer(userId, {
-            status: 'trial',
-            trialStartDate: now,
-        });
+        console.log('[Subscription] Trial started for user:', userId);
     } catch (error) {
         console.error('[Subscription] Start trial failed:', error);
         throw error;

@@ -41,44 +41,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setIsLoggedIn(!!currentUserId);
 
             if (currentUserId) {
-                // 구독 상태 조회 (레거시 호환 함수 사용)
-                const { getSubscriptionState, getSubscriptionStatus } = await import('../services/subscription');
-                const status = await getSubscriptionState();
-                // getSubscriptionState()는 'trial' | 'active' | 'expired' 반환
-                setSubscriptionStatus(status as SubscriptionStatus);
+                // SSOT: 서버 검증 기반 구독 상태 판별
+                const { verifySubscriptionWithServer } = await import('../services/subscription');
+                const { status } = await verifySubscriptionWithServer();
+
+                // SSOT 상태를 UI 상태로 변환
+                // subscribed -> active, blocked -> expired
+                let uiStatus: SubscriptionStatus;
+                if (status === 'subscribed') {
+                    uiStatus = 'active';
+                } else if (status === 'blocked') {
+                    uiStatus = 'expired';
+                } else {
+                    uiStatus = status; // 'loading', 'trial'
+                }
+
+                setSubscriptionStatus(uiStatus);
+                console.log('[AuthContext] SSOT subscription status:', status, '-> UI:', uiStatus);
 
                 // 운영자 권한 조회
                 const adminStatus = await getIsAdmin();
                 console.log('[AuthContext] isAdmin status:', adminStatus);
                 setIsAdmin(adminStatus);
-
-                // 서버에 구독 상태 동기화 (초기 동기화)
-                try {
-                    const subscriptionState = await getSubscriptionStatus();
-                    const API_URL = (await import('../constants/config')).CONFIG.API_BASE_URL;
-                    const token = await import('@react-native-async-storage/async-storage').then(m => m.default.getItem('jwt_token'));
-                    const { getDeviceId } = await import('../services/device');
-
-                    if (token) {
-                        const deviceId = await getDeviceId();
-                        await fetch(`${API_URL}/api/subscription/sync`, {
-                            method: 'POST',
-                            headers: {
-                                'Authorization': `Bearer ${token}`,
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({
-                                deviceId,
-                                status: subscriptionState.status,
-                                trialStartDate: subscriptionState.trialStartDate,
-                                subscriptionStartDate: subscriptionState.subscriptionStartDate,
-                                subscriptionExpiryDate: subscriptionState.subscriptionExpiryDate,
-                            }),
-                        });
-                    }
-                } catch (syncError) {
-                    console.log('[AuthContext] Subscription sync skipped:', syncError);
-                }
             } else {
                 setSubscriptionStatus(null);
                 setIsAdmin(false);
