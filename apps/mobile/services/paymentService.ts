@@ -13,9 +13,11 @@ import {
   PurchaseError,
 } from 'react-native-iap';
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { VerificationResult } from './subscription';
 
 export const SUBSCRIPTION_SKU = 'myorok_monthly_premium';
-// const PRODUCT_ID = 'myorok_monthly_premium'; // Replaced by exported constant
+const LEGACY_PRODUCT_IDS = ['myorok_monthly_legacy_v1']; // 레거시 상품 ID 허용 목록
 
 // Export requestPurchase so it can be used directly if needed, or use purchaseSubscription wrapper
 export { requestPurchase };
@@ -115,13 +117,26 @@ export async function completePurchase(purchase: Purchase): Promise<void> {
 
 /**
  * 구독 복원 (재설치 시)
+ * SSOT: restore 시도를 기록 (CASE D)
  */
 export async function restorePurchases(): Promise<boolean> {
   try {
+    // restore 시도 기록 (CASE D)
+    await AsyncStorage.setItem('restore_attempted', 'true');
+
     const purchases = await getAvailablePurchases();
     const hasActiveSubscription = purchases.some(
-      (purchase: Purchase) => purchase.productId === SUBSCRIPTION_SKU
+      (purchase: Purchase) =>
+        purchase.productId === SUBSCRIPTION_SKU ||
+        LEGACY_PRODUCT_IDS.includes(purchase.productId)
     );
+
+    if (hasActiveSubscription) {
+      console.log('[Payment] Restore successful');
+    } else {
+      console.log('[Payment] No active subscription found');
+    }
+
     return hasActiveSubscription;
   } catch (error) {
     console.error('Failed to restore purchases:', error);
@@ -143,7 +158,9 @@ export async function getSubscriptionDetails(): Promise<SubscriptionDetails> {
   try {
     const purchases = await getAvailablePurchases();
     const subscription = purchases.find(
-      (purchase: Purchase) => purchase.productId === SUBSCRIPTION_SKU
+      (purchase: Purchase) =>
+        purchase.productId === SUBSCRIPTION_SKU ||
+        LEGACY_PRODUCT_IDS.includes(purchase.productId)
     );
 
     if (!subscription) {
@@ -179,6 +196,58 @@ export async function getSubscriptionDetails(): Promise<SubscriptionDetails> {
   }
 }
 
+/**
+ * SSOT용 Entitlement 검증 (VerificationResult 형식)
+ * Google Play 스토어에서 구독 상태를 조회하여 SSOT 판별에 사용
+ */
+export async function getEntitlementVerification(): Promise<Partial<VerificationResult>> {
+  try {
+    const purchases = await getAvailablePurchases();
+    const subscription = purchases.find(
+      (purchase: Purchase) =>
+        purchase.productId === SUBSCRIPTION_SKU ||
+        LEGACY_PRODUCT_IDS.includes(purchase.productId)
+    );
+
+    if (!subscription) {
+      // 구독 없음
+      return {
+        success: true,
+        entitlementActive: false,
+        productId: undefined,
+        expiresDate: undefined,
+        isPending: false,
+        source: 'cache', // 로컬 스토어 캐시에서 가져옴
+      };
+    }
+
+    // 만료일 계산
+    let expiresDate: Date | undefined;
+    if (subscription.transactionDate) {
+      expiresDate = new Date(subscription.transactionDate);
+      expiresDate.setDate(expiresDate.getDate() + 30);
+    }
+
+    // pending 상태 확인
+    const isPending = (subscription as any).purchaseStateAndroid === 4; // PENDING state
+
+    return {
+      success: true,
+      entitlementActive: true,
+      productId: subscription.productId,
+      expiresDate,
+      isPending,
+      source: 'cache', // 로컬 스토어 캐시에서 가져옴
+    };
+  } catch (error) {
+    console.error('[Payment] Entitlement verification failed:', error);
+    return {
+      success: false,
+      entitlementActive: false,
+      source: 'cache',
+    };
+  }
+}
 
 /**
  * 결제 시스템 연결 해제
@@ -190,3 +259,4 @@ export async function disconnectPayment(): Promise<void> {
     console.error('Failed to disconnect payment system:', error);
   }
 }
+
