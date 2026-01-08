@@ -28,6 +28,7 @@ import { checkAndRestoreSubscription } from '../services/subscription';
 function AppContent() {
   const { isLoggedIn, setIsLoggedIn, isLoggingIn, setIsLoggingIn, checkAuthStatus, subscriptionStatus, setSubscriptionStatus } = useAuth();
   const [subscriptionBlocked, setSubscriptionBlocked] = useState(false);
+  const [isRestoreRetryNeeded, setIsRestoreRetryNeeded] = useState(false);
   const router = useRouter();
   const notificationListener = useRef<any>(null);
   const responseListener = useRef<any>(null);
@@ -60,14 +61,22 @@ function AppContent() {
             async (purchase) => {
               // 결제 완료 처리
               try {
+                // 1. 먼저 restore 플래그를 제거 (C-2 상태 해제 - 가장 먼저 해야 함)
+                console.log('[Payment] Removing restore flags...');
+                await AsyncStorage.removeItem('restore_attempted');
+                await AsyncStorage.removeItem('restore_succeeded');
+
+                // 2. 결제 완료 처리 및 서버 동기화
                 await completePurchase(purchase);
                 await handleSubscriptionSuccess();
 
-                // Auth context 업데이트하여 구독 상태 갱신
-                await checkAuthStatus();
-
-                // 즉시 구독 상태를 'active'로 설정 (React 상태 강제 업데이트)
+                // 3. UI 상태를 즉시 업데이트 (차단 화면 해제)
+                console.log('[Payment] Setting subscription status to active');
                 setSubscriptionStatus('active');
+
+                // 4. checkAuthStatus()를 호출하지 않음 - 이미 상태를 설정했고,
+                // checkAuthStatus()가 플래그를 다시 읽으면서 문제 발생
+                // _layout.tsx의 주기적 체크 또는 다음 포그라운드 전환 시 자동 검증됨
 
                 // 성공 토스트 표시
                 setTimeout(() => {
@@ -94,21 +103,32 @@ function AppContent() {
                 console.log('[Payment] Item already owned, syncing subscription status');
                 (async () => {
                   try {
-                    // 이미 구독 중이므로 Google Play에서 상태 가져오기
+                    // 1. 먼저 restore 플래그를 제거 (C-2 상태 해제 - 가장 먼저 해야 함)
+                    console.log('[Payment] Removing restore flags...');
+                    await AsyncStorage.removeItem('restore_attempted');
+                    await AsyncStorage.removeItem('restore_succeeded');
+
+                    // 2. 이미 구독 중이므로 Google Play에서 상태 가져오기
                     const { getSubscriptionDetails } = await import('../services/paymentService');
                     const { handleLicenseResponse } = await import('../services/licenseChecker');
 
                     const subscriptionDetails = await getSubscriptionDetails();
 
                     if (subscriptionDetails.isActive) {
-                      // 구독 활성화 처리
-                      await handleLicenseResponse('LICENSED', subscriptionDetails.expiryDate);
+                      // 3. 구독 활성화 처리 (실제 productId와 purchaseToken 전달)
+                      await handleLicenseResponse(
+                        'LICENSED',
+                        subscriptionDetails.expiryDate,
+                        subscriptionDetails.productId,
+                        subscriptionDetails.purchaseToken
+                      );
 
-                      // Auth context 업데이트하여 화면 갱신
-                      await checkAuthStatus();
-
-                      // 즉시 구독 상태를 'active'로 설정 (React 상태 강제 업데이트)
+                      // 4. UI 상태를 즉시 업데이트 (차단 화면 해제)
+                      console.log('[Payment] Setting subscription status to active');
                       setSubscriptionStatus('active');
+
+                      // 5. 강제로 메인 탭으로 이동 (React 상태 업데이트가 UI에 반영되지 않는 문제 해결)
+                      router.replace('/(tabs)');
 
                       setTimeout(() => {
                         const { showToast } = require('../utils/toast');
@@ -364,6 +384,39 @@ function AppContent() {
     };
   }, []);
 
+  // Check if restore retry is needed when in loading state
+  useEffect(() => {
+    // 약간의 지연을 두고 체크 (플래그 제거가 완전히 반영되도록)
+    const timeoutId = setTimeout(async () => {
+      if (subscriptionStatus === 'loading') {
+        try {
+          const restoreAttempted = await AsyncStorage.getItem('restore_attempted');
+          const restoreSucceeded = await AsyncStorage.getItem('restore_succeeded');
+
+          console.log('[AppContent] Checking restore retry:', { restoreAttempted, restoreSucceeded });
+
+          // CASE C-2: Restore 시도했으나 실패
+          // restoreAttempted === 'true' && restoreSucceeded === 'false'는
+          // 복원을 시도했지만 실패했다는 의미
+          if (restoreAttempted === 'true' && restoreSucceeded === 'false') {
+            console.log('[AppContent] Restore retry needed - showing block screen');
+            setIsRestoreRetryNeeded(true);
+          } else {
+            console.log('[AppContent] Restore retry not needed');
+            setIsRestoreRetryNeeded(false);
+          }
+        } catch (error) {
+          console.error('[AppContent] Failed to check restore retry:', error);
+          setIsRestoreRetryNeeded(false);
+        }
+      } else {
+        setIsRestoreRetryNeeded(false);
+      }
+    }, 100); // 100ms 지연
+
+    return () => clearTimeout(timeoutId);
+  }, [subscriptionStatus]);
+
   // AppState listener and periodic subscription check
   useEffect(() => {
     // 로그인하지 않았거나 로그인 중이면 체크하지 않음
@@ -488,7 +541,23 @@ function AppContent() {
 
   // 3. Logging In / Checking Subscription / SSOT Loading State
   // SSOT: subscriptionStatus === 'loading'일 때도 로딩 UI 표시 (스토어 검증 중)
+  // CASE C-2: Restore 실패 시 복원 재시도 화면 표시
   if (isLoggingIn || (isLoggedIn === true && (subscriptionStatus === null || subscriptionStatus === 'loading'))) {
+    // C-2: Restore 재시도 필요 (복원 실패)
+    if (subscriptionStatus === 'loading' && isRestoreRetryNeeded) {
+      return (
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <SafeAreaProvider>
+            <StatusBar style="dark" />
+            <ToastProvider>
+              <SubscriptionBlockScreen />
+            </ToastProvider>
+          </SafeAreaProvider>
+        </GestureHandlerRootView>
+      );
+    }
+
+    // 일반 로딩 상태
     return (
       <GestureHandlerRootView style={{ flex: 1 }}>
         <SafeAreaProvider>
