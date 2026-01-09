@@ -36,6 +36,8 @@ class SubscriptionManager {
 
     // 테스트용: Google Play 복원 강제 건너뛰기 (A-1 테스트용)
     private forceSkipRestore: boolean = false;
+    // 테스트용: SSOT 서버 검증도 건너뛰기 (C-1 등, D-1에서는 false로 SSOT 시도)
+    private forceSkipSSOT: boolean = false;
     private testModeLoaded: boolean = false;
 
     private constructor() {
@@ -50,19 +52,22 @@ class SubscriptionManager {
     }
 
     /**
-     * 테스트 모드 설정 (A-1 테스트용)
-     * Google Play 복원을 강제로 건너뛰어 신규 유저처럼 동작
-     * AsyncStorage에 저장하여 앱 재시작 후에도 유지
+     * 테스트 모드 설정
+     * @param skipRestore - Google Play 복원 건너뛰기 (모든 테스트)
+     * @param skipSSOT - SSOT 서버 검증도 건너뛰기 (기본 true, D-1에서는 false)
      */
-    async setTestMode(skipRestore: boolean): Promise<void> {
+    async setTestMode(skipRestore: boolean, skipSSOT: boolean = true): Promise<void> {
         this.forceSkipRestore = skipRestore;
+        this.forceSkipSSOT = skipSSOT;
         // AsyncStorage에 저장하여 앱 재시작 후에도 유지
         if (skipRestore) {
             await AsyncStorage.setItem('dev_force_skip_restore', 'true');
+            await AsyncStorage.setItem('dev_force_skip_ssot', skipSSOT ? 'true' : 'false');
         } else {
             await AsyncStorage.removeItem('dev_force_skip_restore');
+            await AsyncStorage.removeItem('dev_force_skip_ssot');
         }
-        console.log('[SubscriptionManager] Test mode set, forceSkipRestore:', skipRestore);
+        console.log('[SubscriptionManager] Test mode set, forceSkipRestore:', skipRestore, 'forceSkipSSOT:', skipSSOT);
     }
 
     /**
@@ -71,12 +76,15 @@ class SubscriptionManager {
     private async loadTestMode(): Promise<void> {
         if (this.testModeLoaded) return;
 
-        const flag = await AsyncStorage.getItem('dev_force_skip_restore');
-        this.forceSkipRestore = flag === 'true';
+        const skipRestoreFlag = await AsyncStorage.getItem('dev_force_skip_restore');
+        const skipSSOTFlag = await AsyncStorage.getItem('dev_force_skip_ssot');
+
+        this.forceSkipRestore = skipRestoreFlag === 'true';
+        this.forceSkipSSOT = skipSSOTFlag === 'true'; // 기본 false (D-1처럼 SSOT 시도)
         this.testModeLoaded = true;
 
         if (this.forceSkipRestore) {
-            console.log('[SubscriptionManager] Test mode loaded from storage: forceSkipRestore = true');
+            console.log('[SubscriptionManager] Test mode loaded: forceSkipRestore=true, forceSkipSSOT=', this.forceSkipSSOT);
         }
     }
 
@@ -130,37 +138,9 @@ class SubscriptionManager {
             const localState = await getSubscriptionState();
             console.log('[SubscriptionManager] Local state:', localState);
 
-            // 4-1. 로컬 상태가 이미 active/trial이면 신뢰 (SSOT 건너뜀)
-            // 이유: 서버 동기화 지연으로 인한 stale data 덮어쓰기 방지
-            if (localState === 'active') {
-                // 로컬 만료일 확인하여 아직 유효한지 체크
-                const expiryDate = await AsyncStorage.getItem('subscription_expiry_date');
-
-                if (expiryDate) {
-                    const expiry = new Date(expiryDate);
-                    const now = new Date();
-
-                    if (expiry > now) {
-                        console.log('[SubscriptionManager] Local active state is still valid, trusting it');
-                        this.lastResult = 'active';
-                        this.lastProcessedAt = Date.now();
-                        return 'active';
-                    } else {
-                        console.log('[SubscriptionManager] Local active state expired, will verify with SSOT');
-                    }
-                } else {
-                    // 만료일 없으면 일단 active 신뢰
-                    console.log('[SubscriptionManager] No expiry date, trusting local active state');
-                    this.lastResult = 'active';
-                    this.lastProcessedAt = Date.now();
-                    return 'active';
-                }
-            } else if (localState === 'trial') {
-                console.log('[SubscriptionManager] Local trial state, trusting it');
-                this.lastResult = 'trial';
-                this.lastProcessedAt = Date.now();
-                return 'trial';
-            }
+            // F-1: 로컬 만료일로 active 판정 금지 (기기 시간 조작 방지)
+            // 구독 active 판정은 항상 서버(SSOT) 기준
+            // 오프라인에서는 loading 유지 (active 추측 안 함)
 
             let restored = false;
             if (!skipRestore && !this.forceSkipRestore && localState === 'expired') {
@@ -179,10 +159,10 @@ class SubscriptionManager {
                 return 'active';
             }
 
-            // 6. 테스트 모드에서는 SSOT도 건너뛰고 로컬 상태 신뢰
-            // (C-1 테스트에서 설정한 entitlementActive 값이 덮어씌워지는 것 방지)
-            if (this.forceSkipRestore && localState === 'expired') {
-                console.log('[SubscriptionManager] Test mode: skipping SSOT, trusting local blocked state');
+            // 6. 테스트 모드에서 SSOT도 건너뛰기 (C-1 등)
+            // D-1에서는 forceSkipSSOT=false로 SSOT 시도 → 네트워크 에러 시 loading
+            if (this.forceSkipRestore && this.forceSkipSSOT && localState === 'expired') {
+                console.log('[SubscriptionManager] Test mode: skipping SSOT (forceSkipSSOT=true)');
                 this.lastResult = 'expired';
                 this.lastProcessedAt = Date.now();
                 return 'expired';
@@ -213,7 +193,17 @@ class SubscriptionManager {
 
         } catch (error) {
             console.error('[SubscriptionManager] Error during resolution:', error);
-            // 에러 시 loading 반환 (안전 측)
+            // F-1 오프라인 처리 원칙:
+            // - 마지막 상태가 active/trial → loading (추측 금지)
+            // - 마지막 상태가 expired → blocked 유지
+            const lastStatus = await AsyncStorage.getItem('subscription_status');
+            if (lastStatus === 'blocked' || lastStatus === 'expired') {
+                console.log('[SubscriptionManager] Offline + expired → blocked');
+                this.lastResult = 'expired';
+                this.lastProcessedAt = Date.now();
+                return 'expired';
+            }
+            console.log('[SubscriptionManager] Offline + unknown/active → loading');
             this.lastResult = 'loading';
             this.lastProcessedAt = Date.now();
             return 'loading';

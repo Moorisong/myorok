@@ -277,7 +277,7 @@ export default function SettingsScreen() {
                         <SettingItem
                             emoji="✅"
                             title="테스트 모드 해제 (Dev)"
-                            description="forceExpired + forceSkipRestore 모두 제거"
+                            description="모든 테스트 플래그 제거"
                             onPress={async () => {
                                 try {
                                     // 1. forceSkipRestore 해제
@@ -288,11 +288,110 @@ export default function SettingsScreen() {
                                     // 2. forceExpired 플래그 제거
                                     const { clearForceExpiredFlag } = await import('../../../services/subscription');
                                     await clearForceExpiredFlag();
+
+                                    // 3. D-2 강제 서버 에러 플래그 제거
+                                    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+                                    await AsyncStorage.removeItem('dev_force_server_error');
+
                                     Alert.alert('완료', '모든 테스트 플래그가 제거되었습니다.\n\nGoogle Play 복원이 다시 활성화됩니다.\n\n앱을 재실행(r)해주세요.');
                                 } catch (error) {
                                     console.error('[Settings] Clear test flags failed:', error);
                                     Alert.alert('오류', '테스트 플래그 제거 실패');
                                 }
+                            }}
+                        />
+                        <SettingItem
+                            emoji="📡"
+                            title="Test Case D-1 (신규+네트워크없음)"
+                            description="Google Play 복원 건너뛰기 + 로컬 초기화"
+                            onPress={async () => {
+                                Alert.alert(
+                                    'Case D-1 설정',
+                                    '구독 없는 신규 유저가 네트워크 없이 앱을 실행하는 상황을 시뮬레이션합니다.\n\n1. Google Play 복원 비활성화\n2. 로컬 구독 데이터 초기화\n3. 비행기 모드 ON\n4. 앱 재시작\n\n기대 결과: loading 상태 유지',
+                                    [
+                                        { text: '취소', style: 'cancel' },
+                                        {
+                                            text: '실행',
+                                            style: 'destructive',
+                                            onPress: async () => {
+                                                try {
+                                                    // 1. forceSkipRestore=true, forceSkipSSOT=false (SSOT는 시도)
+                                                    const SubscriptionManager = (await import('../../../services/SubscriptionManager')).default;
+                                                    const manager = SubscriptionManager.getInstance();
+                                                    await manager.setTestMode(true, false); // D-1: SSOT 시도 → 네트워크 에러 → loading
+
+                                                    // 2. 로컬 구독 데이터 완전 초기화
+                                                    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+                                                    await AsyncStorage.removeItem('subscription_status');
+                                                    await AsyncStorage.removeItem('subscription_expiry_date');
+                                                    await AsyncStorage.removeItem('subscription_start_date');
+                                                    await AsyncStorage.removeItem('trial_start_date');
+                                                    await AsyncStorage.removeItem('has_purchase_history');
+                                                    await AsyncStorage.removeItem('entitlement_active');
+                                                    await AsyncStorage.removeItem('restore_attempted');
+                                                    await AsyncStorage.removeItem('restore_succeeded');
+
+                                                    Alert.alert(
+                                                        '설정 완료',
+                                                        'D-1 테스트 준비 완료!\n\n다음 단계:\n1. 비행기 모드 ON\n2. 앱 재시작 (r)\n\n기대 결과: loading 화면 유지\n(trial/active로 진입하면 실패)'
+                                                    );
+                                                } catch (e) {
+                                                    console.error(e);
+                                                    Alert.alert('오류', '설정 실패');
+                                                }
+                                            }
+                                        }
+                                    ]
+                                );
+                            }}
+                        />
+                        <SettingItem
+                            emoji="🔥"
+                            title="Test Case D-2 (서버 500 에러)"
+                            description="SSOT 검증 시 강제 에러 발생"
+                            onPress={async () => {
+                                Alert.alert(
+                                    'Case D-2 설정',
+                                    '서버 API 실패(500/타임아웃)를 시뮬레이션합니다.\n\n1. 강제 서버 에러 플래그 설정\n2. 로컬 구독 데이터 초기화\n3. 앱 재시작\n\n기대 결과: loading 상태 + 재시도 가능',
+                                    [
+                                        { text: '취소', style: 'cancel' },
+                                        {
+                                            text: '실행',
+                                            style: 'destructive',
+                                            onPress: async () => {
+                                                try {
+                                                    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+
+                                                    // 1. forceSkipRestore=true, forceSkipSSOT=false (SSOT 시도하지만 에러 발생)
+                                                    const SubscriptionManager = (await import('../../../services/SubscriptionManager')).default;
+                                                    const manager = SubscriptionManager.getInstance();
+                                                    await manager.setTestMode(true, false);
+
+                                                    // 2. 강제 서버 에러 플래그 설정
+                                                    await AsyncStorage.setItem('dev_force_server_error', 'true');
+
+                                                    // 3. 로컬 구독 데이터 초기화
+                                                    await AsyncStorage.removeItem('subscription_status');
+                                                    await AsyncStorage.removeItem('subscription_expiry_date');
+                                                    await AsyncStorage.removeItem('subscription_start_date');
+                                                    await AsyncStorage.removeItem('trial_start_date');
+                                                    await AsyncStorage.removeItem('has_purchase_history');
+                                                    await AsyncStorage.removeItem('entitlement_active');
+                                                    await AsyncStorage.removeItem('restore_attempted');
+                                                    await AsyncStorage.removeItem('restore_succeeded');
+
+                                                    Alert.alert(
+                                                        '설정 완료',
+                                                        'D-2 테스트 준비 완료!\n\n앱을 재시작 (r)하세요.\n\n기대 결과: loading 화면 유지\n(재시도 버튼 표시)'
+                                                    );
+                                                } catch (e) {
+                                                    console.error(e);
+                                                    Alert.alert('오류', '설정 실패');
+                                                }
+                                            }
+                                        }
+                                    ]
+                                );
                             }}
                         />
                         <SettingItem

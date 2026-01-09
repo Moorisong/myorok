@@ -363,6 +363,13 @@ export async function verifySubscriptionWithServer(): Promise<{
     status: SubscriptionStatus;
     state: SubscriptionState;
 }> {
+    // D-2 테스트: 강제 서버 에러 시뮬레이션
+    const forceServerError = await AsyncStorage.getItem('dev_force_server_error');
+    if (forceServerError === 'true') {
+        console.log('[SSOT] D-2 Test: Simulating server 500 error');
+        throw new Error('D-2 Test: Simulated server 500 error');
+    }
+
     const userId = await AsyncStorage.getItem('current_user_id');
 
     if (!userId) {
