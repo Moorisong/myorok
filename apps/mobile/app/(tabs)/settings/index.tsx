@@ -255,8 +255,8 @@ export default function SettingsScreen() {
                         />
                         <SettingItem
                             emoji="🚫"
-                            title="구독 만료 상태로 전환 (Dev)"
-                            description={`현재: ${subscriptionState?.status || '로딩 중'}`}
+                            title="Test Case B-1 (구독 만료)"
+                            description={`강제 만료 처리 | 현재: ${subscriptionState?.status || '로딩 중'}`}
                             onPress={async () => {
                                 try {
                                     // 1. Google Play 복원 건너뛰기 설정
