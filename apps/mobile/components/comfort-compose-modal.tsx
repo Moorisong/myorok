@@ -82,7 +82,7 @@ export default function ComfortComposeModal({
                 '작성 중인 내용이 삭제됩니다.',
                 [
                     { text: '계속 작성', style: 'cancel' },
-                    { text: '취소', style: 'destructive', onPress: onClose },
+                    { text: '나가기', style: 'destructive', onPress: onClose },
                 ]
             );
         } else {
