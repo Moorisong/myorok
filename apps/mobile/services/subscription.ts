@@ -66,7 +66,7 @@ export interface SubscriptionState {
 // SSOT Constants
 // ============================================================
 
-const TRIAL_DAYS = 7;
+const TRIAL_DAYS = 7; // 7일 (원래 값으로 복구)
 const API_URL = CONFIG.API_BASE_URL;
 const EXPECTED_PRODUCT_ID = 'myorok_monthly_premium';
 const LEGACY_PRODUCT_IDS = ['myorok_monthly_legacy_v1']; // CASE I: 레거시 상품 ID 허용 목록
@@ -414,6 +414,11 @@ export async function verifySubscriptionWithServer(): Promise<{
     if (serverResult.hasPurchaseHistory !== undefined) {
         await AsyncStorage.setItem('has_purchase_history', serverResult.hasPurchaseHistory ? 'true' : 'false');
     }
+
+    // entitlementActive도 로컬에 저장 (B-1 vs C-1 판별용)
+    // B-1: hasPurchaseHistory=true, entitlementActive=false (끝난 구독)
+    // C-1: hasPurchaseHistory=true, entitlementActive=true (살릴 수 있는 구독)
+    await AsyncStorage.setItem('entitlement_active', serverResult.entitlementActive ? 'true' : 'false');
 
     // 5. SubscriptionState 구성
     const state: SubscriptionState = {
@@ -1248,6 +1253,10 @@ export async function deactivateSubscription(): Promise<void> {
                 });
                 console.log('[Subscription] Expired trial on server for testing');
             }
+
+            // B-1: hasPurchaseHistory=true, entitlementActive=false (끝난 구독)
+            await AsyncStorage.setItem('has_purchase_history', 'true');
+            await AsyncStorage.setItem('entitlement_active', 'false');
         } catch (e) {
             console.error('[Subscription] Failed to expire trial on server:', e);
         }
@@ -1409,7 +1418,12 @@ export async function setupTestCase_C1(): Promise<void> {
         // there's no actual Google Play subscription
         await AsyncStorage.setItem(SUBSCRIPTION_KEYS.RESTORE_ATTEMPTED, 'true');
 
-        console.log('[Subscription] Step 3: Set RESTORE_ATTEMPTED flag (simulating failed restore)');
+        // 5. C-1 핵심: hasPurchaseHistory=true, entitlementActive=true (살릴 수 있는 구독)
+        await AsyncStorage.setItem('has_purchase_history', 'true');
+        await AsyncStorage.setItem('entitlement_active', 'true');
+        await AsyncStorage.setItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS, 'blocked');
+
+        console.log('[Subscription] Step 4: Set has_purchase_history=true, entitlement_active=true');
         console.log('[Subscription] Case C-1 Setup Complete. Restarting...');
     } catch (error) {
         console.error('[Subscription] Setup Case C-1 failed:', error);
