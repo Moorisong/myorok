@@ -1,5 +1,4 @@
 import { GoogleAuth } from 'google-auth-library';
-import { config } from '../config';
 
 interface SubscriptionPurchase {
     kind: string;
@@ -35,14 +34,20 @@ export class GooglePlayVerifier {
     private auth: GoogleAuth | null = null;
     private accessToken: string | null = null;
     private tokenExpiryTime: number = 0;
+    private packageName: string;
 
     constructor() {
+        this.packageName = process.env.GOOGLE_PLAY_PACKAGE_NAME || 'com.myorok.app';
+
+        const serviceAccountEmail = process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL;
+        const serviceAccountPrivateKey = process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY?.replace(/\\n/g, '\n');
+
         // Service Account가 설정되어 있으면 인증 초기화
-        if (config.googlePlay.serviceAccountEmail && config.googlePlay.serviceAccountPrivateKey) {
+        if (serviceAccountEmail && serviceAccountPrivateKey) {
             this.auth = new GoogleAuth({
                 credentials: {
-                    client_email: config.googlePlay.serviceAccountEmail,
-                    private_key: config.googlePlay.serviceAccountPrivateKey,
+                    client_email: serviceAccountEmail,
+                    private_key: serviceAccountPrivateKey,
                 },
                 scopes: ['https://www.googleapis.com/auth/androidpublisher'],
             });
@@ -102,7 +107,7 @@ export class GooglePlayVerifier {
                 return { success: false, isActive: false, error: 'Failed to get access token' };
             }
 
-            const url = `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${config.googlePlay.packageName}/purchases/subscriptions/${productId}/tokens/${purchaseToken}`;
+            const url = `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${this.packageName}/purchases/subscriptions/${productId}/tokens/${purchaseToken}`;
 
             const response = await fetch(url, {
                 method: 'GET',
@@ -142,27 +147,24 @@ export class GooglePlayVerifier {
                 autoRenewing: purchase.autoRenewing,
                 orderId: purchase.orderId,
             };
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('[GooglePlay] Verification error:', error);
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             return {
                 success: false,
                 isActive: false,
-                error: error.message || 'Unknown error',
+                error: errorMessage,
             };
         }
-    }
-
-    /**
-     * 구독 취소 상태 확인
-     */
-    async isSubscriptionCancelled(purchaseToken: string, productId: string): Promise<boolean> {
-        const result = await this.verifySubscription(purchaseToken, productId);
-        if (!result.success) {
-            return false;
-        }
-        return !result.autoRenewing;
     }
 }
 
 // Singleton instance
-export const googlePlayVerifier = new GooglePlayVerifier();
+let verifierInstance: GooglePlayVerifier | null = null;
+
+export function getGooglePlayVerifier(): GooglePlayVerifier {
+    if (!verifierInstance) {
+        verifierInstance = new GooglePlayVerifier();
+    }
+    return verifierInstance;
+}
