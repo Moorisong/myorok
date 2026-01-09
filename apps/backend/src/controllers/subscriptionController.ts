@@ -288,7 +288,7 @@ export const verifySubscription = async (req: Request, res: Response): Promise<v
 
         // 체험 활성 여부 계산 (7일)
         // 단, 구독이 활성이면 체험은 비활성으로 처리 (구독이 우선)
-        const TRIAL_DAYS = 7; // 7일 (원래 값으로 복구)
+        const TRIAL_DAYS = 7;
         let trialActive = false;
         if (!entitlementActive && trial?.trialStartedAt) {
             const trialExpiresAt = new Date(trial.trialStartedAt);
