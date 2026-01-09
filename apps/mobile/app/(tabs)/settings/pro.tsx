@@ -165,7 +165,9 @@ export default function ProScreen() {
                             <>
                                 <Text style={styles.cancelledText}>⚠️ 해지 예정</Text>
                                 <Text style={styles.cancelledSubtext}>
-                                    {formatDate(subscriptionDetails?.expiryDate)}에 해지됩니다
+                                    {subscriptionDetails?.expiryDate
+                                        ? `${formatDate(subscriptionDetails.expiryDate)}에 해지됩니다`
+                                        : '곧 해지됩니다'}
                                 </Text>
                             </>
                         ) : (
@@ -266,7 +268,9 @@ export default function ProScreen() {
                                 <Card style={styles.card}>
                                     <Text style={styles.cancelledInfoTitle}>📅 해지 예정</Text>
                                     <Text style={styles.cancelledInfoText}>
-                                        {formatDate(subscriptionDetails?.expiryDate)}까지 모든 기능을 사용하실 수 있습니다.{"\n"}
+                                        {subscriptionDetails?.expiryDate
+                                            ? `${formatDate(subscriptionDetails.expiryDate)}까지 모든 기능을 사용하실 수 있습니다.`
+                                            : '만료일까지 모든 기능을 사용하실 수 있습니다.'}{"\n"}
                                         이후 구독이 자동으로 해지됩니다.
                                     </Text>
                                 </Card>
