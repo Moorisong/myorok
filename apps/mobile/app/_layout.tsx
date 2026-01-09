@@ -65,22 +65,18 @@ function AppContent() {
             async (purchase) => {
               // 결제 완료 처리
               try {
-                // 1. 먼저 restore 플래그를 제거 (C-2 상태 해제 - 가장 먼저 해야 함)
-                console.log('[Payment] Removing restore flags...');
-                await AsyncStorage.removeItem('restore_attempted');
-                await AsyncStorage.removeItem('restore_succeeded');
-
-                // 2. 결제 완료 처리 및 서버 동기화
+                // 1. 결제 완료 처리 및 서버 동기화
                 await completePurchase(purchase);
                 await handleSubscriptionSuccess();
 
-                // 3. UI 상태를 즉시 업데이트 (차단 화면 해제)
-                console.log('[Payment] Setting subscription status to active');
-                setSubscriptionStatus('active');
+                // 2. SubscriptionManager를 통해 상태 업데이트 (중앙 집중식)
+                const SubscriptionManager = (await import('../services/SubscriptionManager')).default;
+                const manager = SubscriptionManager.getInstance();
+                await manager.handlePurchaseComplete();
 
-                // 4. checkAuthStatus()를 호출하지 않음 - 이미 상태를 설정했고,
-                // checkAuthStatus()가 플래그를 다시 읽으면서 문제 발생
-                // _layout.tsx의 주기적 체크 또는 다음 포그라운드 전환 시 자동 검증됨
+                // 3. UI 상태를 즉시 업데이트
+                console.log('[Payment] Purchase complete, setting status to active');
+                setSubscriptionStatus('active');
 
                 // 성공 토스트 표시
                 setTimeout(() => {
@@ -173,18 +169,10 @@ function AppContent() {
           // Cleanup 함수를 subscription 변수에 할당하여 나중에 제거
           subscription = { remove: cleanupListeners };
 
-          // 3. 기존 구독 복원 (재설치 시) - 로그인된 상태에서만 시도
+          // 3. 기존 구독 복원 (재설치 시) - 이제 checkAuthStatus()에서 처리됨
+          // (Auto-restore가 checkAuthStatus() 내부에서 SSOT 호출 전에 실행됨)
           if (currentUserId) {
-            const { getSubscriptionState } = await import('../services/subscription');
-            const localState = await getSubscriptionState();
-
-            // 만료 상태일 때만 Google Play에서 복원 시도 (active 상태는 유지)
-            if (localState === 'expired') {
-              console.log('[App] Attempting to restore subscription for logged-in user');
-              await checkAndRestoreSubscription();
-            } else {
-              console.log('[App] Skip restore - local state is', localState);
-            }
+            console.log('[App] Auto-restore is now handled in checkAuthStatus()');
           } else {
             console.log('[App] Skip restore - not logged in');
           }
@@ -364,34 +352,9 @@ function AppContent() {
               );
             }
 
-            // Restore subscription from Google Play before checking auth status
-            // This ensures that verifySubscriptionWithServer() has local subscription data
-            try {
-              const { getSubscriptionState } = await import('../services/subscription');
-              const localState = await getSubscriptionState();
-              console.log('[DeepLink] Local subscription state after login:', localState);
-
-              if (localState === 'expired') {
-                console.log('[DeepLink] Attempting to restore subscription after login');
-                await checkAndRestoreSubscription();
-
-                // Check state again after restore
-                const newState = await getSubscriptionState();
-                console.log('[DeepLink] Local subscription state after restore:', newState);
-
-                // Note: Don't call initializeSubscription() here
-                // Let checkAuthStatus() fetch the correct state from server
-                // If user has no subscription history, server will allow trial
-                // If user has subscription history but expired, server will return blocked
-              } else {
-                console.log('[DeepLink] Skip restore - local state is', localState);
-              }
-            } catch (restoreError) {
-              console.error('[DeepLink] Restore failed after login:', restoreError);
-              // Continue even if restore fails
-            }
-
-            // Re-check auth status to update context (including subscription)
+            // SubscriptionManager가 checkAuthStatus() 내에서 복원 + SSOT 처리
+            // 별도 restore 호출 불필요 (중복 호출 방지)
+            console.log('[DeepLink] Calling checkAuthStatus (SubscriptionManager handles restore + SSOT)');
             await checkAuthStatus();
 
             setIsLoggingIn(false);
@@ -484,28 +447,22 @@ function AppContent() {
     // Ref를 현재 값으로 업데이트 (closure 문제 해결)
     subscriptionStatusRef.current = subscriptionStatus;
 
-    // 구독 상태 체크 함수
+    // 구독 상태 체크 함수 (SubscriptionManager 사용)
     const checkSubscriptionStatus = async () => {
       try {
         // Ref에서 현재 상태 읽기 (closure가 아닌 최신 값)
         const currentStatus = subscriptionStatusRef.current;
 
-        // SSOT가 아직 실행되지 않았거나 'loading'을 반환한 경우, 로컬 상태로 덮어쓰지 않음
-        // null: 아직 SSOT가 실행되지 않음
-        // 'loading': 서버 검증 실패 (D-1 SSOT)
+        // SSOT가 아직 실행되지 않았거나 'loading'을 반환한 경우, 체크하지 않음
         if (currentStatus === null || currentStatus === 'loading') {
           console.log('[AppState] Skipping status check - status is', currentStatus, '(D-1 SSOT)');
           return;
         }
 
-        const { getSubscriptionState } = await import('../services/subscription');
-        const currentState = await getSubscriptionState();
-
-        // SSOT status -> UI status mapping
-        // getSubscriptionState returns legacy string ('active', 'expired', etc)
-        let uiStatus = currentState;
-        if (uiStatus === 'subscribed') uiStatus = 'active'; // Compatibility
-        else if (uiStatus === 'blocked') uiStatus = 'expired';
+        // SubscriptionManager를 통해 상태 확인 (skipRestore: 포그라운드 전환에서는 복원 생략)
+        const SubscriptionManager = (await import('../services/SubscriptionManager')).default;
+        const manager = SubscriptionManager.getInstance();
+        const uiStatus = await manager.resolveSubscriptionStatus({ skipRestore: true });
 
         // 상태가 변경되었으면 context 업데이트
         if (uiStatus !== subscriptionStatus) {

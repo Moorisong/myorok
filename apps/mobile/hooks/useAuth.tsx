@@ -60,23 +60,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setIsLoggedIn(!!currentUserId);
 
             if (currentUserId) {
-                // SSOT: 서버 검증 기반 구독 상태 판별
-                const { verifySubscriptionWithServer } = await import('../services/subscription');
-                const { status } = await verifySubscriptionWithServer();
-
-                // SSOT 상태를 UI 상태로 변환
-                // subscribed -> active, blocked -> expired
-                let uiStatus: SubscriptionStatus;
-                if (status === 'subscribed') {
-                    uiStatus = 'active';
-                } else if (status === 'blocked') {
-                    uiStatus = 'expired';
-                } else {
-                    uiStatus = status; // 'loading', 'trial'
-                }
+                // SubscriptionManager를 통해 구독 상태 결정 (중앙 집중식)
+                // - 중복 호출 방지
+                // - 복원 성공 시 SSOT 건너뜀
+                // - 모든 상태 변경을 한 곳에서 처리
+                const SubscriptionManager = (await import('../services/SubscriptionManager')).default;
+                const manager = SubscriptionManager.getInstance();
+                const uiStatus = await manager.resolveSubscriptionStatus();
 
                 setSubscriptionStatus(uiStatus);
-                console.log('[AuthContext] SSOT subscription status:', status, '-> UI:', uiStatus);
+                console.log('[AuthContext] Subscription status from Manager:', uiStatus);
 
                 // 운영자 권한 조회
                 const adminStatus = await getIsAdmin();

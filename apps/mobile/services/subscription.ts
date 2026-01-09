@@ -716,6 +716,11 @@ export async function resetSubscription(): Promise<void> {
     try {
         console.log('[Subscription] Resetting subscription state...');
 
+        // 0. SubscriptionManager 캐시 초기화 (테스트 격리)
+        const SubscriptionManager = (await import('./SubscriptionManager')).default;
+        const manager = SubscriptionManager.getInstance();
+        await manager.resetForTesting();
+
         // 1. Reset Server Data
         const userId = await AsyncStorage.getItem('current_user_id');
         if (userId) {
@@ -1147,7 +1152,7 @@ export async function handlePurchaseSuccess(): Promise<void> {
  * 주의: 이 함수는 로컬 상태가 expired일 때만 호출해야 합니다.
  * Google Play에서 구독을 찾으면 활성화하지만, 서버 동기화가 실패하면 loading 상태를 유지합니다 (D-1 SSOT).
  */
-export async function checkAndRestoreSubscription(): Promise<void> {
+export async function checkAndRestoreSubscription(): Promise<boolean> {
     console.log('Checking and restoring subscription');
 
     try {
@@ -1169,6 +1174,7 @@ export async function checkAndRestoreSubscription(): Promise<void> {
                 true // requireServerSync
             );
             console.log('[Subscription] Subscription restored successfully');
+            return true;
         } else {
             // 활성 구독 없음 - 기존 상태 유지 (NOT_LICENSED를 보내지 않음)
             console.log('[Subscription] No active subscription found in Google Play, keeping local state');
@@ -1178,6 +1184,7 @@ export async function checkAndRestoreSubscription(): Promise<void> {
             await AsyncStorage.removeItem('restore_attempted');
             await AsyncStorage.removeItem('restore_succeeded');
             console.log('[Subscription] Cleared restore flags (auto-restore failed, not user action)');
+            return false;
         }
     } catch (error) {
         // Google Play 연결 실패 또는 서버 동기화 실패 시 loading 상태 유지 (D-1 SSOT)
@@ -1186,6 +1193,7 @@ export async function checkAndRestoreSubscription(): Promise<void> {
         // 에러 발생 시에도 플래그 제거 (자동 복원 실패)
         await AsyncStorage.removeItem('restore_attempted');
         await AsyncStorage.removeItem('restore_succeeded');
+        return false;
     }
 }
 
@@ -1291,7 +1299,23 @@ export async function setupTestCase_A2(): Promise<void> {
             console.log('[Subscription] Trial start record check:', e);
         }
 
-        // 2. Set status to blocked on server
+        // 2. Expire trial on server (so trialActive = false)
+        const token = await AsyncStorage.getItem('jwt_token');
+        if (token) {
+            try {
+                await fetch(`${API_URL}/api/subscription/expire-trial/${userId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                console.log('[Subscription] Expired trial on server for Case A-2');
+            } catch (e) {
+                console.error('[Subscription] Failed to expire trial on server:', e);
+            }
+        }
+
+        // 3. Set status to blocked on server
         await setSubscriptionStatus('blocked');
 
         // 3. Clear local data (Simulate App Delete/Reinstall)
@@ -1307,6 +1331,12 @@ export async function setupTestCase_A2(): Promise<void> {
         // Upon Login, SSOT check will happen.
 
         console.log('[Subscription] Clearing local data...');
+
+        // SubscriptionManager 캐시 초기화 (테스트 격리)
+        const SubscriptionManager = (await import('./SubscriptionManager')).default;
+        const manager = SubscriptionManager.getInstance();
+        await manager.resetForTesting();
+
         await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.TRIAL_START_DATE);
         await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS);
         await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_START_DATE);
