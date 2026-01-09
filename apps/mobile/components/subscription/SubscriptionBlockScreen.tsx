@@ -30,21 +30,15 @@ export function SubscriptionBlockScreen() {
                 const status = await getSubscriptionStatus();
                 const restoreAttempted = await AsyncStorage.getItem('restore_attempted');
                 const restoreSucceeded = await AsyncStorage.getItem('restore_succeeded');
-                const entitlementActiveStr = await AsyncStorage.getItem('entitlement_active');
-                const entitlementActive = entitlementActiveStr === 'true';
 
                 // CASE C-2: 복원 시도했으나 실패
                 if (restoreAttempted === 'true' && restoreSucceeded === 'false') {
                     setBlockReason('restore_failed');
                 }
-                // CASE C-1: 결제 이력 O, entitlement O (살릴 수 있는 구독)
-                // → hasPurchaseHistory=true AND entitlementActive=true (스토어에는 살아있지만 앱에 반영 안 됨)
-                else if (status.hasPurchaseHistory && entitlementActive && status.status === 'blocked') {
+                // CASE J: 결제 이력이 있는데 권한이 없음
+                else if (status.hasPurchaseHistory && status.status === 'blocked') {
                     setBlockReason('purchase_without_entitlement');
-                }
-                // CASE B-1: 일반 만료 (끝난 구독 - hasPurchaseHistory만 있고 entitlement는 없음)
-                // 또는 체험 종료, 구독 안 함 등
-                else {
+                } else {
                     setBlockReason('expired');
                 }
             } catch (error) {
@@ -87,24 +81,16 @@ export function SubscriptionBlockScreen() {
             if (restored) {
                 showToast('구독이 복원되었습니다!');
 
+                // SSOT: 복원 성공 시 서버 동기화를 위해 handlePurchaseSuccess 호출
+                const { handlePurchaseSuccess } = await import('../../services/subscription');
+                await handlePurchaseSuccess();
+
                 // 복원 성공 시 restore 플래그 제거 (C-2 상태 해제)
                 await AsyncStorage.removeItem('restore_attempted');
                 await AsyncStorage.removeItem('restore_succeeded');
 
-                // SubscriptionManager 결제 완료 처리 (캐시 무효화 + 상태 설정)
-                const SubscriptionManager = (await import('../../services/SubscriptionManager')).default;
-                await SubscriptionManager.getInstance().handlePurchaseComplete();
-
-                // 직접 구독 상태를 'active'로 설정 (서버 동기화 실패해도 UI는 즉시 전환)
+                // 직접 구독 상태를 'active'로 설정 (checkAuthStatus가 서버 재조회 시 동기화 지연 문제 방지)
                 setSubscriptionStatus('active');
-
-                // 서버 동기화는 별도 try-catch로 감싸서 실패해도 UI 전환에 영향 없음
-                try {
-                    const { handlePurchaseSuccess } = await import('../../services/subscription');
-                    await handlePurchaseSuccess();
-                } catch (syncError) {
-                    console.warn('[Restore] Server sync failed, but subscription is active locally:', syncError);
-                }
             } else {
                 showToast('복원할 구독이 없습니다');
 

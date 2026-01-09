@@ -259,16 +259,10 @@ export default function SettingsScreen() {
                             description={`현재: ${subscriptionState?.status || '로딩 중'}`}
                             onPress={async () => {
                                 try {
-                                    // 1. Google Play 복원 건너뛰기 설정
-                                    const SubscriptionManager = (await import('../../../services/SubscriptionManager')).default;
-                                    const manager = SubscriptionManager.getInstance();
-                                    await manager.setTestMode(true);
-
-                                    // 2. 구독 만료 처리
                                     const { deactivateSubscription } = await import('../../../services');
                                     await deactivateSubscription();
                                     await loadSubscriptionStatus();
-                                    Alert.alert('완료', '구독이 만료 상태로 변경되었습니다.\n\n⚠️ Google Play 복원이 비활성화됩니다.');
+                                    Alert.alert('완료', '구독이 만료 상태로 변경되었습니다.');
                                 } catch (error) {
                                     console.error('[Settings] Deactivate subscription failed:', error);
                                 }
@@ -276,58 +270,17 @@ export default function SettingsScreen() {
                         />
                         <SettingItem
                             emoji="✅"
-                            title="테스트 모드 해제 (Dev)"
-                            description="forceExpired + forceSkipRestore 모두 제거"
+                            title="forceExpired 플래그 제거 (Dev)"
+                            description="테스트 후 정상 상태로 복귀"
                             onPress={async () => {
                                 try {
-                                    // 1. forceSkipRestore 해제
-                                    const SubscriptionManager = (await import('../../../services/SubscriptionManager')).default;
-                                    const manager = SubscriptionManager.getInstance();
-                                    await manager.setTestMode(false);
-
-                                    // 2. forceExpired 플래그 제거
                                     const { clearForceExpiredFlag } = await import('../../../services/subscription');
                                     await clearForceExpiredFlag();
-                                    Alert.alert('완료', '모든 테스트 플래그가 제거되었습니다.\n\nGoogle Play 복원이 다시 활성화됩니다.\n\n앱을 재실행(r)해주세요.');
+                                    Alert.alert('완료', 'forceExpired 플래그가 제거되었습니다. 앱을 재실행(r)해주세요.');
                                 } catch (error) {
-                                    console.error('[Settings] Clear test flags failed:', error);
-                                    Alert.alert('오류', '테스트 플래그 제거 실패');
+                                    console.error('[Settings] Clear forceExpired failed:', error);
+                                    Alert.alert('오류', 'forceExpired 플래그 제거 실패');
                                 }
-                            }}
-                        />
-                        <SettingItem
-                            emoji="🆕"
-                            title="Test Case A-1 (완전 신규 유저)"
-                            description="서버 초기화 + Google Play 복원 건너뛰기"
-                            onPress={async () => {
-                                Alert.alert(
-                                    'Case A-1 설정',
-                                    '서버의 모든 trial/구독 기록을 삭제하고, Google Play 복원을 건너뜁니다.\n\n⚠️ 실제 구독이 있어도 신규 유저처럼 동작합니다.\n\n앱이 재시작되면 로그인 후 trial 상태로 시작해야 합니다.',
-                                    [
-                                        { text: '취소', style: 'cancel' },
-                                        {
-                                            text: '실행',
-                                            style: 'destructive',
-                                            onPress: async () => {
-                                                try {
-                                                    // 1. forceSkipRestore 플래그 설정 (AsyncStorage에 저장)
-                                                    const SubscriptionManager = (await import('../../../services/SubscriptionManager')).default;
-                                                    const manager = SubscriptionManager.getInstance();
-                                                    await manager.setTestMode(true);
-
-                                                    // 2. 서버 + 로컬 데이터 초기화
-                                                    const { resetSubscription } = await import('../../../services');
-                                                    await resetSubscription();
-
-                                                    Alert.alert('완료', 'A-1 설정 완료.\n\n⚠️ Google Play 복원이 비활성화됩니다.\n\n앱을 수동으로 재실행(r)해주세요.');
-                                                } catch (e) {
-                                                    console.error(e);
-                                                    Alert.alert('오류', '설정 실패');
-                                                }
-                                            }
-                                        }
-                                    ]
-                                );
                             }}
                         />
                         <SettingItem
@@ -337,7 +290,7 @@ export default function SettingsScreen() {
                             onPress={async () => {
                                 Alert.alert(
                                     'Case A-2 설정',
-                                    '서버에 체험 사용 기록을 남기고, 로컬 데이터를 삭제합니다.\n\n⚠️ Google Play 복원이 비활성화됩니다.\n\n앱이 재시작되면 로그인 후 차단 화면이 떠야 합니다.',
+                                    '서버에 체험 사용 기록을 남기고, 로컬 데이터를 삭제합니다.\n\n앱이 재시작되면 로그인 후 차단 화면이 떠야 합니다.',
                                     [
                                         { text: '취소', style: 'cancel' },
                                         {
@@ -345,15 +298,9 @@ export default function SettingsScreen() {
                                             style: 'destructive',
                                             onPress: async () => {
                                                 try {
-                                                    // 1. forceSkipRestore 설정
-                                                    const SubscriptionManager = (await import('../../../services/SubscriptionManager')).default;
-                                                    const manager = SubscriptionManager.getInstance();
-                                                    await manager.setTestMode(true);
-
-                                                    // 2. A-2 설정 실행
                                                     const { setupTestCase_A2 } = await import('../../../services/subscription');
                                                     await setupTestCase_A2();
-                                                    Alert.alert('완료', '설정 완료.\n\n⚠️ Google Play 복원이 비활성화됩니다.\n\n앱을 수동으로 재실행(r)해주세요.');
+                                                    Alert.alert('완료', '설정 완료. 앱을 수동으로 재실행(r)해주세요.');
                                                 } catch (e) {
                                                     console.error(e);
                                                     Alert.alert('오류', '설정 실패');
@@ -367,11 +314,11 @@ export default function SettingsScreen() {
                         <SettingItem
                             emoji="📜"
                             title="Test Case C-1 (결제이력O+만료)"
-                            description="결제 이력 O, entitlement X 시뮬레이션"
+                            type="link"
                             onPress={() => {
                                 Alert.alert(
                                     'Test Case C-1',
-                                    '결제 이력은 있지만 만료된 상태(CASE J)를 시뮬레이션합니다.\n\n⚠️ Google Play 복원이 비활성화됩니다.\n\n앱 데이터가 초기화됩니다.',
+                                    '결제 이력은 있지만 만료된 상태(CASE J)를 시뮬레이션합니다.\n앱 데이터가 초기화됩니다.',
                                     [
                                         { text: '취소', style: 'cancel' },
                                         {
@@ -379,15 +326,9 @@ export default function SettingsScreen() {
                                             style: 'destructive',
                                             onPress: async () => {
                                                 try {
-                                                    // 1. forceSkipRestore 설정
-                                                    const SubscriptionManager = (await import('../../../services/SubscriptionManager')).default;
-                                                    const manager = SubscriptionManager.getInstance();
-                                                    await manager.setTestMode(true);
-
-                                                    // 2. C-1 설정 실행
                                                     const { setupTestCase_C1 } = await import('../../../services/subscription');
                                                     await setupTestCase_C1();
-                                                    Alert.alert('완료', '설정 완료.\n\n⚠️ Google Play 복원이 비활성화됩니다.\n\n앱을 수동으로 재실행(r)해주세요.');
+                                                    Alert.alert('완료', '설정 완료. 앱을 수동으로 재실행(r)해주세요.');
                                                 } catch (e) {
                                                     console.error(e);
                                                     Alert.alert('오류', '설정 실패');
@@ -405,7 +346,7 @@ export default function SettingsScreen() {
                             onPress={() => {
                                 Alert.alert(
                                     'Test Case C-2',
-                                    '복원을 시도했으나 실패한 상태(CASE D)를 시뮬레이션합니다.\n\n⚠️ Google Play 복원이 비활성화됩니다.\n\n앱 데이터가 초기화됩니다.',
+                                    '복원을 시도했으나 실패한 상태(CASE D)를 시뮬레이션합니다.\n앱 데이터가 초기화됩니다.',
                                     [
                                         { text: '취소', style: 'cancel' },
                                         {
@@ -413,15 +354,9 @@ export default function SettingsScreen() {
                                             style: 'destructive',
                                             onPress: async () => {
                                                 try {
-                                                    // 1. forceSkipRestore 설정
-                                                    const SubscriptionManager = (await import('../../../services/SubscriptionManager')).default;
-                                                    const manager = SubscriptionManager.getInstance();
-                                                    await manager.setTestMode(true);
-
-                                                    // 2. C-2 설정 실행
                                                     const { setupTestCase_C2 } = await import('../../../services/subscription');
                                                     await setupTestCase_C2();
-                                                    Alert.alert('완료', '설정 완료.\n\n⚠️ Google Play 복원이 비활성화됩니다.\n\n앱을 수동으로 재실행(r)해주세요.');
+                                                    Alert.alert('완료', '설정 완료. 앱을 수동으로 재실행(r)해주세요.');
                                                 } catch (e) {
                                                     console.error(e);
                                                     Alert.alert('오류', '설정 실패');
