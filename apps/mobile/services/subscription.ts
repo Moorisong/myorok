@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getDatabase } from './database';
 import { scheduleTrialEndNotification, cancelTrialEndNotification } from './NotificationService';
 import { handleLicenseResponse, checkLicenseAfterPurchase } from './licenseChecker';
-import { restorePurchases } from './paymentService';
+import { restorePurchases, getEntitlementVerification } from './paymentService';
 import { CONFIG } from '../constants/config';
 import { getDeviceId } from './device';
 
@@ -47,6 +47,7 @@ export interface VerificationResult {
     source: 'server' | 'cache';          // 데이터 출처
     serverTime: Date;                    // 서버 시간
     hasUsedTrial: boolean;               // 서버에서 확인된 체험 사용 여부
+    trialActive?: boolean;               // 체험이 현재 활성 상태인지 (서버 계산)
     hasPurchaseHistory: boolean;         // 서버에서 확인된 결제 이력
     restoreAttempted?: boolean;          // restore 시도 여부 (CASE D)
     restoreSucceeded?: boolean;          // restore 성공 여부
@@ -123,37 +124,42 @@ export function determineSubscriptionState(result: VerificationResult): Subscrip
         return 'loading';
     }
 
-    // 4. restore 미시도 또는 실패 (CASE D) - 첫 설치가 아닌 경우에만 적용
-    // Note: 최초 설치에서는 restore 없이도 trial 가능
+    // 4. 체험 활성 상태 (서버에서 계산된 trialActive 사용)
+    // ⚠️ IMPORTANT: restore 체크보다 먼저 수행해야 함
+    // 이유: 앱 재설치 후 restoreAttempted=false이지만 trialActive=true인 경우, trial을 우선 반환해야 함
+    if (result.trialActive) {
+        console.log('[SSOT] State: trial (trial is active)');
+        return 'trial';
+    }
+
+    // 5. 유효한 구독 상태 (restore 체크보다 먼저)
+    // 이유: 앱 재설치 후 restoreAttempted=false이지만 entitlementActive=true인 경우, subscribed를 우선 반환해야 함
+    if (entitlementActive && expiresDate && expiresDate > serverTime) {
+        // Product ID 검사
+        const isValidProductId = productId === EXPECTED_PRODUCT_ID || LEGACY_PRODUCT_IDS.includes(productId || '');
+        if (!isValidProductId) {
+            console.log('[SSOT] State: loading (productId mismatch:', productId, ')');
+            return 'loading';
+        }
+        console.log('[SSOT] State: subscribed (entitlement active, expires:', expiresDate, ')');
+        return 'subscribed';
+    }
+
+    // 6. restore 미시도 (CASE D) - 첫 설치가 아닌 경우에만 적용
+    // Note: 복원을 시도했으면 (성공/실패 여부와 무관하게) 더 이상 loading 아님
+    // 복원 실패 (구독 없음) = 정상적으로 만료된 상태 → blocked 반환
     if (restoreAttempted === false && hasPurchaseHistory) {
         console.log('[SSOT] State: loading (restore not attempted but has purchase history)');
         return 'loading';
     }
-    if (restoreAttempted === true && restoreSucceeded === false && hasPurchaseHistory) {
-        console.log('[SSOT] State: loading (restore failed but has purchase history)');
-        return 'loading';
-    }
 
-    // 5. expiresDate 유효성 검사 (CASE A)
+    // 7. expiresDate 유효성 검사 (CASE A) - entitlementActive인데 expiresDate가 없는 경우
     if (entitlementActive && (!expiresDate || isNaN(expiresDate.getTime()))) {
         console.log('[SSOT] State: loading (expiresDate invalid)');
         return 'loading';
     }
 
-    // 6. Product ID 검사 (CASE B, I)
-    const isValidProductId = productId === EXPECTED_PRODUCT_ID || LEGACY_PRODUCT_IDS.includes(productId || '');
-    if (entitlementActive && !isValidProductId) {
-        console.log('[SSOT] State: loading (productId mismatch:', productId, ')');
-        return 'loading';
-    }
-
-    // 7. 유효한 구독 상태
-    if (entitlementActive && expiresDate && expiresDate > serverTime) {
-        console.log('[SSOT] State: subscribed (entitlement active, expires:', expiresDate, ')');
-        return 'subscribed';
-    }
-
-    // 8. 체험 가능 조건
+    // 8. 체험 가능 조건 (아직 체험 사용 안 한 신규 유저)
     if (!hasPurchaseHistory && !hasUsedTrial) {
         console.log('[SSOT] State: trial (new user, no purchase history, no trial used)');
         return 'trial';
@@ -338,6 +344,7 @@ export async function fetchSubscriptionVerification(userId: string): Promise<Ver
             source: result.source || 'server',
             serverTime: new Date(result.serverTime),
             hasUsedTrial: result.hasUsedTrial,
+            trialActive: result.trialActive,
             hasPurchaseHistory: result.hasPurchaseHistory,
             restoreAttempted: undefined, // 클라이언트에서 별도 관리
             restoreSucceeded: undefined,
@@ -383,6 +390,19 @@ export async function verifySubscriptionWithServer(): Promise<{
     const restoreSucceeded = await AsyncStorage.getItem(SUBSCRIPTION_KEYS.RESTORE_SUCCEEDED);
     serverResult.restoreAttempted = restoreAttempted === 'true';
     serverResult.restoreSucceeded = restoreSucceeded === 'true';
+
+    // 2-1. 로컬 스토어 데이터로 보정 (CASE G: 결제 진행 중 앱 종료 후 재실행)
+    // 서버에는 아직 pending 정보가 없을 수 있으므로 로컬 IAP 상태를 확인합니다.
+    const localVerification = await getEntitlementVerification();
+    if (localVerification.isPending) {
+        console.log('[SSOT] Local pending transaction detected (CASE G)');
+        serverResult.isPending = true;
+        // CASE G: pending 상태일 때는 restore 플래그 무시 (복원 실패 화면 대신 로딩 화면 표시)
+        serverResult.restoreAttempted = false;
+        serverResult.restoreSucceeded = false;
+        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.RESTORE_ATTEMPTED);
+        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.RESTORE_SUCCEEDED);
+    }
 
     // 3. SSOT 판별
     const status = determineSubscriptionState(serverResult);
@@ -656,11 +676,20 @@ export async function setSubscriptionStatus(status: SubscriptionStatus): Promise
         [status, now]
     );
 
-    // Sync to server
+    // Sync to server - use the status parameter directly to avoid circular reference
     const userId = await AsyncStorage.getItem('current_user_id');
     if (userId) {
-        const state = await getSubscriptionStatus();
-        await syncSubscriptionToServer(userId, state);
+        // Build minimal state with the new status (don't call getSubscriptionStatus - it reads from AsyncStorage before it's fully synced)
+        const trialStartDate = await AsyncStorage.getItem(SUBSCRIPTION_KEYS.TRIAL_START_DATE);
+        const subscriptionStartDate = await AsyncStorage.getItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_START_DATE);
+        const subscriptionExpiryDate = await AsyncStorage.getItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_EXPIRY_DATE);
+
+        await syncSubscriptionToServer(userId, {
+            status,
+            trialStartDate: trialStartDate || undefined,
+            subscriptionStartDate: subscriptionStartDate || undefined,
+            subscriptionExpiryDate: subscriptionExpiryDate || undefined,
+        });
     }
 }
 
@@ -1125,7 +1154,8 @@ export async function checkAndRestoreSubscription(): Promise<void> {
         // Google Play에서 구독 내역 조회
         const { restorePurchases, getSubscriptionDetails } = await import('./paymentService');
         const { handleLicenseResponse } = await import('./licenseChecker');
-        const hasActive = await restorePurchases();
+        // 자동 복원에서도 플래그 설정 (SSOT 판별을 위해 필요)
+        const hasActive = await restorePurchases(true);
 
         if (hasActive) {
             // 활성 구독 있음 - 실제 만료일 가져오기
@@ -1185,6 +1215,49 @@ export async function getSubscriptionState(): Promise<'free' | 'trial' | 'active
  */
 export async function deactivateSubscription(): Promise<void> {
     await setSubscriptionStatus('blocked');
+
+    // 서버에도 체험 만료 알림 (테스트용)
+    const userId = await AsyncStorage.getItem('current_user_id');
+    if (userId) {
+        try {
+            const token = await AsyncStorage.getItem('jwt_token');
+            if (token) {
+                await fetch(`${API_URL}/api/subscription/expire-trial/${userId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                console.log('[Subscription] Expired trial on server for testing');
+            }
+        } catch (e) {
+            console.error('[Subscription] Failed to expire trial on server:', e);
+        }
+    }
+}
+
+/**
+ * forceExpired 플래그 제거 (테스트 후 정상 상태로 복귀)
+ */
+export async function clearForceExpiredFlag(): Promise<void> {
+    const userId = await AsyncStorage.getItem('current_user_id');
+    if (userId) {
+        try {
+            const token = await AsyncStorage.getItem('jwt_token');
+            if (token) {
+                await fetch(`${API_URL}/api/subscription/clear-force-expired/${userId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                console.log('[Subscription] Cleared forceExpired flag on server');
+            }
+        } catch (e) {
+            console.error('[Subscription] Failed to clear forceExpired flag:', e);
+            throw e;
+        }
+    }
 }
 
 /**

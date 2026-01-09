@@ -269,6 +269,21 @@ export default function SettingsScreen() {
                             }}
                         />
                         <SettingItem
+                            emoji="✅"
+                            title="forceExpired 플래그 제거 (Dev)"
+                            description="테스트 후 정상 상태로 복귀"
+                            onPress={async () => {
+                                try {
+                                    const { clearForceExpiredFlag } = await import('../../../services/subscription');
+                                    await clearForceExpiredFlag();
+                                    Alert.alert('완료', 'forceExpired 플래그가 제거되었습니다. 앱을 재실행(r)해주세요.');
+                                } catch (error) {
+                                    console.error('[Settings] Clear forceExpired failed:', error);
+                                    Alert.alert('오류', 'forceExpired 플래그 제거 실패');
+                                }
+                            }}
+                        />
+                        <SettingItem
                             emoji="🅰️"
                             title="Test Case A-2 (체험만료+재설치)"
                             description="서버에 체험기록 남김 → 로컬삭제 → 재시작"

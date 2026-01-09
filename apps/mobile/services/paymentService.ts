@@ -118,11 +118,16 @@ export async function completePurchase(purchase: Purchase): Promise<void> {
 /**
  * 구독 복원 (재설치 시)
  * SSOT: restore 시도를 기록 (CASE D)
+ * @param setFlags 복원 시도/성공 플래그 설정 여부 (기본값: true)
+ *                 - true: 사용자가 명시적으로 복원 버튼을 눌렀을 때
+ *                 - false: 앱 초기화 시 자동 복원 시도 (플래그 설정 안 함)
  */
-export async function restorePurchases(): Promise<boolean> {
+export async function restorePurchases(setFlags: boolean = true): Promise<boolean> {
   try {
-    // restore 시도 기록 (CASE D)
-    await AsyncStorage.setItem('restore_attempted', 'true');
+    // restore 시도 기록 (CASE D) - 사용자가 버튼을 눌렀을 때만
+    if (setFlags) {
+      await AsyncStorage.setItem('restore_attempted', 'true');
+    }
 
     const purchases = await getAvailablePurchases();
     const hasActiveSubscription = purchases.some(
@@ -131,8 +136,10 @@ export async function restorePurchases(): Promise<boolean> {
         LEGACY_PRODUCT_IDS.includes(purchase.productId)
     );
 
-    // restore 결과 기록 (SSOT 판별용)
-    await AsyncStorage.setItem('restore_succeeded', hasActiveSubscription ? 'true' : 'false');
+    // restore 결과 기록 (SSOT 판별용) - 사용자가 버튼을 눌렀을 때만
+    if (setFlags) {
+      await AsyncStorage.setItem('restore_succeeded', hasActiveSubscription ? 'true' : 'false');
+    }
 
     if (hasActiveSubscription) {
       console.log('[Payment] Restore successful');
@@ -143,7 +150,9 @@ export async function restorePurchases(): Promise<boolean> {
     return hasActiveSubscription;
   } catch (error) {
     console.error('Failed to restore purchases:', error);
-    await AsyncStorage.setItem('restore_succeeded', 'false');
+    if (setFlags) {
+      await AsyncStorage.setItem('restore_succeeded', 'false');
+    }
     return false;
   }
 }

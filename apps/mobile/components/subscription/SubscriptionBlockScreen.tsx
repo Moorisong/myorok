@@ -104,7 +104,7 @@ export function SubscriptionBlockScreen() {
             const AsyncStorage = await import('@react-native-async-storage/async-storage').then(m => m.default);
             await AsyncStorage.setItem('restore_succeeded', 'false');
 
-            showToast('구매 복원에 실패했습니다. 다시 시도해주세요.', { variant: 'error' });
+            showToast('구독 복원에 실패했습니다. 다시 시도해주세요.', { variant: 'error' });
 
             // Auth 상태 다시 확인하여 loading 상태로 전환 (복원 재시도 화면 표시)
             await checkAuthStatus();
@@ -141,7 +141,7 @@ export function SubscriptionBlockScreen() {
                 </View>
 
                 <View style={styles.footer}>
-                    {/* CASE J, C-2: 구매 복원 버튼을 먼저 표시 */}
+                    {/* CASE J, C-2: 구독 복원 버튼을 먼저 표시 */}
                     {(isCaseJ || isCaseC2) && (
                         <TouchableOpacity
                             style={[styles.restoreButton, isRestoring && styles.buttonDisabled]}
@@ -153,7 +153,7 @@ export function SubscriptionBlockScreen() {
                                 <ActivityIndicator color={COLORS.primary} />
                             ) : (
                                 <Text style={styles.restoreButtonText}>
-                                    {isCaseC2 ? '다시 복원 시도' : '구매 복원하기'}
+                                    {isCaseC2 ? '다시 복원 시도' : '구독 복원하기'}
                                 </Text>
                             )}
                         </TouchableOpacity>

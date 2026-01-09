@@ -202,6 +202,22 @@ export const syncSubscription = async (req: Request, res: Response): Promise<voi
     }
 
     try {
+        // Check if user has forceExpired flag (테스트용)
+        // forceExpired가 true면 모든 sync 요청을 무시 (클라이언트 복원이 서버 상태를 덮어쓰지 못하게)
+        const existingRecord = await SubscriptionRecord.findOne({ userId });
+        if (existingRecord?.forceExpired) {
+            console.log(`[Subscription] User ${userId} has forceExpired flag, ignoring all sync attempts`);
+            res.json({
+                success: true,
+                data: {
+                    userId,
+                    status: 'blocked',  // Always return blocked for force-expired users
+                    serverTime: new Date().toISOString(),
+                },
+            });
+            return;
+        }
+
         const now = new Date();
 
         // subscriptionExpiryDate 또는 expiresAt 둘 중 하나 사용 (호환성)
@@ -267,17 +283,31 @@ export const verifySubscription = async (req: Request, res: Response): Promise<v
         const trial = await TrialRecord.findOne({ userId });
         const serverTime = new Date();
 
+        // 구독 활성 여부 먼저 확인
+        const entitlementActive = subscription?.status === 'subscribed';
+
+        // 체험 활성 여부 계산 (7일)
+        // 단, 구독이 활성이면 체험은 비활성으로 처리 (구독이 우선)
+        const TRIAL_DAYS = 7;
+        let trialActive = false;
+        if (!entitlementActive && trial?.trialStartedAt) {
+            const trialExpiresAt = new Date(trial.trialStartedAt);
+            trialExpiresAt.setDate(trialExpiresAt.getDate() + TRIAL_DAYS);
+            trialActive = serverTime < trialExpiresAt;
+        }
+
         // VerificationResult 형식으로 응답
         const result = {
             success: true,
             serverSyncSucceeded: true,
-            entitlementActive: subscription?.status === 'subscribed',
+            entitlementActive,
             expiresDate: subscription?.subscriptionExpiresAt?.toISOString() || null,
             productId: subscription?.productId || null,
             isPending: false,
             source: 'server' as const,
             serverTime: serverTime.toISOString(),
             hasUsedTrial: !!trial,
+            trialActive,  // 체험이 현재 활성 상태인지
             hasPurchaseHistory: !!subscription?.subscriptionStartedAt,
         };
 
@@ -411,6 +441,106 @@ export const resetSubscriptionData = async (req: Request, res: Response): Promis
         });
     } catch (error) {
         console.error('[Subscription] resetSubscriptionData error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Database error',
+        });
+    }
+};
+
+/**
+ * POST /api/subscription/expire-trial/:userId
+ * 체험 만료 처리 (테스트용) - trialStartedAt을 8일 전으로 설정
+ */
+export const expireTrial = async (req: Request, res: Response): Promise<void> => {
+    const { userId } = req.params;
+
+    if (!userId) {
+        res.status(400).json({
+            success: false,
+            error: 'userId is required',
+        });
+        return;
+    }
+
+    try {
+        console.log(`[Subscription] Expiring trial for user ${userId}...`);
+
+        // trialStartedAt을 8일 전으로 설정 (7일 체험 기간 + 1일 = 만료)
+        const expiredDate = new Date();
+        expiredDate.setDate(expiredDate.getDate() - 8);
+
+        await TrialRecord.findOneAndUpdate(
+            { userId },
+            { trialStartedAt: expiredDate },
+            { new: true }
+        );
+
+        // 구독 상태도 blocked로 업데이트 + 만료일을 과거로 설정
+        const pastExpiryDate = new Date();
+        pastExpiryDate.setDate(pastExpiryDate.getDate() - 1); // 1일 전
+
+        await SubscriptionRecord.findOneAndUpdate(
+            { userId },
+            {
+                status: 'blocked',
+                subscriptionExpiresAt: pastExpiryDate,  // 만료일을 과거로
+                subscriptionStartedAt: null,  // 구독 시작일 제거 (hasPurchaseHistory: false)
+                forceExpired: true  // 강제 만료 플래그 (테스트용)
+            },
+            { new: true }
+        );
+
+        console.log(`[Subscription] Trial expired for user ${userId} (set to ${expiredDate.toISOString()})`);
+
+        res.json({
+            success: true,
+            message: 'Trial expired successfully',
+            data: {
+                trialStartedAt: expiredDate.toISOString(),
+            },
+        });
+    } catch (error) {
+        console.error('[Subscription] expireTrial error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Database error',
+        });
+    }
+};
+
+/**
+ * POST /api/subscription/clear-force-expired/:userId
+ * forceExpired 플래그 제거 (테스트 후 정상 상태로 복귀)
+ */
+export const clearForceExpired = async (req: Request, res: Response): Promise<void> => {
+    const { userId } = req.params;
+
+    if (!userId) {
+        res.status(400).json({
+            success: false,
+            error: 'userId is required',
+        });
+        return;
+    }
+
+    try {
+        console.log(`[Subscription] Clearing forceExpired flag for user ${userId}...`);
+
+        await SubscriptionRecord.findOneAndUpdate(
+            { userId },
+            { forceExpired: false },
+            { new: true }
+        );
+
+        console.log(`[Subscription] forceExpired flag cleared for user ${userId}`);
+
+        res.json({
+            success: true,
+            message: 'forceExpired flag cleared successfully',
+        });
+    } catch (error) {
+        console.error('[Subscription] clearForceExpired error:', error);
         res.status(500).json({
             success: false,
             error: 'Database error',

@@ -62,6 +62,7 @@ const subscriptionRecordSchema = new mongoose.Schema({
     purchaseToken: { type: String },
     orderId: { type: String },
     lastVerifiedAt: { type: Date },
+    forceExpired: { type: Boolean, default: false },  // 테스트용: 강제 만료 플래그
 }, {
     timestamps: true,
 });

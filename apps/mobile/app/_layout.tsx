@@ -48,6 +48,9 @@ function AppContent() {
         // Check login status first using context
         await checkAuthStatus();
 
+        // Get login status after check (needed for conditional restore)
+        const currentUserId = await getCurrentUserId();
+
         // Initialize payment system
         try {
 
@@ -170,13 +173,20 @@ function AppContent() {
           // Cleanup 함수를 subscription 변수에 할당하여 나중에 제거
           subscription = { remove: cleanupListeners };
 
-          // 3. 기존 구독 복원 (재설치 시) - 로컬 상태가 expired인 경우에만 시도
-          const { getSubscriptionState } = await import('../services/subscription');
-          const localState = await getSubscriptionState();
+          // 3. 기존 구독 복원 (재설치 시) - 로그인된 상태에서만 시도
+          if (currentUserId) {
+            const { getSubscriptionState } = await import('../services/subscription');
+            const localState = await getSubscriptionState();
 
-          // 만료 상태일 때만 Google Play에서 복원 시도 (active 상태는 유지)
-          if (localState === 'expired') {
-            await checkAndRestoreSubscription();
+            // 만료 상태일 때만 Google Play에서 복원 시도 (active 상태는 유지)
+            if (localState === 'expired') {
+              console.log('[App] Attempting to restore subscription for logged-in user');
+              await checkAndRestoreSubscription();
+            } else {
+              console.log('[App] Skip restore - local state is', localState);
+            }
+          } else {
+            console.log('[App] Skip restore - not logged in');
           }
 
         } catch (error) {
@@ -184,8 +194,14 @@ function AppContent() {
           // 초기화 실패해도 앱은 계속 실행
         }
 
-        // Initialize subscription on first launch
-        await initializeSubscription();
+        // Initialize subscription on first launch (only if logged in)
+        // Note: initializeSubscription() automatically starts trial if no status exists
+        // We should NOT auto-start trial before login, as the user may have subscription history
+        if (currentUserId) {
+          await initializeSubscription();
+        } else {
+          console.log('[App] Skip initializeSubscription - not logged in');
+        }
 
         // Check if app access is allowed (skip blocking in dev mode)
         if (!__DEV__) {
@@ -327,7 +343,13 @@ function AppContent() {
               // Dev auto-login에서는 trial 시작 건너뛰기 (이미 서버에 기록된 사용자일 수 있음)
               const isDevAutoLogin = await AsyncStorage.getItem('dev_auto_login');
               if (!isDevAutoLogin) {
-                await startTrialForUser(user.id);
+                try {
+                  await startTrialForUser(user.id);
+                } catch (trialError) {
+                  // 체험 시작 실패 (이미 사용함) - 로그인은 계속 진행
+                  // checkAuthStatus에서 blocked 상태로 전환됨
+                  console.log('[DeepLink] Trial start failed (already used or rejected), continuing login:', trialError);
+                }
               } else {
                 console.log('[DeepLink] Skipping trial start for dev auto-login');
               }
@@ -340,6 +362,33 @@ function AppContent() {
                 'UPDATE users SET lastLogin = ? WHERE id = ?',
                 [now, user.id]
               );
+            }
+
+            // Restore subscription from Google Play before checking auth status
+            // This ensures that verifySubscriptionWithServer() has local subscription data
+            try {
+              const { getSubscriptionState } = await import('../services/subscription');
+              const localState = await getSubscriptionState();
+              console.log('[DeepLink] Local subscription state after login:', localState);
+
+              if (localState === 'expired') {
+                console.log('[DeepLink] Attempting to restore subscription after login');
+                await checkAndRestoreSubscription();
+
+                // Check state again after restore
+                const newState = await getSubscriptionState();
+                console.log('[DeepLink] Local subscription state after restore:', newState);
+
+                // Note: Don't call initializeSubscription() here
+                // Let checkAuthStatus() fetch the correct state from server
+                // If user has no subscription history, server will allow trial
+                // If user has subscription history but expired, server will return blocked
+              } else {
+                console.log('[DeepLink] Skip restore - local state is', localState);
+              }
+            } catch (restoreError) {
+              console.error('[DeepLink] Restore failed after login:', restoreError);
+              // Continue even if restore fails
             }
 
             // Re-check auth status to update context (including subscription)
