@@ -104,15 +104,20 @@ export async function cleanupOldPosts(): Promise<void> {
     await dbConnect();
     const { PostModel } = getModels();
 
-    // Get current time in Korea (UTC+9)
+    // 한국 시간(UTC+9) 기준 오늘 자정을 UTC로 계산
     const now = new Date();
-    const koreaTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+    const koreaOffset = 9 * 60 * 60 * 1000; // 9시간 (밀리초)
 
-    // Set to midnight in Korea time
-    koreaTime.setHours(0, 0, 0, 0);
+    // 현재 시간을 한국 시간으로 변환
+    const koreaTime = new Date(now.getTime() + koreaOffset);
 
-    // Convert back to ISO string for comparison
-    const koreaMidnightIso = koreaTime.toISOString();
+    // 한국 시간 기준 오늘 자정 (UTC 기준으로 설정)
+    koreaTime.setUTCHours(0, 0, 0, 0);
+
+    // 다시 UTC로 변환 (한국 자정 = UTC 전날 15:00)
+    const koreaMidnightUtc = new Date(koreaTime.getTime() - koreaOffset);
+
+    const koreaMidnightIso = koreaMidnightUtc.toISOString();
 
     // Delete posts created before today's midnight (Korea time)
     await PostModel.deleteMany({ createdAt: { $lt: koreaMidnightIso } });
