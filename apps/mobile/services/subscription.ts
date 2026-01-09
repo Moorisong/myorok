@@ -1172,10 +1172,20 @@ export async function checkAndRestoreSubscription(): Promise<void> {
         } else {
             // 활성 구독 없음 - 기존 상태 유지 (NOT_LICENSED를 보내지 않음)
             console.log('[Subscription] No active subscription found in Google Play, keeping local state');
+
+            // 자동 복원 실패 시 플래그 제거
+            // CASE C-2는 사용자가 명시적으로 "복원하기" 버튼을 눌렀을 때만 표시되어야 함
+            await AsyncStorage.removeItem('restore_attempted');
+            await AsyncStorage.removeItem('restore_succeeded');
+            console.log('[Subscription] Cleared restore flags (auto-restore failed, not user action)');
         }
     } catch (error) {
         // Google Play 연결 실패 또는 서버 동기화 실패 시 loading 상태 유지 (D-1 SSOT)
         console.log('[Subscription] Restore failed, keeping loading state (D-1 SSOT):', error);
+
+        // 에러 발생 시에도 플래그 제거 (자동 복원 실패)
+        await AsyncStorage.removeItem('restore_attempted');
+        await AsyncStorage.removeItem('restore_succeeded');
     }
 }
 
