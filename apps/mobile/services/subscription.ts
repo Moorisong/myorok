@@ -1404,7 +1404,7 @@ export async function setupTestCase_C1(): Promise<void> {
         // 6. SubscriptionManager 설정
         const SubscriptionManager = (await import('./SubscriptionManager')).default;
         const manager = SubscriptionManager.getInstance();
-        await manager.setTestMode(true, true);
+        await manager.setTestMode(true, false);
         await manager.resetForTesting();
 
         console.log('[Subscription] Case C-1 Setup Complete');
@@ -1464,7 +1464,7 @@ export async function setupTestCase_C2(): Promise<void> {
         // 6. SubscriptionManager 설정
         const SubscriptionManager = (await import('./SubscriptionManager')).default;
         const manager = SubscriptionManager.getInstance();
-        await manager.setTestMode(true, true);
+        await manager.setTestMode(true, false);
         await manager.resetForTesting();
 
         console.log('[Subscription] Case C-2 Setup Complete');
