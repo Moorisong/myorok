@@ -182,11 +182,10 @@ function AppContent() {
           // 초기화 실패해도 앱은 계속 실행
         }
 
-        // Initialize subscription on first launch (only if logged in)
-        // Note: initializeSubscription() automatically starts trial if no status exists
-        // We should NOT auto-start trial before login, as the user may have subscription history
         if (currentUserId) {
-          await initializeSubscription();
+          // initializeSubscription is now handled within checkAuthStatus() 
+          // to ensure trial start date is set before main screen renders
+          console.log('[App] initializeSubscription is now handled in checkAuthStatus');
         } else {
           console.log('[App] Skip initializeSubscription - not logged in');
         }

@@ -30,10 +30,12 @@ import {
 } from '../../components';
 import PetSelector from '../../components/pet-selector';
 import { useTodayScreen } from '../../hooks/use-today-screen';
+import { useAuth } from '../../hooks/useAuth';
 import { getSubscriptionStatus } from '../../services';
 
 export default function TodayScreen() {
     const router = useRouter();
+    const { subscriptionStatus } = useAuth();
     const [trialDaysRemaining, setTrialDaysRemaining] = useState<number | null>(null);
     const {
         // States
@@ -87,27 +89,27 @@ export default function TodayScreen() {
     const dateString = `${today.getMonth() + 1}월 ${today.getDate()}일`;
     const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
 
-    // Load subscription status helper
-    const loadTrialStatus = useCallback(async () => {
-        const status = await getSubscriptionStatus();
-
-        if (status.status === 'trial' && status.daysRemaining !== undefined) {
-            setTrialDaysRemaining(status.daysRemaining);
+    // Load trial days remaining (only needed for the banner text)
+    const loadTrialDays = useCallback(async () => {
+        if (subscriptionStatus === 'trial') {
+            const status = await getSubscriptionStatus();
+            console.log('[TodayScreen] Trial days remaining:', status.daysRemaining);
+            setTrialDaysRemaining(status.daysRemaining ?? 7);
         } else {
             setTrialDaysRemaining(null);
         }
-    }, []);
+    }, [subscriptionStatus]);
 
-    // Initial load on mount
+    // Load trial days when subscriptionStatus changes
     useEffect(() => {
-        loadTrialStatus();
-    }, [loadTrialStatus]);
+        loadTrialDays();
+    }, [loadTrialDays]);
 
     // Refresh when screen comes into focus (returning from other tabs)
     useFocusEffect(
         useCallback(() => {
-            loadTrialStatus();
-        }, [loadTrialStatus])
+            loadTrialDays();
+        }, [loadTrialDays])
     );
 
     const handleTrialBannerPress = () => {
@@ -145,10 +147,10 @@ export default function TodayScreen() {
                     keyboardShouldPersistTaps="handled"
                 >
                     {/* Trial Banner */}
-                    {trialDaysRemaining !== null && trialDaysRemaining > 0 && (
+                    {subscriptionStatus === 'trial' && (
                         <View style={styles.trialBannerContainer}>
                             <TrialBanner
-                                daysRemaining={trialDaysRemaining}
+                                daysRemaining={trialDaysRemaining ?? 7}
                                 onPress={handleTrialBannerPress}
                             />
                         </View>

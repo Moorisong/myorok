@@ -26,8 +26,9 @@ export const SUBSCRIPTION_KEYS = {
  * - trial: 무료체험 활성
  * - subscribed: 유효한 구독 상태
  * - blocked: 접근 차단 상태
+ * - expired: 만료 상태 (서버 동기화용)
  */
-export type SubscriptionStatus = 'loading' | 'trial' | 'subscribed' | 'blocked';
+export type SubscriptionStatus = 'loading' | 'trial' | 'subscribed' | 'blocked' | 'expired';
 
 /**
  * 레거시 호환 상태 (기존 코드 호환용)
@@ -398,14 +399,6 @@ export async function verifySubscriptionWithServer(): Promise<{
     serverResult.restoreAttempted = restoreAttempted === 'true';
     serverResult.restoreSucceeded = restoreSucceeded === 'true';
 
-    // 2-0. 테스트 모드: entitlement 무시 (A-1 신규유저 테스트용)
-    const SubscriptionManager = (await import('./SubscriptionManager')).default;
-    const manager = SubscriptionManager.getInstance();
-    if (manager.shouldIgnoreEntitlement()) {
-        console.log('[SSOT] Test mode: ignoring entitlement (forceIgnoreEntitlement=true)');
-        serverResult.entitlementActive = false;
-        serverResult.expiresDate = undefined;
-    }
 
     // 2-1. 로컬 스토어 데이터로 보정 (CASE G: 결제 진행 중 앱 종료 후 재실행)
     // 서버에는 아직 pending 정보가 없을 수 있으므로 로컬 IAP 상태를 확인합니다.
@@ -463,10 +456,22 @@ export async function verifySubscriptionWithServer(): Promise<{
  * Sets trial start date if not already set
  */
 export async function initializeSubscription(): Promise<void> {
+    // 0. 테스트 모드 확인 - 테스트 중에는 자동 초기화를 건너뜀 (테스트 케이스에서 설정한 상태 보호)
+    try {
+        const TestUserManager = (await import('./testUserManager')).default;
+        const testManager = TestUserManager.getInstance();
+        if (await testManager.isTestModeActive()) {
+            console.log('[Subscription] Test mode active, skipping automatic initialization');
+            return;
+        }
+    } catch (e) {
+        console.warn('[Subscription] Failed to check test mode:', e);
+    }
+
     const trialStartDate = await AsyncStorage.getItem(SUBSCRIPTION_KEYS.TRIAL_START_DATE);
     const existingStatus = await AsyncStorage.getItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS);
 
-    // 이미 상태가 설정되어 있다면 (blocked, subscribed 등) 덮어쓰지 않음
+    // 이미 상태가 설정되어 있다면 (expired, subscribed 등) 덮어쓰지 않음
     // 단, trial 상태이면서 날짜가 없는 경우(오류)는 복구
     if (existingStatus && existingStatus !== 'trial') {
         console.log('[Subscription] Skipping initialization, existing status:', existingStatus);
@@ -1345,10 +1350,10 @@ export async function setupTestCase_A2(): Promise<void> {
             console.error('[Subscription] Failed to expire trial:', e);
         }
 
-        // 5. 서버에 blocked 상태 동기화
+        // 5. 서버에 expired 상태 동기화 (기존 'blocked'에서 'expired'로 변경 - 서버 enum 일치)
         const deviceId = await getDeviceId();
         await syncSubscriptionToServer(testUserId, {
-            status: 'blocked',
+            status: 'expired',
             trialStartDate: new Date().toISOString(),
         });
         console.log('[Subscription] Server status set to blocked');
@@ -1489,56 +1494,6 @@ export async function setupTestCase_C2(): Promise<void> {
         console.log('[Subscription] 앱 재시작(r) 후 복원 재시도 화면이 표시되어야 합니다');
     } catch (error) {
         console.error('[Subscription] Setup Case C-2 failed:', error);
-        throw error;
-    }
-}
-
-/**
- * Setup Test Case A-1: 완전 신규 유저
- *
- * [신규 구조] TestUserManager 기반 - 독립된 테스트 userId 사용
- * 1. 테스트 userId로 전환 (test_a1_{원래userId})
- * 2. 서버에 아무 기록 없음 (신규 유저)
- * 3. 로컬 데이터 초기화
- */
-export async function setupTestCase_A1(): Promise<void> {
-    try {
-        console.log('[Subscription] Setting up Case A-1 (isolated)...');
-
-        // 1. TestUserManager로 테스트 userId 전환
-        const TestUserManager = (await import('./testUserManager')).default;
-        const testManager = TestUserManager.getInstance();
-        const testUserId = await testManager.startTest('A-1');
-        console.log('[Subscription] Test userId:', testUserId);
-
-        // 2. 서버에서 해당 테스트 userId 초기화 (기존 데이터 삭제)
-        const token = await AsyncStorage.getItem('jwt_token');
-        if (token) {
-            try {
-                await fetch(`${API_URL}/api/subscription/reset/${testUserId}`, {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                console.log('[Subscription] Reset server data for test user');
-            } catch (e) {
-                console.log('[Subscription] Server reset skipped (may not exist):', e);
-            }
-        }
-
-        // 3. 로컬 데이터 초기화
-        await testManager.cleanupTestLocalData();
-
-        // 4. SubscriptionManager 설정
-        // A-1: Google Play 복원 건너뛰기, SSOT 진행, entitlement 무시 (실제 구독 무시)
-        const SubscriptionManager = (await import('./SubscriptionManager')).default;
-        const manager = SubscriptionManager.getInstance();
-        await manager.setTestMode(true, false, true); // forceSkipSSOT=false, forceIgnoreEntitlement=true
-        await manager.resetForTesting();
-
-        console.log('[Subscription] Case A-1 Setup Complete');
-        console.log('[Subscription] 앱 재시작(r) 후 Trial 화면이 표시되어야 합니다');
-    } catch (error) {
-        console.error('[Subscription] Setup Case A-1 failed:', error);
         throw error;
     }
 }

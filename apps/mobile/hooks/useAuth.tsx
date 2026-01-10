@@ -60,23 +60,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setIsLoggedIn(!!currentUserId);
 
             if (currentUserId) {
+                console.log('[AuthContext] User logged in:', currentUserId);
                 // SubscriptionManager를 통해 구독 상태 결정 (중앙 집중식)
                 // - 중복 호출 방지
                 // - 복원 성공 시 SSOT 건너뜀
                 // - 모든 상태 변경을 한 곳에서 처리
+                const { initializeSubscription } = await import('../services/subscription');
+                await initializeSubscription();
+
                 const SubscriptionManager = (await import('../services/SubscriptionManager')).default;
                 const manager = SubscriptionManager.getInstance();
                 const uiStatus = await manager.resolveSubscriptionStatus();
 
                 setSubscriptionStatus(uiStatus);
-                console.log('[AuthContext] Subscription status from Manager:', uiStatus);
+                console.log(`[AuthContext] Subscription resolved for ${currentUserId}: ${uiStatus}`);
 
                 // 운영자 권한 조회
                 const adminStatus = await getIsAdmin();
                 console.log('[AuthContext] isAdmin status:', adminStatus);
                 setIsAdmin(adminStatus);
             } else {
-                setSubscriptionStatus(null);
+                console.log('[AuthContext] No user logged in');
+                setSubscriptionStatus('loading');
                 setIsAdmin(false);
             }
         } catch (error) {

@@ -264,36 +264,6 @@ export default function SettingsScreen() {
                                 }
                             }}
                         />
-                        {/* A 시리즈 */}
-                        <SettingItem
-                            emoji="🆕"
-                            title="Test Case A-1 (완전 신규 유저)"
-                            description={activeTestCase === 'A-1' ? '✓ 현재 실행 중' : '독립 테스트 userId 사용'}
-                            onPress={async () => {
-                                Alert.alert(
-                                    'Case A-1 설정',
-                                    '독립된 테스트 계정으로 완전 신규 유저 상태를 시뮬레이션합니다.\n\n✓ 원래 계정 데이터 보존\n✓ 다른 테스트와 격리됨\n\n기대 결과: Trial 화면',
-                                    [
-                                        { text: '취소', style: 'cancel' },
-                                        {
-                                            text: '실행',
-                                            style: 'destructive',
-                                            onPress: async () => {
-                                                try {
-                                                    const { setupTestCase_A1 } = await import('../../../services/subscription');
-                                                    await setupTestCase_A1();
-                                                    await loadTestStatus();
-                                                    Alert.alert('완료', 'A-1 테스트 설정 완료.\n\n앱을 재시작(r)해주세요.\n\n기대 결과: Trial 화면');
-                                                } catch (e) {
-                                                    console.error(e);
-                                                    Alert.alert('오류', '설정 실패');
-                                                }
-                                            }
-                                        }
-                                    ]
-                                );
-                            }}
-                        />
                         <SettingItem
                             emoji="🅰️"
                             title="Test Case A-2 (체험만료+재설치)"
