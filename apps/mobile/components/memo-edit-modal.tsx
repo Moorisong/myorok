@@ -13,6 +13,7 @@ interface MemoEditModalProps {
     showTypeSelector?: boolean;
     onCancel: () => void;
     onSave: (name: string, memo: string, type?: 'dry' | 'wet') => void;
+    onDelete?: () => void;
 }
 
 export default function MemoEditModal({
@@ -24,6 +25,7 @@ export default function MemoEditModal({
     showTypeSelector = false,
     onCancel,
     onSave,
+    onDelete,
 }: MemoEditModalProps) {
     const [name, setName] = useState(initialName);
     const [memo, setMemo] = useState(initialMemo);
@@ -99,7 +101,6 @@ export default function MemoEditModal({
                             </>
                         )}
 
-                        <Text style={styles.label}>메모</Text>
                         <TextInput
                             style={[styles.input, styles.memoInput]}
                             value={memo}
@@ -110,6 +111,16 @@ export default function MemoEditModal({
                             numberOfLines={4}
                             textAlignVertical="top"
                         />
+
+                        {onDelete && (
+                            <Pressable
+                                style={styles.deleteButton}
+                                onPress={onDelete}
+                            >
+                                <Feather name="trash-2" size={18} color={COLORS.error} />
+                                <Text style={styles.deleteButtonText}>삭제하기</Text>
+                            </Pressable>
+                        )}
                     </ScrollView>
 
                     <View style={styles.footer}>
@@ -219,5 +230,23 @@ const styles = StyleSheet.create({
     },
     button: {
         flex: 1,
+    },
+    deleteButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        padding: 12,
+        marginTop: 24,
+        marginBottom: 8,
+        borderRadius: 8,
+        backgroundColor: '#FFF5F5',
+        borderWidth: 1,
+        borderColor: '#FFE0E0',
+    },
+    deleteButtonText: {
+        fontSize: 15,
+        color: COLORS.error,
+        fontWeight: '500',
     },
 });
