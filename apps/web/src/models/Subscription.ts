@@ -6,7 +6,7 @@ const SubscriptionSchema = new mongoose.Schema({
     status: {
         type: String,
         required: true,
-        enum: ['trial', 'active', 'expired'],
+        enum: ['trial', 'active', 'expired', 'subscribed', 'blocked'],
         index: true,
     },
     trialStartDate: { type: Date, default: null },

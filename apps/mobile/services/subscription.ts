@@ -415,6 +415,7 @@ export async function verifySubscriptionWithServer(): Promise<{
 
     // 3. SSOT 판별
     const status = determineSubscriptionState(serverResult);
+    console.log(`[SSOT] Determined status for ${userId}: ${status}`);
 
     // 4. 로컬 상태 업데이트
     await setSubscriptionStatus(status);

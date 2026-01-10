@@ -13,7 +13,7 @@ interface JwtPayload {
 
 interface SyncRequest {
     deviceId: string;
-    status: 'trial' | 'active' | 'expired' | 'subscribed';
+    status: 'trial' | 'active' | 'expired' | 'subscribed' | 'blocked';
     trialStartDate?: string | null;  // Optional for restore scenarios
     subscriptionStartDate?: string | null;
     subscriptionExpiryDate?: string | null;
