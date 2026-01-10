@@ -172,7 +172,13 @@ export function determineSubscriptionState(result: VerificationResult): Subscrip
         return 'trial';
     }
 
-    // 9. 그 외 (CASE J 포함)
+    // 9. Case J (C-1): 결제 이력은 있으나 권한은 없는 경우 (blocked)
+    if (hasPurchaseHistory) {
+        console.log('[SSOT] State: blocked (CASE J/C-1: has purchase history but no active entitlement)');
+        return 'blocked';
+    }
+
+    // 10. 그 외 (완전 만료된 계정 등)
     console.log('[SSOT] State: blocked (hasPurchaseHistory:', hasPurchaseHistory, ', hasUsedTrial:', hasUsedTrial, ')');
     return 'blocked';
 }
@@ -1395,17 +1401,17 @@ export async function setupTestCase_C1(): Promise<void> {
         // 4. 로컬 데이터 초기화
         await testManager.cleanupTestLocalData();
 
-        // 5. 복원 시도 플래그 설정 (Google Play 복원 실패 시뮬레이션)
-        await AsyncStorage.setItem(SUBSCRIPTION_KEYS.RESTORE_ATTEMPTED, 'true');
-        await AsyncStorage.setItem('has_purchase_history', 'true');
-        await AsyncStorage.setItem('entitlement_active', 'true');
-        await AsyncStorage.setItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS, 'blocked');
-
         // 6. SubscriptionManager 설정
         const SubscriptionManager = (await import('./SubscriptionManager')).default;
         const manager = SubscriptionManager.getInstance();
         await manager.setTestMode(true, false);
         await manager.resetForTesting();
+
+        // 7. 복원 시도 플래그 설정 (resetForTesting 이후에 설정해야 지워지지 않음)
+        await AsyncStorage.setItem(SUBSCRIPTION_KEYS.RESTORE_ATTEMPTED, 'true');
+        await AsyncStorage.setItem('has_purchase_history', 'true');
+        await AsyncStorage.setItem('entitlement_active', 'true');
+        await AsyncStorage.setItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS, 'blocked');
 
         console.log('[Subscription] Case C-1 Setup Complete');
         console.log('[Subscription] 앱 재시작(r) 후 구독 복원 화면이 표시되어야 합니다');
@@ -1457,15 +1463,16 @@ export async function setupTestCase_C2(): Promise<void> {
         // 4. 로컬 데이터 초기화
         await testManager.cleanupTestLocalData();
 
-        // 5. 복원 실패 플래그 설정
-        await AsyncStorage.setItem(SUBSCRIPTION_KEYS.RESTORE_ATTEMPTED, 'true');
-        await AsyncStorage.setItem(SUBSCRIPTION_KEYS.RESTORE_SUCCEEDED, 'false');
-
         // 6. SubscriptionManager 설정
         const SubscriptionManager = (await import('./SubscriptionManager')).default;
         const manager = SubscriptionManager.getInstance();
         await manager.setTestMode(true, false);
         await manager.resetForTesting();
+
+        // 7. 복원 실패 플래그 설정 (resetForTesting 이후에 설정해야 지워지지 않음)
+        await AsyncStorage.setItem(SUBSCRIPTION_KEYS.RESTORE_ATTEMPTED, 'true');
+        await AsyncStorage.setItem(SUBSCRIPTION_KEYS.RESTORE_SUCCEEDED, 'false');
+        await AsyncStorage.setItem('has_purchase_history', 'true');
 
         console.log('[Subscription] Case C-2 Setup Complete');
         console.log('[Subscription] 앱 재시작(r) 후 복원 재시도 화면이 표시되어야 합니다');

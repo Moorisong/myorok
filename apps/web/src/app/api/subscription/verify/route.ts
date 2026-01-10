@@ -68,7 +68,10 @@ export async function POST(request: NextRequest) {
         }
 
         // 토큰의 userId와 요청의 userId 일치 확인
-        if (tokenUserId !== userId) {
+        // Allow if it matches or if it's a test user belonging to this token (test_{case}_{originalUserId})
+        const isTestUserForToken = userId.startsWith('test_') && userId.endsWith(`_${tokenUserId}`);
+
+        if (tokenUserId !== userId && !isTestUserForToken) {
             return NextResponse.json(
                 { success: false, error: 'userId mismatch' },
                 { status: 403 }

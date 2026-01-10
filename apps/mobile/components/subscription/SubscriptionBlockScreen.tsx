@@ -139,13 +139,13 @@ export function SubscriptionBlockScreen() {
                         {isCaseJ ? '⚠️' : isCaseC2 ? '🔄' : '🔒'}
                     </Text>
                     <Text style={styles.title}>
-                        {isCaseJ ? '구독 복원이 필요합니다' :
+                        {isCaseJ ? '구독 복원 필요' :
                             isCaseC2 ? '구독 복원 실패' :
                                 '구독이 만료되었습니다'}
                     </Text>
                     <Text style={styles.description}>
                         {isCaseJ ? (
-                            '이전에 구독하신 내역이 있습니다.\n아래 버튼을 눌러 구독을 복원해주세요.'
+                            '결제 내역은 있으나 구독이 활성화되지 않았습니다.\n아래 [구독 복원하기]를 눌러주세요.'
                         ) : isCaseC2 ? (
                             '구독 복원에 실패했습니다.\n다시 시도하거나 새로 구독해주세요.'
                         ) : (

@@ -44,10 +44,10 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        let userId: string;
+        let tokenUserId: string;
         try {
             const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
-            userId = decoded.userId;
+            tokenUserId = decoded.userId;
         } catch (error) {
             return NextResponse.json(
                 { error: 'Invalid token' },
@@ -56,14 +56,19 @@ export async function POST(request: NextRequest) {
         }
 
         // 2. 요청 데이터 파싱
-        const body: SyncRequest = await request.json();
+        const body: SyncRequest & { userId?: string } = await request.json();
         const {
             deviceId,
             status,
             trialStartDate,
             subscriptionStartDate,
             subscriptionExpiryDate,
+            userId: bodyUserId, // Optional userId in body for test mode
         } = body;
+
+        // Use bodyUserId if it's a valid test user for this token, otherwise use token userId
+        const isTestUserForToken = bodyUserId?.startsWith('test_') && bodyUserId?.endsWith(`_${tokenUserId}`);
+        const userId = isTestUserForToken ? bodyUserId : tokenUserId;
 
         if (!deviceId || !status) {
             return NextResponse.json(
