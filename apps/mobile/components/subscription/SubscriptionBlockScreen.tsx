@@ -1,58 +1,20 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants';
 import { useAuth } from '../../hooks/useAuth';
 import { purchaseSubscription, restorePurchases } from '../../services/paymentService';
-import { getSubscriptionStatus } from '../../services/subscription';
 import { useToast } from '../ToastContext';
 
 /**
- * 차단 사유 타입
- * - expired: 일반 만료 (체험 종료, 구독 만료)
- * - purchase_without_entitlement: CASE J (결제 이력 O, 권한 X)
- * - restore_failed: CASE C-2 (복원 시도했으나 실패)
+ * 구독 차단 화면 (통합)
+ * - 체험 종료, 구독 만료, 복원 필요 등 모든 케이스에서 동일한 UI 표시
  */
-type BlockReason = 'expired' | 'purchase_without_entitlement' | 'restore_failed';
-
 export function SubscriptionBlockScreen() {
     const { logout, checkAuthStatus, setSubscriptionStatus } = useAuth();
     const { showToast } = useToast();
     const [isLoading, setIsLoading] = useState(false);
     const [isRestoring, setIsRestoring] = useState(false);
-    const [blockReason, setBlockReason] = useState<BlockReason>('expired');
-
-    // 차단 사유 확인
-    useEffect(() => {
-        const checkBlockReason = async () => {
-            try {
-                const AsyncStorage = await import('@react-native-async-storage/async-storage').then(m => m.default);
-                const status = await getSubscriptionStatus();
-                const restoreAttempted = await AsyncStorage.getItem('restore_attempted');
-                const restoreSucceeded = await AsyncStorage.getItem('restore_succeeded');
-                const entitlementActiveStr = await AsyncStorage.getItem('entitlement_active');
-                const entitlementActive = entitlementActiveStr === 'true';
-                const hasPurchaseHistoryStr = await AsyncStorage.getItem('has_purchase_history');
-
-                // CASE C-2: 복원 시도했으나 실패
-                if (restoreAttempted === 'true' && restoreSucceeded !== 'true') {
-                    setBlockReason('restore_failed');
-                }
-                // CASE C-1: 결제 이력 O, entitlement X (CASE J)
-                // → hasPurchaseHistory=true AND entitlementActive=false (결제 내역은 있으나 권한은 없음)
-                else if ((status.hasPurchaseHistory || hasPurchaseHistoryStr === 'true') && !entitlementActive && status.status === 'blocked') {
-                    setBlockReason('purchase_without_entitlement');
-                }
-                // CASE B-1: 일반 만료 (끝난 구독)
-                else {
-                    setBlockReason('expired');
-                }
-            } catch (error) {
-                console.error('[BlockScreen] Failed to check block reason:', error);
-            }
-        };
-        checkBlockReason();
-    }, []);
 
     const handleSubscribe = async () => {
         if (isLoading || isRestoring) return;
@@ -127,51 +89,30 @@ export function SubscriptionBlockScreen() {
         }
     };
 
-    // 차단 사유별 UI 분기
-    const isCaseJ = blockReason === 'purchase_without_entitlement';
-    const isCaseC2 = blockReason === 'restore_failed';
-
     return (
         <SafeAreaView style={styles.container}>
             <View style={styles.content}>
                 <View style={styles.centerSection}>
-                    <Text style={styles.icon}>
-                        {isCaseJ ? '⚠️' : isCaseC2 ? '🔄' : '🔒'}
-                    </Text>
-                    <Text style={styles.title}>
-                        {isCaseJ ? '구독 복원 필요' :
-                            isCaseC2 ? '구독 복원 실패' :
-                                '구독이 만료되었습니다'}
-                    </Text>
+                    <Text style={styles.icon}>🔒</Text>
+                    <Text style={styles.title}>구독이 필요합니다</Text>
                     <Text style={styles.description}>
-                        {isCaseJ ? (
-                            '결제 내역은 있으나 구독이 활성화되지 않았습니다.\n아래 [구독 복원하기]를 눌러주세요.'
-                        ) : isCaseC2 ? (
-                            '구독 복원에 실패했습니다.\n다시 시도하거나 새로 구독해주세요.'
-                        ) : (
-                            '더 이상 기록을 작성하거나 조회할 수 없습니다.\n계속 이용하려면 구독을 갱신해주세요.'
-                        )}
+                        서비스를 계속 이용하려면{'\n'}구독을 복원하거나 새로 구독해 주세요.
                     </Text>
                 </View>
 
                 <View style={styles.footer}>
-                    {/* CASE J, C-2: 구독 복원 버튼을 먼저 표시 */}
-                    {(isCaseJ || isCaseC2) && (
-                        <TouchableOpacity
-                            style={[styles.restoreButton, isRestoring && styles.buttonDisabled]}
-                            onPress={handleRestore}
-                            activeOpacity={0.8}
-                            disabled={isLoading || isRestoring}
-                        >
-                            {isRestoring ? (
-                                <ActivityIndicator color={COLORS.primary} />
-                            ) : (
-                                <Text style={styles.restoreButtonText}>
-                                    {isCaseC2 ? '다시 복원 시도' : '구독 복원하기'}
-                                </Text>
-                            )}
-                        </TouchableOpacity>
-                    )}
+                    <TouchableOpacity
+                        style={[styles.restoreButton, isRestoring && styles.buttonDisabled]}
+                        onPress={handleRestore}
+                        activeOpacity={0.8}
+                        disabled={isLoading || isRestoring}
+                    >
+                        {isRestoring ? (
+                            <ActivityIndicator color={COLORS.primary} />
+                        ) : (
+                            <Text style={styles.restoreButtonText}>구독 복원하기</Text>
+                        )}
+                    </TouchableOpacity>
 
                     <TouchableOpacity
                         style={[styles.subscribeButton, isLoading && styles.buttonDisabled]}
@@ -182,24 +123,9 @@ export function SubscriptionBlockScreen() {
                         {isLoading ? (
                             <ActivityIndicator color="#FFFFFF" />
                         ) : (
-                            <Text style={styles.subscribeButtonText}>
-                                {isCaseJ || isCaseC2 ? '새로 구독하기' : '구독 갱신하기'}
-                            </Text>
+                            <Text style={styles.subscribeButtonText}>새로 구독하기</Text>
                         )}
                     </TouchableOpacity>
-
-                    {/* 일반 만료 시에도 복원 버튼 제공 (작게) */}
-                    {!isCaseJ && !isCaseC2 && (
-                        <TouchableOpacity
-                            style={styles.smallRestoreButton}
-                            onPress={handleRestore}
-                            disabled={isLoading || isRestoring}
-                        >
-                            <Text style={styles.smallRestoreButtonText}>
-                                {isRestoring ? '복원 중...' : '이전 구독 복원하기'}
-                            </Text>
-                        </TouchableOpacity>
-                    )}
 
                     <TouchableOpacity
                         style={styles.logoutButton}
@@ -284,13 +210,6 @@ const styles = StyleSheet.create({
     restoreButtonText: {
         fontSize: 18,
         fontWeight: '600',
-        color: COLORS.primary,
-    },
-    smallRestoreButton: {
-        padding: 12,
-    },
-    smallRestoreButtonText: {
-        fontSize: 14,
         color: COLORS.primary,
     },
     logoutButton: {
