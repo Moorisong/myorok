@@ -13,8 +13,8 @@ interface JwtPayload {
 
 interface SyncRequest {
     deviceId: string;
-    status: 'trial' | 'active' | 'expired';
-    trialStartDate: string;
+    status: 'trial' | 'active' | 'expired' | 'subscribed';
+    trialStartDate?: string | null;  // Optional for restore scenarios
     subscriptionStartDate?: string | null;
     subscriptionExpiryDate?: string | null;
 }
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
             subscriptionExpiryDate,
         } = body;
 
-        if (!deviceId || !status || !trialStartDate) {
+        if (!deviceId || !status) {
             return NextResponse.json(
                 { error: 'Missing required fields' },
                 { status: 400 }
@@ -74,6 +74,11 @@ export async function POST(request: NextRequest) {
 
         // 3. 기존 구독 상태 확인
         const existingSubscription = await Subscription.findOne({ userId });
+
+        // trialStartDate가 없는 경우: 기존 값 사용 또는 현재 시간 (복원 시나리오)
+        const effectiveTrialStartDate = trialStartDate
+            || existingSubscription?.trialStartDate?.toISOString()
+            || new Date().toISOString();
 
         // 4. 상태 변경 감지 및 로그 기록
         if (existingSubscription && existingSubscription.status !== status) {
@@ -92,7 +97,7 @@ export async function POST(request: NextRequest) {
                 $set: {
                     deviceId,
                     status,
-                    trialStartDate: new Date(trialStartDate),
+                    trialStartDate: new Date(effectiveTrialStartDate),
                     subscriptionStartDate: subscriptionStartDate
                         ? new Date(subscriptionStartDate)
                         : null,

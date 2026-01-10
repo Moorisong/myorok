@@ -6,7 +6,7 @@ import { restorePurchases, getEntitlementVerification } from './paymentService';
 import { CONFIG } from '../constants/config';
 import { getDeviceId } from './device';
 
-const SUBSCRIPTION_KEYS = {
+export const SUBSCRIPTION_KEYS = {
     TRIAL_START_DATE: 'trial_start_date',
     SUBSCRIPTION_STATUS: 'subscription_status',
     SUBSCRIPTION_START_DATE: 'subscription_start_date',
@@ -1296,76 +1296,65 @@ export async function clearForceExpiredFlag(): Promise<void> {
 
 /**
  * Setup Test Case A-2: Trial Used -> Expired -> App Reinstall
- * 1. Ensure server knows trial is used.
- * 2. Ensure server knows subscription is blocked.
- * 3. Clear local data (simulate reinstall).
+ *
+ * [신규 구조] TestUserManager 기반 - 독립된 테스트 userId 사용
+ * 1. 테스트 userId로 전환 (test_a2_{원래userId})
+ * 2. 해당 userId로 서버에 체험 사용 기록 생성
+ * 3. 로컬 데이터 초기화 (앱 재설치 시뮬레이션)
  */
 export async function setupTestCase_A2(): Promise<void> {
     try {
-        console.log('[Subscription] Setting up Case A-2...');
-        const userId = await AsyncStorage.getItem('current_user_id');
-        if (!userId) throw new Error('No user logged in');
+        console.log('[Subscription] Setting up Case A-2 (isolated)...');
 
-        // 1. Force start trial on server (to ensure hasUsedTrial = true)
-        // We use the raw API because startTrialForUser might throw if already used
+        // 1. TestUserManager로 테스트 userId 전환
+        const TestUserManager = (await import('./testUserManager')).default;
+        const testManager = TestUserManager.getInstance();
+        const testUserId = await testManager.startTest('A-2');
+        console.log('[Subscription] Test userId:', testUserId);
+
+        // 2. JWT 토큰 가져오기 (원래 계정의 토큰 사용)
+        const token = await AsyncStorage.getItem('jwt_token');
+        if (!token) {
+            throw new Error('JWT 토큰이 없습니다');
+        }
+
+        // 3. 테스트 userId로 서버에 체험 사용 기록 생성
         try {
-            await recordTrialStartOnServer(userId);
+            await recordTrialStartOnServer(testUserId);
         } catch (e) {
-            // Include 409 Conflict - that's good, means already used
             console.log('[Subscription] Trial start record check:', e);
         }
 
-        // 2. Expire trial on server (so trialActive = false)
-        const token = await AsyncStorage.getItem('jwt_token');
-        if (token) {
-            try {
-                await fetch(`${API_URL}/api/subscription/expire-trial/${userId}`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-                console.log('[Subscription] Expired trial on server for Case A-2');
-            } catch (e) {
-                console.error('[Subscription] Failed to expire trial on server:', e);
-            }
+        // 4. 체험 만료 처리
+        try {
+            await fetch(`${API_URL}/api/subscription/expire-trial/${testUserId}`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            console.log('[Subscription] Expired trial on server');
+        } catch (e) {
+            console.error('[Subscription] Failed to expire trial:', e);
         }
 
-        // 3. Set status to blocked on server
-        await setSubscriptionStatus('blocked');
+        // 5. 서버에 blocked 상태 동기화
+        const deviceId = await getDeviceId();
+        await syncSubscriptionToServer(testUserId, {
+            status: 'blocked',
+            trialStartDate: new Date().toISOString(),
+        });
+        console.log('[Subscription] Server status set to blocked');
 
-        // 3. Clear local data (Simulate App Delete/Reinstall)
-        // We keep the user ID to simulate "logging in with same account" after reinstall
-        // But the requirement says "App Delete -> Reinstall".
-        // Usually this means all local data is gone.
-        // But to test "Login", we need to relogin.
-        // "Reset Subscription (Dev)" cleared everything including user ID?
-        // Let's check resetSubscription: yes, clears everything.
+        // 6. 로컬 데이터 초기화 (앱 재설치 시뮬레이션)
+        await testManager.cleanupTestLocalData();
 
-        // For A-2, we should clear everything.
-        // User will have to Login again.
-        // Upon Login, SSOT check will happen.
-
-        console.log('[Subscription] Clearing local data...');
-
-        // SubscriptionManager 캐시 초기화 (테스트 격리)
+        // 7. SubscriptionManager 리셋
         const SubscriptionManager = (await import('./SubscriptionManager')).default;
         const manager = SubscriptionManager.getInstance();
+        await manager.setTestMode(true, true); // Google Play 복원 건너뛰기
         await manager.resetForTesting();
 
-        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.TRIAL_START_DATE);
-        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS);
-        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_START_DATE);
-        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_EXPIRY_DATE);
-        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.HAS_USED_TRIAL);
-        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.RESTORE_ATTEMPTED);
-
-        const db = await getDatabase();
-        await db.execAsync('DELETE FROM subscription_state');
-
-        // Note: We DO NOT delete server data here. That's the key diff/ from A-1 reset.
-
-        console.log('[Subscription] Case A-2 Setup Complete. Restarting...');
+        console.log('[Subscription] Case A-2 Setup Complete');
+        console.log('[Subscription] 앱 재시작(r) 후 차단 화면이 표시되어야 합니다');
     } catch (error) {
         console.error('[Subscription] Setup Case A-2 failed:', error);
         throw error;
@@ -1374,64 +1363,61 @@ export async function setupTestCase_A2(): Promise<void> {
 
 /**
  * Setup Test Case C-1: Purchase History O, Entitlement X (CASE J)
- * 1. Sync as subscribed (past date) -> Server records hasPurchaseHistory = true
- * 2. Sync as blocked (current) -> Server records status = blocked
- * 3. Clear local data (Simulate fresh login)
- * 4. Set RESTORE_ATTEMPTED flag (simulate restore attempt without Google Play subscription)
+ *
+ * [신규 구조] TestUserManager 기반 - 독립된 테스트 userId 사용
+ * 1. 테스트 userId로 전환 (test_c1_{원래userId})
+ * 2. 과거 구독 이력 생성 (hasPurchaseHistory=true)
+ * 3. 현재 blocked 상태로 설정
+ * 4. 복원 시도 플래그 설정
  */
 export async function setupTestCase_C1(): Promise<void> {
     try {
-        console.log('[Subscription] Setting up Case C-1...');
-        const userId = await AsyncStorage.getItem('current_user_id');
-        if (!userId) throw new Error('No user logged in');
+        console.log('[Subscription] Setting up Case C-1 (isolated)...');
 
-        // 1. Sync as subscribed (Past)
+        // 1. TestUserManager로 테스트 userId 전환
+        const TestUserManager = (await import('./testUserManager')).default;
+        const testManager = TestUserManager.getInstance();
+        const testUserId = await testManager.startTest('C-1');
+        console.log('[Subscription] Test userId:', testUserId);
+
+        // 2. 과거 구독 이력 생성 (1년 전)
         const pastDate = new Date();
-        pastDate.setFullYear(pastDate.getFullYear() - 1); // 1 year ago
+        pastDate.setFullYear(pastDate.getFullYear() - 1);
         const pastExpiry = new Date(pastDate);
-        pastExpiry.setMonth(pastExpiry.getMonth() + 1); // 1 month subscription
+        pastExpiry.setMonth(pastExpiry.getMonth() + 1);
 
-        await syncSubscriptionToServer(userId, {
+        await syncSubscriptionToServer(testUserId, {
             status: 'subscribed',
+            trialStartDate: pastDate.toISOString(),
             subscriptionStartDate: pastDate.toISOString(),
             subscriptionExpiryDate: pastExpiry.toISOString(),
-        }, 'test_product_id', 'test_token', true); // throwOnError = true
+        }, 'test_product_id', 'test_token', true);
+        console.log('[Subscription] Created past subscription history');
 
-        console.log('[Subscription] Step 1: Simulated past subscription');
-
-        // 2. Sync as blocked (Current)
-        await syncSubscriptionToServer(userId, {
+        // 3. 현재 blocked 상태로 설정
+        await syncSubscriptionToServer(testUserId, {
             status: 'blocked',
-            // No start/expiry dates needed, just status update
-        }, undefined, undefined, true); // throwOnError = true
+            trialStartDate: pastDate.toISOString(),
+        }, undefined, undefined, true);
+        console.log('[Subscription] Set status to blocked');
 
-        console.log('[Subscription] Step 2: Set status to blocked');
+        // 4. 로컬 데이터 초기화
+        await testManager.cleanupTestLocalData();
 
-        // 3. Clear local data
-        console.log('[Subscription] Clearing local data...');
-        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.TRIAL_START_DATE);
-        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS);
-        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_START_DATE);
-        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_EXPIRY_DATE);
-        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.HAS_USED_TRIAL);
-        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.RESTORE_ATTEMPTED);
-
-        const db = await getDatabase();
-        await db.execAsync('DELETE FROM subscription_state');
-
-        // 4. Set RESTORE_ATTEMPTED flag to simulate restore attempt
-        // This is needed for SSOT to show block screen instead of loading state
-        // Note: In real C-1 scenario, user would attempt restore and fail because
-        // there's no actual Google Play subscription
+        // 5. 복원 시도 플래그 설정 (Google Play 복원 실패 시뮬레이션)
         await AsyncStorage.setItem(SUBSCRIPTION_KEYS.RESTORE_ATTEMPTED, 'true');
-
-        // 5. C-1 핵심: hasPurchaseHistory=true, entitlementActive=true (살릴 수 있는 구독)
         await AsyncStorage.setItem('has_purchase_history', 'true');
         await AsyncStorage.setItem('entitlement_active', 'true');
         await AsyncStorage.setItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS, 'blocked');
 
-        console.log('[Subscription] Step 4: Set has_purchase_history=true, entitlement_active=true');
-        console.log('[Subscription] Case C-1 Setup Complete. Restarting...');
+        // 6. SubscriptionManager 설정
+        const SubscriptionManager = (await import('./SubscriptionManager')).default;
+        const manager = SubscriptionManager.getInstance();
+        await manager.setTestMode(true, true);
+        await manager.resetForTesting();
+
+        console.log('[Subscription] Case C-1 Setup Complete');
+        console.log('[Subscription] 앱 재시작(r) 후 구독 복원 화면이 표시되어야 합니다');
     } catch (error) {
         console.error('[Subscription] Setup Case C-1 failed:', error);
         throw error;
@@ -1440,61 +1426,132 @@ export async function setupTestCase_C1(): Promise<void> {
 
 /**
  * Setup Test Case C-2: Restore 시도했으나 실패 (CASE D)
- * 1. Sync as subscribed (past date) -> Server records hasPurchaseHistory = true
- * 2. Sync as blocked (current) -> Server records status = blocked
- * 3. Clear local data (Simulate fresh login)
- * 4. Set RESTORE_ATTEMPTED = true, RESTORE_SUCCEEDED = false (simulate restore failure)
+ *
+ * [신규 구조] TestUserManager 기반 - 독립된 테스트 userId 사용
+ * 1. 테스트 userId로 전환 (test_c2_{원래userId})
+ * 2. 과거 구독 이력 생성
+ * 3. 복원 실패 플래그 설정
  */
 export async function setupTestCase_C2(): Promise<void> {
     try {
-        console.log('[Subscription] Setting up Case C-2...');
-        const userId = await AsyncStorage.getItem('current_user_id');
-        if (!userId) throw new Error('No user logged in');
+        console.log('[Subscription] Setting up Case C-2 (isolated)...');
 
-        // 1. Sync as subscribed (Past)
+        // 1. TestUserManager로 테스트 userId 전환
+        const TestUserManager = (await import('./testUserManager')).default;
+        const testManager = TestUserManager.getInstance();
+        const testUserId = await testManager.startTest('C-2');
+        console.log('[Subscription] Test userId:', testUserId);
+
+        // 2. 과거 구독 이력 생성
         const pastDate = new Date();
-        pastDate.setFullYear(pastDate.getFullYear() - 1); // 1 year ago
+        pastDate.setFullYear(pastDate.getFullYear() - 1);
         const pastExpiry = new Date(pastDate);
-        pastExpiry.setMonth(pastExpiry.getMonth() + 1); // 1 month subscription
+        pastExpiry.setMonth(pastExpiry.getMonth() + 1);
 
-        await syncSubscriptionToServer(userId, {
+        await syncSubscriptionToServer(testUserId, {
             status: 'subscribed',
+            trialStartDate: pastDate.toISOString(),
             subscriptionStartDate: pastDate.toISOString(),
             subscriptionExpiryDate: pastExpiry.toISOString(),
-        }, 'test_product_id', 'test_token', true); // throwOnError = true
+        }, 'test_product_id', 'test_token', true);
+        console.log('[Subscription] Created past subscription history');
 
-        console.log('[Subscription] Step 1: Simulated past subscription');
-
-        // 2. Sync as blocked (Current)
-        await syncSubscriptionToServer(userId, {
+        // 3. 현재 blocked 상태로 설정
+        await syncSubscriptionToServer(testUserId, {
             status: 'blocked',
-            // No start/expiry dates needed, just status update
-        }, undefined, undefined, true); // throwOnError = true
+            trialStartDate: pastDate.toISOString(),
+        }, undefined, undefined, true);
+        console.log('[Subscription] Set status to blocked');
 
-        console.log('[Subscription] Step 2: Set status to blocked');
+        // 4. 로컬 데이터 초기화
+        await testManager.cleanupTestLocalData();
 
-        // 3. Clear local data
-        console.log('[Subscription] Clearing local data...');
-        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.TRIAL_START_DATE);
-        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS);
-        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_START_DATE);
-        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_EXPIRY_DATE);
-        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.HAS_USED_TRIAL);
-        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.RESTORE_ATTEMPTED);
-        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.RESTORE_SUCCEEDED);
-
-        const db = await getDatabase();
-        await db.execAsync('DELETE FROM subscription_state');
-
-        // 4. Set RESTORE flags to simulate restore failure
-        // This will trigger loading state with restore retry screen
+        // 5. 복원 실패 플래그 설정
         await AsyncStorage.setItem(SUBSCRIPTION_KEYS.RESTORE_ATTEMPTED, 'true');
         await AsyncStorage.setItem(SUBSCRIPTION_KEYS.RESTORE_SUCCEEDED, 'false');
 
-        console.log('[Subscription] Step 3: Set RESTORE flags (simulating restore failure)');
-        console.log('[Subscription] Case C-2 Setup Complete. Restarting...');
+        // 6. SubscriptionManager 설정
+        const SubscriptionManager = (await import('./SubscriptionManager')).default;
+        const manager = SubscriptionManager.getInstance();
+        await manager.setTestMode(true, true);
+        await manager.resetForTesting();
+
+        console.log('[Subscription] Case C-2 Setup Complete');
+        console.log('[Subscription] 앱 재시작(r) 후 복원 재시도 화면이 표시되어야 합니다');
     } catch (error) {
         console.error('[Subscription] Setup Case C-2 failed:', error);
+        throw error;
+    }
+}
+
+/**
+ * Setup Test Case A-1: 완전 신규 유저
+ *
+ * [신규 구조] TestUserManager 기반 - 독립된 테스트 userId 사용
+ * 1. 테스트 userId로 전환 (test_a1_{원래userId})
+ * 2. 서버에 아무 기록 없음 (신규 유저)
+ * 3. 로컬 데이터 초기화
+ */
+export async function setupTestCase_A1(): Promise<void> {
+    try {
+        console.log('[Subscription] Setting up Case A-1 (isolated)...');
+
+        // 1. TestUserManager로 테스트 userId 전환
+        const TestUserManager = (await import('./testUserManager')).default;
+        const testManager = TestUserManager.getInstance();
+        const testUserId = await testManager.startTest('A-1');
+        console.log('[Subscription] Test userId:', testUserId);
+
+        // 2. 서버에서 해당 테스트 userId 초기화 (기존 데이터 삭제)
+        const token = await AsyncStorage.getItem('jwt_token');
+        if (token) {
+            try {
+                await fetch(`${API_URL}/api/subscription/reset/${testUserId}`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                console.log('[Subscription] Reset server data for test user');
+            } catch (e) {
+                console.log('[Subscription] Server reset skipped (may not exist):', e);
+            }
+        }
+
+        // 3. 로컬 데이터 초기화
+        await testManager.cleanupTestLocalData();
+
+        // 4. SubscriptionManager 설정
+        const SubscriptionManager = (await import('./SubscriptionManager')).default;
+        const manager = SubscriptionManager.getInstance();
+        await manager.setTestMode(true, true); // Google Play 복원 건너뛰기
+        await manager.resetForTesting();
+
+        console.log('[Subscription] Case A-1 Setup Complete');
+        console.log('[Subscription] 앱 재시작(r) 후 Trial 화면이 표시되어야 합니다');
+    } catch (error) {
+        console.error('[Subscription] Setup Case A-1 failed:', error);
+        throw error;
+    }
+}
+
+/**
+ * 테스트 모드 종료 및 원래 계정 복귀
+ */
+export async function endTestMode(): Promise<void> {
+    try {
+        console.log('[Subscription] Ending test mode...');
+
+        const TestUserManager = (await import('./testUserManager')).default;
+        const testManager = TestUserManager.getInstance();
+        await testManager.endTest();
+
+        // SubscriptionManager 클린업
+        const SubscriptionManager = (await import('./SubscriptionManager')).default;
+        const manager = SubscriptionManager.getInstance();
+        await manager.clearTestMode();
+
+        console.log('[Subscription] Test mode ended, original account restored');
+    } catch (error) {
+        console.error('[Subscription] End test mode failed:', error);
         throw error;
     }
 }

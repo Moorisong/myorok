@@ -55,11 +55,13 @@ export default function SettingsScreen() {
 
     const [subscriptionState, setSubscriptionState] = useState<SubscriptionState | null>(null);
     const [currentUser, setCurrentUser] = useState<User | null>(null);
+    const [activeTestCase, setActiveTestCase] = useState<string | null>(null);
 
     useFocusEffect(
         useCallback(() => {
             loadSubscriptionStatus();
             loadCurrentUser();
+            loadTestStatus();
         }, [])
     );
 
@@ -71,6 +73,17 @@ export default function SettingsScreen() {
     const loadCurrentUser = async () => {
         const user = await getCurrentUser();
         setCurrentUser(user);
+    };
+
+    const loadTestStatus = async () => {
+        try {
+            const TestUserManager = (await import('../../../services/testUserManager')).default;
+            const testManager = TestUserManager.getInstance();
+            const status = await testManager.getTestStatus();
+            setActiveTestCase(status.testCaseId);
+        } catch (e) {
+            setActiveTestCase(null);
+        }
     };
 
     const handleLogout = async () => {
@@ -223,6 +236,34 @@ export default function SettingsScreen() {
 
                 {__DEV__ && (
                     <Card style={styles.card}>
+                        {/* 테스트 상태 표시 */}
+                        {activeTestCase && (
+                            <View style={styles.testStatusBanner}>
+                                <Text style={styles.testStatusText}>
+                                    🧪 테스트 모드: {activeTestCase}
+                                </Text>
+                            </View>
+                        )}
+                        <SettingItem
+                            emoji="✅"
+                            title="테스트 모드 해제"
+                            description={activeTestCase ? `현재: ${activeTestCase} → 원래 계정 복귀` : '활성 테스트 없음'}
+                            onPress={async () => {
+                                if (!activeTestCase) {
+                                    Alert.alert('알림', '현재 활성화된 테스트가 없습니다.');
+                                    return;
+                                }
+                                try {
+                                    const { endTestMode } = await import('../../../services/subscription');
+                                    await endTestMode();
+                                    await loadTestStatus();
+                                    Alert.alert('완료', '테스트 모드가 해제되었습니다.\n원래 계정으로 복귀했습니다.\n\n앱을 재시작(r)해주세요.');
+                                } catch (error) {
+                                    console.error('[Settings] End test mode failed:', error);
+                                    Alert.alert('오류', '테스트 모드 해제 실패');
+                                }
+                            }}
+                        />
                         <SettingItem
                             emoji="⏰"
                             title="무료 체험 24시간 남음 (Dev)"
@@ -271,32 +312,6 @@ export default function SettingsScreen() {
                                     Alert.alert('완료', '구독이 만료 상태로 변경되었습니다.\n\n⚠️ Google Play 복원이 비활성화됩니다.');
                                 } catch (error) {
                                     console.error('[Settings] Deactivate subscription failed:', error);
-                                }
-                            }}
-                        />
-                        <SettingItem
-                            emoji="✅"
-                            title="테스트 모드 해제 (Dev)"
-                            description="모든 테스트 플래그 제거"
-                            onPress={async () => {
-                                try {
-                                    // 1. forceSkipRestore 해제
-                                    const SubscriptionManager = (await import('../../../services/SubscriptionManager')).default;
-                                    const manager = SubscriptionManager.getInstance();
-                                    await manager.setTestMode(false);
-
-                                    // 2. forceExpired 플래그 제거
-                                    const { clearForceExpiredFlag } = await import('../../../services/subscription');
-                                    await clearForceExpiredFlag();
-
-                                    // 3. D-2 강제 서버 에러 플래그 제거
-                                    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
-                                    await AsyncStorage.removeItem('dev_force_server_error');
-
-                                    Alert.alert('완료', '모든 테스트 플래그가 제거되었습니다.\n\nGoogle Play 복원이 다시 활성화됩니다.\n\n앱을 재실행(r)해주세요.');
-                                } catch (error) {
-                                    console.error('[Settings] Clear test flags failed:', error);
-                                    Alert.alert('오류', '테스트 플래그 제거 실패');
                                 }
                             }}
                         />
@@ -397,11 +412,11 @@ export default function SettingsScreen() {
                         <SettingItem
                             emoji="🆕"
                             title="Test Case A-1 (완전 신규 유저)"
-                            description="서버 초기화 + Google Play 복원 건너뛰기"
+                            description={activeTestCase === 'A-1' ? '✓ 현재 실행 중' : '독립 테스트 userId 사용'}
                             onPress={async () => {
                                 Alert.alert(
                                     'Case A-1 설정',
-                                    '서버의 모든 trial/구독 기록을 삭제하고, Google Play 복원을 건너뜁니다.\n\n⚠️ 실제 구독이 있어도 신규 유저처럼 동작합니다.\n\n앱이 재시작되면 로그인 후 trial 상태로 시작해야 합니다.',
+                                    '독립된 테스트 계정으로 완전 신규 유저 상태를 시뮬레이션합니다.\n\n✓ 원래 계정 데이터 보존\n✓ 다른 테스트와 격리됨\n\n기대 결과: Trial 화면',
                                     [
                                         { text: '취소', style: 'cancel' },
                                         {
@@ -409,16 +424,10 @@ export default function SettingsScreen() {
                                             style: 'destructive',
                                             onPress: async () => {
                                                 try {
-                                                    // 1. forceSkipRestore 플래그 설정 (AsyncStorage에 저장)
-                                                    const SubscriptionManager = (await import('../../../services/SubscriptionManager')).default;
-                                                    const manager = SubscriptionManager.getInstance();
-                                                    await manager.setTestMode(true);
-
-                                                    // 2. 서버 + 로컬 데이터 초기화
-                                                    const { resetSubscription } = await import('../../../services');
-                                                    await resetSubscription();
-
-                                                    Alert.alert('완료', 'A-1 설정 완료.\n\n⚠️ Google Play 복원이 비활성화됩니다.\n\n앱을 수동으로 재실행(r)해주세요.');
+                                                    const { setupTestCase_A1 } = await import('../../../services/subscription');
+                                                    await setupTestCase_A1();
+                                                    await loadTestStatus();
+                                                    Alert.alert('완료', 'A-1 테스트 설정 완료.\n\n앱을 재시작(r)해주세요.\n\n기대 결과: Trial 화면');
                                                 } catch (e) {
                                                     console.error(e);
                                                     Alert.alert('오류', '설정 실패');
@@ -432,11 +441,11 @@ export default function SettingsScreen() {
                         <SettingItem
                             emoji="🅰️"
                             title="Test Case A-2 (체험만료+재설치)"
-                            description="서버에 체험기록 남김 → 로컬삭제 → 재시작"
+                            description={activeTestCase === 'A-2' ? '✓ 현재 실행 중' : '독립 테스트 userId 사용'}
                             onPress={async () => {
                                 Alert.alert(
                                     'Case A-2 설정',
-                                    '서버에 체험 사용 기록을 남기고, 로컬 데이터를 삭제합니다.\n\n⚠️ Google Play 복원이 비활성화됩니다.\n\n앱이 재시작되면 로그인 후 차단 화면이 떠야 합니다.',
+                                    '독립된 테스트 계정으로 체험 만료 후 재설치 상태를 시뮬레이션합니다.\n\n✓ 원래 계정 데이터 보존\n✓ 다른 테스트와 격리됨\n\n기대 결과: 차단 화면',
                                     [
                                         { text: '취소', style: 'cancel' },
                                         {
@@ -444,15 +453,10 @@ export default function SettingsScreen() {
                                             style: 'destructive',
                                             onPress: async () => {
                                                 try {
-                                                    // 1. forceSkipRestore 설정
-                                                    const SubscriptionManager = (await import('../../../services/SubscriptionManager')).default;
-                                                    const manager = SubscriptionManager.getInstance();
-                                                    await manager.setTestMode(true);
-
-                                                    // 2. A-2 설정 실행
                                                     const { setupTestCase_A2 } = await import('../../../services/subscription');
                                                     await setupTestCase_A2();
-                                                    Alert.alert('완료', '설정 완료.\n\n⚠️ Google Play 복원이 비활성화됩니다.\n\n앱을 수동으로 재실행(r)해주세요.');
+                                                    await loadTestStatus();
+                                                    Alert.alert('완료', 'A-2 테스트 설정 완료.\n\n앱을 재시작(r)해주세요.\n\n기대 결과: 차단 화면');
                                                 } catch (e) {
                                                     console.error(e);
                                                     Alert.alert('오류', '설정 실패');
@@ -466,11 +470,11 @@ export default function SettingsScreen() {
                         <SettingItem
                             emoji="📜"
                             title="Test Case C-1 (결제이력O+만료)"
-                            description="결제 이력 O, entitlement X 시뮬레이션"
+                            description={activeTestCase === 'C-1' ? '✓ 현재 실행 중' : '독립 테스트 userId 사용'}
                             onPress={() => {
                                 Alert.alert(
                                     'Test Case C-1',
-                                    '결제 이력은 있지만 만료된 상태(CASE J)를 시뮬레이션합니다.\n\n⚠️ Google Play 복원이 비활성화됩니다.\n\n앱 데이터가 초기화됩니다.',
+                                    '독립된 테스트 계정으로 결제 이력은 있지만 만료된 상태를 시뮬레이션합니다.\n\n✓ 원래 계정 데이터 보존\n✓ 다른 테스트와 격리됨\n\n기대 결과: 구독 복원 화면',
                                     [
                                         { text: '취소', style: 'cancel' },
                                         {
@@ -478,15 +482,10 @@ export default function SettingsScreen() {
                                             style: 'destructive',
                                             onPress: async () => {
                                                 try {
-                                                    // 1. forceSkipRestore 설정
-                                                    const SubscriptionManager = (await import('../../../services/SubscriptionManager')).default;
-                                                    const manager = SubscriptionManager.getInstance();
-                                                    await manager.setTestMode(true);
-
-                                                    // 2. C-1 설정 실행
                                                     const { setupTestCase_C1 } = await import('../../../services/subscription');
                                                     await setupTestCase_C1();
-                                                    Alert.alert('완료', '설정 완료.\n\n⚠️ Google Play 복원이 비활성화됩니다.\n\n앱을 수동으로 재실행(r)해주세요.');
+                                                    await loadTestStatus();
+                                                    Alert.alert('완료', 'C-1 테스트 설정 완료.\n\n앱을 재시작(r)해주세요.\n\n기대 결과: 구독 복원 화면');
                                                 } catch (e) {
                                                     console.error(e);
                                                     Alert.alert('오류', '설정 실패');
@@ -500,11 +499,11 @@ export default function SettingsScreen() {
                         <SettingItem
                             emoji="🔄"
                             title="Test Case C-2 (Restore 실패)"
-                            description="결제 이력 O, Restore 시도 O, Restore 실패"
+                            description={activeTestCase === 'C-2' ? '✓ 현재 실행 중' : '독립 테스트 userId 사용'}
                             onPress={() => {
                                 Alert.alert(
                                     'Test Case C-2',
-                                    '복원을 시도했으나 실패한 상태(CASE D)를 시뮬레이션합니다.\n\n⚠️ Google Play 복원이 비활성화됩니다.\n\n앱 데이터가 초기화됩니다.',
+                                    '독립된 테스트 계정으로 복원 실패 상태를 시뮬레이션합니다.\n\n✓ 원래 계정 데이터 보존\n✓ 다른 테스트와 격리됨\n\n기대 결과: 복원 재시도 화면',
                                     [
                                         { text: '취소', style: 'cancel' },
                                         {
@@ -512,15 +511,10 @@ export default function SettingsScreen() {
                                             style: 'destructive',
                                             onPress: async () => {
                                                 try {
-                                                    // 1. forceSkipRestore 설정
-                                                    const SubscriptionManager = (await import('../../../services/SubscriptionManager')).default;
-                                                    const manager = SubscriptionManager.getInstance();
-                                                    await manager.setTestMode(true);
-
-                                                    // 2. C-2 설정 실행
                                                     const { setupTestCase_C2 } = await import('../../../services/subscription');
                                                     await setupTestCase_C2();
-                                                    Alert.alert('완료', '설정 완료.\n\n⚠️ Google Play 복원이 비활성화됩니다.\n\n앱을 수동으로 재실행(r)해주세요.');
+                                                    await loadTestStatus();
+                                                    Alert.alert('완료', 'C-2 테스트 설정 완료.\n\n앱을 재시작(r)해주세요.\n\n기대 결과: 복원 재시도 화면');
                                                 } catch (e) {
                                                     console.error(e);
                                                     Alert.alert('오류', '설정 실패');
@@ -662,6 +656,18 @@ const styles = StyleSheet.create({
     },
     dangerText: {
         color: COLORS.error,
+    },
+    testStatusBanner: {
+        backgroundColor: '#FFF3CD',
+        padding: 12,
+        borderRadius: 8,
+        marginBottom: 8,
+    },
+    testStatusText: {
+        color: '#856404',
+        fontSize: 14,
+        fontWeight: '600',
+        textAlign: 'center',
     },
     bottomPadding: {
         height: 32,

@@ -269,7 +269,31 @@ class SubscriptionManager {
         return this.lastResult;
     }
 
+    /**
+     * 테스트 모드 완전 해제
+     * - 모든 테스트 관련 플래그 제거
+     * - 캐시 초기화
+     */
+    async clearTestMode(): Promise<void> {
+        console.log('[SubscriptionManager] Clearing test mode...');
 
+        // 메모리 플래그 초기화
+        this.forceSkipRestore = false;
+        this.forceSkipSSOT = false;
+        this.testModeLoaded = false;
+        this.isProcessing = false;
+        this.lastProcessedAt = 0;
+        this.lastResult = null;
+        this.purchaseJustCompleted = false;
+
+        // AsyncStorage 플래그 제거
+        await AsyncStorage.removeItem('dev_force_skip_restore');
+        await AsyncStorage.removeItem('dev_force_skip_ssot');
+        await AsyncStorage.removeItem('restore_attempted');
+        await AsyncStorage.removeItem('restore_succeeded');
+
+        console.log('[SubscriptionManager] Test mode cleared');
+    }
 }
 
 export default SubscriptionManager;
