@@ -124,10 +124,14 @@ export async function POST(request: NextRequest) {
         }
 
         return NextResponse.json({ success: true });
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error syncing subscription:', error);
+        // Log more details if it's a validation error
+        if (error.name === 'ValidationError') {
+            console.error('Validation Error Details:', JSON.stringify(error.errors, null, 2));
+        }
         return NextResponse.json(
-            { error: 'Internal Server Error' },
+            { error: 'Internal Server Error', message: error.message },
             { status: 500 }
         );
     }

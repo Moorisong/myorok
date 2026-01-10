@@ -136,11 +136,13 @@ export function determineSubscriptionState(result: VerificationResult): Subscrip
     // 5. 유효한 구독 상태 (restore 체크보다 먼저)
     // 이유: 앱 재설치 후 restoreAttempted=false이지만 entitlementActive=true인 경우, subscribed를 우선 반환해야 함
     if (entitlementActive && expiresDate && expiresDate > serverTime) {
-        // Product ID 검사
-        const isValidProductId = productId === EXPECTED_PRODUCT_ID || LEGACY_PRODUCT_IDS.includes(productId || '');
-        if (!isValidProductId) {
-            console.log('[SSOT] State: loading (productId mismatch:', productId, ')');
-            return 'loading';
+        // Product ID 검사 (productId가 있는 경우에만 검사, 없으면 허용 - 서버에서 안 보내줄 수도 있음)
+        if (productId) {
+            const isValidProductId = productId === EXPECTED_PRODUCT_ID || LEGACY_PRODUCT_IDS.includes(productId || '');
+            if (!isValidProductId) {
+                console.log('[SSOT] State: loading (productId mismatch:', productId, ')');
+                return 'loading';
+            }
         }
         console.log('[SSOT] State: subscribed (entitlement active, expires:', expiresDate, ')');
         return 'subscribed';
