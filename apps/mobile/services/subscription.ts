@@ -398,6 +398,15 @@ export async function verifySubscriptionWithServer(): Promise<{
     serverResult.restoreAttempted = restoreAttempted === 'true';
     serverResult.restoreSucceeded = restoreSucceeded === 'true';
 
+    // 2-0. 테스트 모드: entitlement 무시 (A-1 신규유저 테스트용)
+    const SubscriptionManager = (await import('./SubscriptionManager')).default;
+    const manager = SubscriptionManager.getInstance();
+    if (manager.shouldIgnoreEntitlement()) {
+        console.log('[SSOT] Test mode: ignoring entitlement (forceIgnoreEntitlement=true)');
+        serverResult.entitlementActive = false;
+        serverResult.expiresDate = undefined;
+    }
+
     // 2-1. 로컬 스토어 데이터로 보정 (CASE G: 결제 진행 중 앱 종료 후 재실행)
     // 서버에는 아직 pending 정보가 없을 수 있으므로 로컬 IAP 상태를 확인합니다.
     const localVerification = await getEntitlementVerification();
@@ -1520,9 +1529,10 @@ export async function setupTestCase_A1(): Promise<void> {
         await testManager.cleanupTestLocalData();
 
         // 4. SubscriptionManager 설정
+        // A-1: Google Play 복원 건너뛰기, SSOT 진행, entitlement 무시 (실제 구독 무시)
         const SubscriptionManager = (await import('./SubscriptionManager')).default;
         const manager = SubscriptionManager.getInstance();
-        await manager.setTestMode(true, true); // Google Play 복원 건너뛰기
+        await manager.setTestMode(true, false, true); // forceSkipSSOT=false, forceIgnoreEntitlement=true
         await manager.resetForTesting();
 
         console.log('[Subscription] Case A-1 Setup Complete');

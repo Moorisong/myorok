@@ -38,6 +38,8 @@ class SubscriptionManager {
     private forceSkipRestore: boolean = false;
     // 테스트용: SSOT 서버 검증도 건너뛰기 (C-1 등, D-1에서는 false로 SSOT 시도)
     private forceSkipSSOT: boolean = false;
+    // 테스트용: Google Play entitlement 무시 (A-1 신규유저 테스트용)
+    private forceIgnoreEntitlement: boolean = false;
     private testModeLoaded: boolean = false;
 
     private constructor() {
@@ -55,19 +57,23 @@ class SubscriptionManager {
      * 테스트 모드 설정
      * @param skipRestore - Google Play 복원 건너뛰기 (모든 테스트)
      * @param skipSSOT - SSOT 서버 검증도 건너뛰기 (기본 true, D-1에서는 false)
+     * @param ignoreEntitlement - Google Play entitlement 무시 (A-1 신규유저 테스트용)
      */
-    async setTestMode(skipRestore: boolean, skipSSOT: boolean = true): Promise<void> {
+    async setTestMode(skipRestore: boolean, skipSSOT: boolean = true, ignoreEntitlement: boolean = false): Promise<void> {
         this.forceSkipRestore = skipRestore;
         this.forceSkipSSOT = skipSSOT;
+        this.forceIgnoreEntitlement = ignoreEntitlement;
         // AsyncStorage에 저장하여 앱 재시작 후에도 유지
         if (skipRestore) {
             await AsyncStorage.setItem('dev_force_skip_restore', 'true');
             await AsyncStorage.setItem('dev_force_skip_ssot', skipSSOT ? 'true' : 'false');
+            await AsyncStorage.setItem('dev_force_ignore_entitlement', ignoreEntitlement ? 'true' : 'false');
         } else {
             await AsyncStorage.removeItem('dev_force_skip_restore');
             await AsyncStorage.removeItem('dev_force_skip_ssot');
+            await AsyncStorage.removeItem('dev_force_ignore_entitlement');
         }
-        console.log('[SubscriptionManager] Test mode set, forceSkipRestore:', skipRestore, 'forceSkipSSOT:', skipSSOT);
+        console.log('[SubscriptionManager] Test mode set, forceSkipRestore:', skipRestore, 'forceSkipSSOT:', skipSSOT, 'forceIgnoreEntitlement:', ignoreEntitlement);
     }
 
     /**
@@ -78,13 +84,15 @@ class SubscriptionManager {
 
         const skipRestoreFlag = await AsyncStorage.getItem('dev_force_skip_restore');
         const skipSSOTFlag = await AsyncStorage.getItem('dev_force_skip_ssot');
+        const ignoreEntitlementFlag = await AsyncStorage.getItem('dev_force_ignore_entitlement');
 
         this.forceSkipRestore = skipRestoreFlag === 'true';
         this.forceSkipSSOT = skipSSOTFlag === 'true'; // 기본 false (D-1처럼 SSOT 시도)
+        this.forceIgnoreEntitlement = ignoreEntitlementFlag === 'true'; // 기본 false
         this.testModeLoaded = true;
 
         if (this.forceSkipRestore) {
-            console.log('[SubscriptionManager] Test mode loaded: forceSkipRestore=true, forceSkipSSOT=', this.forceSkipSSOT);
+            console.log('[SubscriptionManager] Test mode loaded: forceSkipRestore=true, forceSkipSSOT=', this.forceSkipSSOT, ', forceIgnoreEntitlement=', this.forceIgnoreEntitlement);
         }
     }
 
@@ -270,6 +278,14 @@ class SubscriptionManager {
     }
 
     /**
+     * 테스트용: entitlement 무시 여부 (A-1 신규유저 테스트용)
+     * - true면 SSOT에서 entitlementActive를 false로 취급
+     */
+    shouldIgnoreEntitlement(): boolean {
+        return this.forceIgnoreEntitlement;
+    }
+
+    /**
      * 테스트 모드 완전 해제
      * - 모든 테스트 관련 플래그 제거
      * - 캐시 초기화
@@ -280,6 +296,7 @@ class SubscriptionManager {
         // 메모리 플래그 초기화
         this.forceSkipRestore = false;
         this.forceSkipSSOT = false;
+        this.forceIgnoreEntitlement = false;
         this.testModeLoaded = false;
         this.isProcessing = false;
         this.lastProcessedAt = 0;
@@ -289,6 +306,7 @@ class SubscriptionManager {
         // AsyncStorage 플래그 제거
         await AsyncStorage.removeItem('dev_force_skip_restore');
         await AsyncStorage.removeItem('dev_force_skip_ssot');
+        await AsyncStorage.removeItem('dev_force_ignore_entitlement');
         await AsyncStorage.removeItem('restore_attempted');
         await AsyncStorage.removeItem('restore_succeeded');
 

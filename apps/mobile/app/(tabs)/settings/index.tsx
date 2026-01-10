@@ -264,151 +264,7 @@ export default function SettingsScreen() {
                                 }
                             }}
                         />
-                        <SettingItem
-                            emoji="⏰"
-                            title="무료 체험 24시간 남음 (Dev)"
-                            description="체험 상태를 24시간 전으로 설정"
-                            onPress={async () => {
-                                try {
-                                    const { setTrialExpiringTestMode } = await import('../../../services');
-                                    await setTrialExpiringTestMode();
-                                    await loadSubscriptionStatus();
-                                    Alert.alert(
-                                        '테스트 모드 설정 완료',
-                                        '무료 체험이 24시간 남은 상태로 설정되었습니다.\n\n10초 후 체험 종료 알림이 자동으로 스케줄링됩니다.',
-                                        [{ text: '확인' }]
-                                    );
-                                } catch (error) {
-                                    console.error('[Settings] Set trial expiring test mode failed:', error);
-                                    Alert.alert('오류', '테스트 모드 설정에 실패했습니다.');
-                                }
-                            }}
-                        />
-                        <SettingItem
-                            emoji="🔄"
-                            title="구독 상태 리셋 (Dev)"
-                            description={`현재: ${subscriptionState?.status || '로딩 중'}`}
-                            onPress={async () => {
-                                const { resetSubscription } = await import('../../../services');
-                                await resetSubscription();
-                                Alert.alert('완료', '구독 상태가 리셋되었습니다. 앱을 수동으로 재실행(r)해주세요.');
-                            }}
-                        />
-                        <SettingItem
-                            emoji="🚫"
-                            title="Test Case B-1 (구독 만료)"
-                            description={`강제 만료 처리 | 현재: ${subscriptionState?.status || '로딩 중'}`}
-                            onPress={async () => {
-                                try {
-                                    // 1. Google Play 복원 건너뛰기 설정
-                                    const SubscriptionManager = (await import('../../../services/SubscriptionManager')).default;
-                                    const manager = SubscriptionManager.getInstance();
-                                    await manager.setTestMode(true);
-
-                                    // 2. 구독 만료 처리
-                                    const { deactivateSubscription } = await import('../../../services');
-                                    await deactivateSubscription();
-                                    await loadSubscriptionStatus();
-                                    Alert.alert('완료', '구독이 만료 상태로 변경되었습니다.\n\n⚠️ Google Play 복원이 비활성화됩니다.');
-                                } catch (error) {
-                                    console.error('[Settings] Deactivate subscription failed:', error);
-                                }
-                            }}
-                        />
-                        <SettingItem
-                            emoji="📡"
-                            title="Test Case D-1 (신규+네트워크없음)"
-                            description="Google Play 복원 건너뛰기 + 로컬 초기화"
-                            onPress={async () => {
-                                Alert.alert(
-                                    'Case D-1 설정',
-                                    '구독 없는 신규 유저가 네트워크 없이 앱을 실행하는 상황을 시뮬레이션합니다.\n\n1. Google Play 복원 비활성화\n2. 로컬 구독 데이터 초기화\n3. 비행기 모드 ON\n4. 앱 재시작\n\n기대 결과: loading 상태 유지',
-                                    [
-                                        { text: '취소', style: 'cancel' },
-                                        {
-                                            text: '실행',
-                                            style: 'destructive',
-                                            onPress: async () => {
-                                                try {
-                                                    // 1. forceSkipRestore=true, forceSkipSSOT=false (SSOT는 시도)
-                                                    const SubscriptionManager = (await import('../../../services/SubscriptionManager')).default;
-                                                    const manager = SubscriptionManager.getInstance();
-                                                    await manager.setTestMode(true, false); // D-1: SSOT 시도 → 네트워크 에러 → loading
-
-                                                    // 2. 로컬 구독 데이터 완전 초기화
-                                                    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
-                                                    await AsyncStorage.removeItem('subscription_status');
-                                                    await AsyncStorage.removeItem('subscription_expiry_date');
-                                                    await AsyncStorage.removeItem('subscription_start_date');
-                                                    await AsyncStorage.removeItem('trial_start_date');
-                                                    await AsyncStorage.removeItem('has_purchase_history');
-                                                    await AsyncStorage.removeItem('entitlement_active');
-                                                    await AsyncStorage.removeItem('restore_attempted');
-                                                    await AsyncStorage.removeItem('restore_succeeded');
-
-                                                    Alert.alert(
-                                                        '설정 완료',
-                                                        'D-1 테스트 준비 완료!\n\n다음 단계:\n1. 비행기 모드 ON\n2. 앱 재시작 (r)\n\n기대 결과: loading 화면 유지\n(trial/active로 진입하면 실패)'
-                                                    );
-                                                } catch (e) {
-                                                    console.error(e);
-                                                    Alert.alert('오류', '설정 실패');
-                                                }
-                                            }
-                                        }
-                                    ]
-                                );
-                            }}
-                        />
-                        <SettingItem
-                            emoji="🔥"
-                            title="Test Case D-2 (서버 500 에러)"
-                            description="SSOT 검증 시 강제 에러 발생"
-                            onPress={async () => {
-                                Alert.alert(
-                                    'Case D-2 설정',
-                                    '서버 API 실패(500/타임아웃)를 시뮬레이션합니다.\n\n1. 강제 서버 에러 플래그 설정\n2. 로컬 구독 데이터 초기화\n3. 앱 재시작\n\n기대 결과: loading 상태 + 재시도 가능',
-                                    [
-                                        { text: '취소', style: 'cancel' },
-                                        {
-                                            text: '실행',
-                                            style: 'destructive',
-                                            onPress: async () => {
-                                                try {
-                                                    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
-
-                                                    // 1. forceSkipRestore=true, forceSkipSSOT=false (SSOT 시도하지만 에러 발생)
-                                                    const SubscriptionManager = (await import('../../../services/SubscriptionManager')).default;
-                                                    const manager = SubscriptionManager.getInstance();
-                                                    await manager.setTestMode(true, false);
-
-                                                    // 2. 강제 서버 에러 플래그 설정
-                                                    await AsyncStorage.setItem('dev_force_server_error', 'true');
-
-                                                    // 3. 로컬 구독 데이터 초기화
-                                                    await AsyncStorage.removeItem('subscription_status');
-                                                    await AsyncStorage.removeItem('subscription_expiry_date');
-                                                    await AsyncStorage.removeItem('subscription_start_date');
-                                                    await AsyncStorage.removeItem('trial_start_date');
-                                                    await AsyncStorage.removeItem('has_purchase_history');
-                                                    await AsyncStorage.removeItem('entitlement_active');
-                                                    await AsyncStorage.removeItem('restore_attempted');
-                                                    await AsyncStorage.removeItem('restore_succeeded');
-
-                                                    Alert.alert(
-                                                        '설정 완료',
-                                                        'D-2 테스트 준비 완료!\n\n앱을 재시작 (r)하세요.\n\n기대 결과: loading 화면 유지\n(재시도 버튼 표시)'
-                                                    );
-                                                } catch (e) {
-                                                    console.error(e);
-                                                    Alert.alert('오류', '설정 실패');
-                                                }
-                                            }
-                                        }
-                                    ]
-                                );
-                            }}
-                        />
+                        {/* A 시리즈 */}
                         <SettingItem
                             emoji="🆕"
                             title="Test Case A-1 (완전 신규 유저)"
@@ -467,6 +323,27 @@ export default function SettingsScreen() {
                                 );
                             }}
                         />
+                        {/* B 시리즈 */}
+                        <SettingItem
+                            emoji="🚫"
+                            title="Test Case B-1 (구독 만료)"
+                            description={`강제 만료 처리 | 현재: ${subscriptionState?.status || '로딩 중'}`}
+                            onPress={async () => {
+                                try {
+                                    const SubscriptionManager = (await import('../../../services/SubscriptionManager')).default;
+                                    const manager = SubscriptionManager.getInstance();
+                                    await manager.setTestMode(true);
+
+                                    const { deactivateSubscription } = await import('../../../services');
+                                    await deactivateSubscription();
+                                    await loadSubscriptionStatus();
+                                    Alert.alert('완료', '구독이 만료 상태로 변경되었습니다.\n\n⚠️ Google Play 복원이 비활성화됩니다.');
+                                } catch (error) {
+                                    console.error('[Settings] Deactivate subscription failed:', error);
+                                }
+                            }}
+                        />
+                        {/* C 시리즈 */}
                         <SettingItem
                             emoji="📜"
                             title="Test Case C-1 (결제이력O+만료)"
@@ -523,6 +400,126 @@ export default function SettingsScreen() {
                                         }
                                     ]
                                 );
+                            }}
+                        />
+                        {/* D 시리즈 */}
+                        <SettingItem
+                            emoji="📡"
+                            title="Test Case D-1 (신규+네트워크없음)"
+                            description="Google Play 복원 건너뛰기 + 로컬 초기화"
+                            onPress={async () => {
+                                Alert.alert(
+                                    'Case D-1 설정',
+                                    '구독 없는 신규 유저가 네트워크 없이 앱을 실행하는 상황을 시뮬레이션합니다.\n\n1. Google Play 복원 비활성화\n2. 로컬 구독 데이터 초기화\n3. 비행기 모드 ON\n4. 앱 재시작\n\n기대 결과: loading 상태 유지',
+                                    [
+                                        { text: '취소', style: 'cancel' },
+                                        {
+                                            text: '실행',
+                                            style: 'destructive',
+                                            onPress: async () => {
+                                                try {
+                                                    const SubscriptionManager = (await import('../../../services/SubscriptionManager')).default;
+                                                    const manager = SubscriptionManager.getInstance();
+                                                    await manager.setTestMode(true, false);
+
+                                                    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+                                                    await AsyncStorage.removeItem('subscription_status');
+                                                    await AsyncStorage.removeItem('subscription_expiry_date');
+                                                    await AsyncStorage.removeItem('subscription_start_date');
+                                                    await AsyncStorage.removeItem('trial_start_date');
+                                                    await AsyncStorage.removeItem('has_purchase_history');
+                                                    await AsyncStorage.removeItem('entitlement_active');
+                                                    await AsyncStorage.removeItem('restore_attempted');
+                                                    await AsyncStorage.removeItem('restore_succeeded');
+
+                                                    Alert.alert(
+                                                        '설정 완료',
+                                                        'D-1 테스트 준비 완료!\n\n다음 단계:\n1. 비행기 모드 ON\n2. 앱 재시작 (r)\n\n기대 결과: loading 화면 유지\n(trial/active로 진입하면 실패)'
+                                                    );
+                                                } catch (e) {
+                                                    console.error(e);
+                                                    Alert.alert('오류', '설정 실패');
+                                                }
+                                            }
+                                        }
+                                    ]
+                                );
+                            }}
+                        />
+                        <SettingItem
+                            emoji="🔥"
+                            title="Test Case D-2 (서버 500 에러)"
+                            description="SSOT 검증 시 강제 에러 발생"
+                            onPress={async () => {
+                                Alert.alert(
+                                    'Case D-2 설정',
+                                    '서버 API 실패(500/타임아웃)를 시뮬레이션합니다.\n\n1. 강제 서버 에러 플래그 설정\n2. 로컬 구독 데이터 초기화\n3. 앱 재시작\n\n기대 결과: loading 상태 + 재시도 가능',
+                                    [
+                                        { text: '취소', style: 'cancel' },
+                                        {
+                                            text: '실행',
+                                            style: 'destructive',
+                                            onPress: async () => {
+                                                try {
+                                                    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+
+                                                    const SubscriptionManager = (await import('../../../services/SubscriptionManager')).default;
+                                                    const manager = SubscriptionManager.getInstance();
+                                                    await manager.setTestMode(true, false);
+
+                                                    await AsyncStorage.setItem('dev_force_server_error', 'true');
+                                                    await AsyncStorage.removeItem('subscription_status');
+                                                    await AsyncStorage.removeItem('subscription_expiry_date');
+                                                    await AsyncStorage.removeItem('subscription_start_date');
+                                                    await AsyncStorage.removeItem('trial_start_date');
+                                                    await AsyncStorage.removeItem('has_purchase_history');
+                                                    await AsyncStorage.removeItem('entitlement_active');
+                                                    await AsyncStorage.removeItem('restore_attempted');
+                                                    await AsyncStorage.removeItem('restore_succeeded');
+
+                                                    Alert.alert(
+                                                        '설정 완료',
+                                                        'D-2 테스트 준비 완료!\n\n앱을 재시작 (r)하세요.\n\n기대 결과: loading 화면 유지\n(재시도 버튼 표시)'
+                                                    );
+                                                } catch (e) {
+                                                    console.error(e);
+                                                    Alert.alert('오류', '설정 실패');
+                                                }
+                                            }
+                                        }
+                                    ]
+                                );
+                            }}
+                        />
+                        {/* 유틸리티 */}
+                        <SettingItem
+                            emoji="⏰"
+                            title="무료 체험 24시간 남음 (Dev)"
+                            description="체험 상태를 24시간 전으로 설정"
+                            onPress={async () => {
+                                try {
+                                    const { setTrialExpiringTestMode } = await import('../../../services');
+                                    await setTrialExpiringTestMode();
+                                    await loadSubscriptionStatus();
+                                    Alert.alert(
+                                        '테스트 모드 설정 완료',
+                                        '무료 체험이 24시간 남은 상태로 설정되었습니다.\n\n10초 후 체험 종료 알림이 자동으로 스케줄링됩니다.',
+                                        [{ text: '확인' }]
+                                    );
+                                } catch (error) {
+                                    console.error('[Settings] Set trial expiring test mode failed:', error);
+                                    Alert.alert('오류', '테스트 모드 설정에 실패했습니다.');
+                                }
+                            }}
+                        />
+                        <SettingItem
+                            emoji="🔄"
+                            title="구독 상태 리셋 (Dev)"
+                            description={`현재: ${subscriptionState?.status || '로딩 중'}`}
+                            onPress={async () => {
+                                const { resetSubscription } = await import('../../../services');
+                                await resetSubscription();
+                                Alert.alert('완료', '구독 상태가 리셋되었습니다. 앱을 수동으로 재실행(r)해주세요.');
                             }}
                         />
                         <SettingItem
