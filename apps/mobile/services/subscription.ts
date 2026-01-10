@@ -67,7 +67,7 @@ export interface SubscriptionState {
 // SSOT Constants
 // ============================================================
 
-const TRIAL_DAYS = 7; // 7일 (원래 값으로 복구)
+const TRIAL_DAYS = 1; // 1일 무료체험
 const API_URL = CONFIG.API_BASE_URL;
 const EXPECTED_PRODUCT_ID = 'myorok_monthly_premium';
 const LEGACY_PRODUCT_IDS = ['myorok_monthly_legacy_v1']; // CASE I: 레거시 상품 ID 허용 목록
@@ -1063,7 +1063,7 @@ async function scheduleTrialEndNotificationIfNeeded(trialStartDate: string): Pro
         // Calculate push date (6 days after trial start)
         const startDate = new Date(trialStartDate);
         const pushDate = new Date(startDate);
-        pushDate.setDate(pushDate.getDate() + 6); // 7 days trial - 1 day = 6 days
+        pushDate.setDate(pushDate.getDate() + 0); // 1 day trial - 1 day = 0 days
 
         const now = new Date();
 
