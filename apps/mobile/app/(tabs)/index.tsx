@@ -87,19 +87,27 @@ export default function TodayScreen() {
     const dateString = `${today.getMonth() + 1}월 ${today.getDate()}일`;
     const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
 
-    // Fetch subscription status when screen comes into focus
+    // Load subscription status helper
+    const loadTrialStatus = useCallback(async () => {
+        const status = await getSubscriptionStatus();
+
+        if (status.status === 'trial' && status.daysRemaining !== undefined) {
+            setTrialDaysRemaining(status.daysRemaining);
+        } else {
+            setTrialDaysRemaining(null);
+        }
+    }, []);
+
+    // Initial load on mount
+    useEffect(() => {
+        loadTrialStatus();
+    }, [loadTrialStatus]);
+
+    // Refresh when screen comes into focus (returning from other tabs)
     useFocusEffect(
         useCallback(() => {
-            (async () => {
-                const status = await getSubscriptionStatus();
-
-                if (status.status === 'trial' && status.daysRemaining !== undefined) {
-                    setTrialDaysRemaining(status.daysRemaining);
-                } else {
-                    setTrialDaysRemaining(null);
-                }
-            })();
-        }, [])
+            loadTrialStatus();
+        }, [loadTrialStatus])
     );
 
     const handleTrialBannerPress = () => {
