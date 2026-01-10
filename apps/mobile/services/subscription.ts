@@ -149,10 +149,14 @@ export function determineSubscriptionState(result: VerificationResult): Subscrip
     }
 
     // 6. restore 미시도 (CASE D) - 첫 설치가 아닌 경우에만 적용
-    // Note: 복원을 시도했으면 (성공/실패 여부와 무관하게) 더 이상 loading 아님
-    // 복원 실패 (구독 없음) = 정상적으로 만료된 상태 → blocked 반환
     if (restoreAttempted === false && hasPurchaseHistory) {
         console.log('[SSOT] State: loading (restore not attempted but has purchase history)');
+        return 'loading';
+    }
+
+    // 6-1. restore 시도했으나 실패 (CASE C-2) - 재시도를 유도하기 위해 loading 반환
+    if (restoreAttempted === true && restoreSucceeded === false && hasPurchaseHistory) {
+        console.log('[SSOT] State: loading (restore failed but has purchase history - CASE C-2)');
         return 'loading';
     }
 
