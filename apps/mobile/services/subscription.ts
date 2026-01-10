@@ -428,11 +428,12 @@ export async function verifySubscriptionWithServer(): Promise<{
         await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.RESTORE_SUCCEEDED);
     }
 
-    // [FALLBACK] 서버 결과가 false여도 로컬 AsyncStorage에 true가 있으면 복원 대상(CASE J/C-1) 판별을 위해 true로 간주
-    if (!serverResult.hasPurchaseHistory) {
+    // [FALLBACK] 서버 동기화 실패 시에만 로컬 AsyncStorage 값을 fallback으로 사용
+    // 서버 동기화 성공 시에는 서버 결과를 SSOT로 신뢰 (A-1 신규 유저 케이스 보호)
+    if (!serverResult.hasPurchaseHistory && !serverResult.serverSyncSucceeded) {
         const storedHasPurchaseHistory = await AsyncStorage.getItem('has_purchase_history');
         if (storedHasPurchaseHistory === 'true') {
-            console.log('[SSOT] Applying fallback for hasPurchaseHistory from AsyncStorage');
+            console.log('[SSOT] Applying fallback for hasPurchaseHistory from AsyncStorage (server sync failed)');
             serverResult.hasPurchaseHistory = true;
         }
     }
