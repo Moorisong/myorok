@@ -556,16 +556,8 @@ export async function getSubscriptionStatus(): Promise<SubscriptionState> {
     if (status === 'trial' && trialStartDate) {
         const daysRemaining = calculateDaysRemaining(trialStartDate);
 
-        // Auto-expire trial if time is up
-        if (daysRemaining <= 0) {
-            await setSubscriptionStatus('blocked');
-            return {
-                status: 'blocked',
-                trialStartDate,
-                daysRemaining: 0,
-            };
-        }
-
+        // F-1: 로컬 시간 기반 만료 체크 제거 - SSOT 검증에서 서버 시간 기준으로 판정
+        // daysRemaining은 UI 표시용으로만 사용 (음수 가능)
         return {
             status: 'trial',
             trialStartDate,
@@ -575,24 +567,7 @@ export async function getSubscriptionStatus(): Promise<SubscriptionState> {
     }
 
     if (status === 'subscribed') {
-        // Active 구독 만료 체크
-        if (subscriptionExpiryDate) {
-            const expiryDate = new Date(subscriptionExpiryDate);
-            const now = new Date();
-
-            if (expiryDate < now) {
-                // 구독 만료됨
-                await setSubscriptionStatus('blocked');
-                return {
-                    status: 'blocked',
-                    subscriptionStartDate: subscriptionStartDate || undefined,
-                    subscriptionExpiryDate: subscriptionExpiryDate,
-                    daysRemaining: 0,
-                    hasPurchaseHistory,
-                };
-            }
-        }
-
+        // F-1: 로컬 시간 기반 만료 체크 제거 - SSOT 검증에서 서버 시간 기준으로 판정
         return {
             status: 'subscribed',
             subscriptionStartDate: subscriptionStartDate || undefined,
