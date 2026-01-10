@@ -18,7 +18,7 @@ const STORAGE_KEYS = {
     IS_ADMIN: 'is_admin',
 };
 
-export type TestCaseId = 'A-2' | 'A-3' | 'B-1' | 'C-1' | 'C-2' | 'D-1' | 'D-2';
+export type TestCaseId = 'A-3' | 'B-1' | 'C-1' | 'C-2' | 'D-1' | 'D-2';
 
 interface TestCaseInfo {
     id: TestCaseId;
@@ -27,7 +27,6 @@ interface TestCaseInfo {
 }
 
 export const TEST_CASES: Record<TestCaseId, TestCaseInfo> = {
-    'A-2': { id: 'A-2', name: '체험만료+재설치', description: '서버에 체험기록 남김 → 로컬삭제' },
     'A-3': { id: 'A-3', name: '유효 구독 유저', description: '구독 활성 상태에서 앱 재설치' },
     'B-1': { id: 'B-1', name: '구독 만료', description: '구독 만료 상태 시뮬레이션' },
     'C-1': { id: 'C-1', name: '결제이력O+만료', description: '결제 이력 O, entitlement X' },

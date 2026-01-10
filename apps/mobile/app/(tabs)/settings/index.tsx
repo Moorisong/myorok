@@ -265,27 +265,26 @@ export default function SettingsScreen() {
                             }}
                         />
                         <SettingItem
-                            emoji="🅰️"
-                            title="Test Case A-2 (체험만료+재설치)"
-                            description={activeTestCase === 'A-2' ? '✓ 현재 실행 중' : '독립 테스트 userId 사용'}
+                            emoji="⏰"
+                            title="무료체험 종료 (서버)"
+                            description="현재 유저의 체험 기간을 서버에서 만료시킴"
                             onPress={async () => {
                                 Alert.alert(
-                                    'Case A-2 설정',
-                                    '독립된 테스트 계정으로 체험 만료 후 재설치 상태를 시뮬레이션합니다.\n\n✓ 원래 계정 데이터 보존\n✓ 다른 테스트와 격리됨\n\n기대 결과: 차단 화면',
+                                    '체험 만료',
+                                    '현재 유저의 무료체험을 즉시 만료시킵니다.\n(서버 상태 변경)\n\n기대 결과: 앱 재시작 후 차단 화면',
                                     [
                                         { text: '취소', style: 'cancel' },
                                         {
-                                            text: '실행',
+                                            text: '만료 실행',
                                             style: 'destructive',
                                             onPress: async () => {
                                                 try {
-                                                    const { setupTestCase_A2 } = await import('../../../services/subscription');
-                                                    await setupTestCase_A2();
-                                                    await loadTestStatus();
-                                                    Alert.alert('완료', 'A-2 테스트 설정 완료.\n\n앱을 재시작(r)해주세요.\n\n기대 결과: 차단 화면');
+                                                    const { expireTrial } = await import('../../../services/subscription');
+                                                    await expireTrial();
+                                                    Alert.alert('완료', '체험이 만료되었습니다.\n\n앱을 재시작(r)해주세요.');
                                                 } catch (e) {
                                                     console.error(e);
-                                                    Alert.alert('오류', '설정 실패');
+                                                    Alert.alert('오류', '체험 만료 실패');
                                                 }
                                             }
                                         }

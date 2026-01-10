@@ -1309,68 +1309,38 @@ export async function clearForceExpiredFlag(): Promise<void> {
 }
 
 /**
- * Setup Test Case A-2: Trial Used -> Expired -> App Reinstall
- *
- * [신규 구조] TestUserManager 기반 - 독립된 테스트 userId 사용
- * 1. 테스트 userId로 전환 (test_a2_{원래userId})
- * 2. 해당 userId로 서버에 체험 사용 기록 생성
- * 3. 로컬 데이터 초기화 (앱 재설치 시뮬레이션)
+ * Expire Trial for current user (Test only)
  */
-export async function setupTestCase_A2(): Promise<void> {
+export async function expireTrial(): Promise<void> {
     try {
-        console.log('[Subscription] Setting up Case A-2 (isolated)...');
+        console.log('[Subscription] Expiring trial for current user...');
 
-        // 1. TestUserManager로 테스트 userId 전환
-        const TestUserManager = (await import('./testUserManager')).default;
-        const testManager = TestUserManager.getInstance();
-        const testUserId = await testManager.startTest('A-2');
-        console.log('[Subscription] Test userId:', testUserId);
+        const userId = await AsyncStorage.getItem('current_user_id');
+        if (!userId) throw new Error('로그인이 필요합니다');
 
-        // 2. JWT 토큰 가져오기 (원래 계정의 토큰 사용)
         const token = await AsyncStorage.getItem('jwt_token');
-        if (!token) {
-            throw new Error('JWT 토큰이 없습니다');
-        }
+        if (!token) throw new Error('JWT 토큰이 없습니다');
 
-        // 3. 테스트 userId로 서버에 체험 사용 기록 생성
-        try {
-            await recordTrialStartOnServer(testUserId);
-        } catch (e) {
-            console.log('[Subscription] Trial start record check:', e);
-        }
-
-        // 4. 체험 만료 처리
-        try {
-            await fetch(`${API_URL}/api/subscription/expire-trial/${testUserId}`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            console.log('[Subscription] Expired trial on server');
-        } catch (e) {
-            console.error('[Subscription] Failed to expire trial:', e);
-        }
-
-        // 5. 서버에 expired 상태 동기화 (기존 'blocked'에서 'expired'로 변경 - 서버 enum 일치)
-        const deviceId = await getDeviceId();
-        await syncSubscriptionToServer(testUserId, {
-            status: 'expired',
-            trialStartDate: new Date().toISOString(),
+        // 1. 서버에 체험 만료 요청
+        const response = await fetch(`${API_URL}/api/subscription/expire-trial/${userId}`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
         });
-        console.log('[Subscription] Server status set to blocked');
 
-        // 6. 로컬 데이터 초기화 (앱 재설치 시뮬레이션)
-        await testManager.cleanupTestLocalData();
+        if (!response.ok) {
+            throw new Error(`서버 요청 실패: ${response.status}`);
+        }
 
-        // 7. SubscriptionManager 리셋
+        console.log('[Subscription] Expired trial on server');
+
+        // 2. 로컬 캐시 무효화 및 SubscriptionManager 리셋
         const SubscriptionManager = (await import('./SubscriptionManager')).default;
         const manager = SubscriptionManager.getInstance();
-        await manager.setTestMode(true, true); // Google Play 복원 건너뛰기
         await manager.resetForTesting();
 
-        console.log('[Subscription] Case A-2 Setup Complete');
-        console.log('[Subscription] 앱 재시작(r) 후 차단 화면이 표시되어야 합니다');
+        console.log('[Subscription] Expire Trial Complete');
     } catch (error) {
-        console.error('[Subscription] Setup Case A-2 failed:', error);
+        console.error('[Subscription] Expire trial failed:', error);
         throw error;
     }
 }
