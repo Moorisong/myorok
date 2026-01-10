@@ -278,18 +278,30 @@ class SubscriptionManager {
         this.forceSkipSSOT = false;
         this.testModeLoaded = false;
         this.isProcessing = false;
-        this.lastProcessedAt = 0;
         this.lastResult = null;
+        this.lastProcessedAt = 0;
         this.purchaseJustCompleted = false;
 
         // AsyncStorage 플래그 제거
         await AsyncStorage.removeItem('dev_force_skip_restore');
         await AsyncStorage.removeItem('dev_force_skip_ssot');
         await AsyncStorage.removeItem('dev_force_ignore_entitlement');
+        await AsyncStorage.removeItem('dev_force_server_error');
         await AsyncStorage.removeItem('restore_attempted');
         await AsyncStorage.removeItem('restore_succeeded');
 
         console.log('[SubscriptionManager] Test mode cleared');
+    }
+
+    /**
+     * 상태 강제 초기화 (D-1/D-2 복구용)
+     */
+    async forceReset(): Promise<void> {
+        console.log('[SubscriptionManager] Force resetting internal state');
+        this.isProcessing = false;
+        this.lastResult = null;
+        this.lastProcessedAt = 0;
+        await this.clearTestMode();
     }
 }
 

@@ -2,7 +2,8 @@ import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { Platform, AppState, View, ActivityIndicator, Text, StyleSheet } from 'react-native';
+import { Platform, AppState, View, ActivityIndicator, Text, StyleSheet, TouchableOpacity as RNTouchableOpacity } from 'react-native';
+const TouchableOpacity = RNTouchableOpacity;
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState, useRef } from 'react';
@@ -420,9 +421,9 @@ function AppContent() {
           console.log('[AppContent] Checking restore retry:', { restoreAttempted, restoreSucceeded });
 
           // CASE C-2: Restore 시도했으나 실패
-          // restoreAttempted === 'true' && restoreSucceeded === 'false'는
-          // 복원을 시도했지만 실패했다는 의미
-          if (restoreAttempted === 'true' && restoreSucceeded === 'false') {
+          // restoreAttempted === 'true' && restoreSucceeded !== 'true'는
+          // 복원을 시도했지만 성공하지 않았다는 의미 (실패 또는 에러)
+          if (restoreAttempted === 'true' && restoreSucceeded !== 'true') {
             console.log('[AppContent] Restore retry needed - showing block screen');
             setIsRestoreRetryNeeded(true);
           } else {
@@ -543,6 +544,23 @@ function AppContent() {
     }
   };
 
+  const handleClearTestMode = async () => {
+    try {
+      const TestUserManager = (await import('../services/testUserManager')).default;
+      const testManager = TestUserManager.getInstance();
+      await testManager.endTest();
+
+      // SubscriptionManager 강제 리셋 (D-1/D-2 무한 로딩 탈출용)
+      const SubscriptionManager = (await import('../services/SubscriptionManager')).default;
+      const manager = SubscriptionManager.getInstance();
+      await manager.forceReset();
+
+      await checkAuthStatus();
+    } catch (error) {
+      console.error('[RootLayout] Failed to clear test mode:', error);
+    }
+  };
+
   // 1. Initial Loading (로그인 상태 확인 중)
   if (isLoggedIn === null) {
     return (
@@ -577,6 +595,7 @@ function AppContent() {
   if (isLoggingIn || (isLoggedIn === true && (subscriptionStatus === null || subscriptionStatus === 'loading'))) {
     // C-2: Restore 재시도 필요 (복원 실패)
     if (subscriptionStatus === 'loading' && isRestoreRetryNeeded) {
+      console.log('[AppContent] Detected C-2 case (loading + restore failed), showing block screen');
       return (
         <GestureHandlerRootView style={{ flex: 1 }}>
           <SafeAreaProvider>
@@ -599,6 +618,14 @@ function AppContent() {
             <Text style={loadingStyles.text}>
               {isLoggingIn ? '로그인 중...' : '구독 상태 확인 중...'}
             </Text>
+            {__DEV__ && (
+              <TouchableOpacity
+                onPress={handleClearTestMode}
+                style={loadingStyles.testModeButton}
+              >
+                <Text style={loadingStyles.testModeButtonText}>테스트 모드 종료</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </SafeAreaProvider>
       </GestureHandlerRootView>
@@ -667,5 +694,17 @@ const loadingStyles = StyleSheet.create({
     fontSize: 16,
     color: COLORS.textSecondary,
     fontWeight: '500',
+  },
+  testModeButton: {
+    marginTop: 40,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+  },
+  testModeButtonText: {
+    color: COLORS.primary,
+    fontWeight: 'bold',
   },
 });

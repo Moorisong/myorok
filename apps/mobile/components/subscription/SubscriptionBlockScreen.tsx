@@ -32,18 +32,18 @@ export function SubscriptionBlockScreen() {
                 const restoreSucceeded = await AsyncStorage.getItem('restore_succeeded');
                 const entitlementActiveStr = await AsyncStorage.getItem('entitlement_active');
                 const entitlementActive = entitlementActiveStr === 'true';
+                const hasPurchaseHistoryStr = await AsyncStorage.getItem('has_purchase_history');
 
                 // CASE C-2: 복원 시도했으나 실패
-                if (restoreAttempted === 'true' && restoreSucceeded === 'false') {
+                if (restoreAttempted === 'true' && restoreSucceeded !== 'true') {
                     setBlockReason('restore_failed');
                 }
-                // CASE C-1: 결제 이력 O, entitlement O (살릴 수 있는 구독)
-                // → hasPurchaseHistory=true AND entitlementActive=true (스토어에는 살아있지만 앱에 반영 안 됨)
-                else if (status.hasPurchaseHistory && entitlementActive && status.status === 'blocked') {
+                // CASE C-1: 결제 이력 O, entitlement X (CASE J)
+                // → hasPurchaseHistory=true AND entitlementActive=false (결제 내역은 있으나 권한은 없음)
+                else if ((status.hasPurchaseHistory || hasPurchaseHistoryStr === 'true') && !entitlementActive && status.status === 'blocked') {
                     setBlockReason('purchase_without_entitlement');
                 }
-                // CASE B-1: 일반 만료 (끝난 구독 - hasPurchaseHistory만 있고 entitlement는 없음)
-                // 또는 체험 종료, 구독 안 함 등
+                // CASE B-1: 일반 만료 (끝난 구독)
                 else {
                     setBlockReason('expired');
                 }

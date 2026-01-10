@@ -157,9 +157,9 @@ class TestUserManager {
 
         // 테스트 관련 플래그 제거
         await AsyncStorage.removeItem('dev_auto_login');
-        await AsyncStorage.removeItem('force_skip_restore');
-        await AsyncStorage.removeItem('force_skip_ssot');
-        await AsyncStorage.removeItem('force_server_error');
+        await AsyncStorage.removeItem('dev_force_skip_restore');
+        await AsyncStorage.removeItem('dev_force_skip_ssot');
+        await AsyncStorage.removeItem('dev_force_server_error');
 
         // SubscriptionManager 리셋
         try {
