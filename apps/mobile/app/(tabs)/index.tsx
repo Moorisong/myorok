@@ -103,7 +103,7 @@ export default function TodayScreen() {
     // Load trial days when subscriptionStatus changes
     useEffect(() => {
         loadTrialDays();
-    }, [loadTrialDays]);
+    }, [loadTrialDays, subscriptionStatus]);
 
     // Refresh when screen comes into focus (returning from other tabs)
     useFocusEffect(

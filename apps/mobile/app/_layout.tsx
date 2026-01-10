@@ -65,18 +65,23 @@ function AppContent() {
             async (purchase) => {
               // 결제 완료 처리
               try {
-                // 1. 결제 완료 처리 및 서버 동기화
-                await completePurchase(purchase);
-                await handleSubscriptionSuccess();
-
-                // 2. SubscriptionManager를 통해 상태 업데이트 (중앙 집중식)
+                // 1. SubscriptionManager를 통해 상태 업데이트 (중앙 집중식) - 레이스 컨디션 방지를 위해 최상단에서 수행
                 const SubscriptionManager = (await import('../services/SubscriptionManager')).default;
                 const manager = SubscriptionManager.getInstance();
                 await manager.handlePurchaseComplete();
 
-                // 3. UI 상태를 즉시 업데이트
+                // 2. UI 상태를 즉시 업데이트
                 console.log('[Payment] Purchase complete, setting status to active');
                 setSubscriptionStatus('active');
+
+                // 3. 결제 완료 처리 및 서버 동기화 (네트워크 작업은 백그라운드 성격으로 진행)
+                try {
+                  await completePurchase(purchase);
+                  await handleSubscriptionSuccess();
+                } catch (syncError) {
+                  console.error('[Payment] Background sync failed:', syncError);
+                  // UI는 이미 active이므로 사용자에게는 성공으로 보임
+                }
 
                 // 성공 토스트 표시
                 setTimeout(() => {
