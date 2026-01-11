@@ -82,6 +82,15 @@ export async function POST(request: NextRequest) {
         const subscription = await Subscription.findOne({ userId });
         const serverTime = new Date();
 
+        // 디버그: DB에서 조회된 구독 정보
+        console.log(`[Subscription] Verify DB lookup for ${userId}:`, subscription ? {
+            status: subscription.status,
+            trialStartDate: subscription.trialStartDate,
+            subscriptionStartDate: subscription.subscriptionStartDate,
+            subscriptionExpiryDate: subscription.subscriptionExpiryDate,
+            createdAt: subscription.createdAt,
+        } : 'NOT FOUND');
+
         // 4. 구독이 없으면 신규 유저
         if (!subscription) {
             const result = {

@@ -66,6 +66,15 @@ export async function POST(request: NextRequest) {
             userId: bodyUserId, // Optional userId in body for test mode
         } = body;
 
+        // 디버그: sync 요청 데이터 로그
+        console.log('[Subscription] Sync request:', {
+            userId: tokenUserId,
+            status,
+            trialStartDate,
+            subscriptionStartDate,
+            subscriptionExpiryDate,
+        });
+
         // Use bodyUserId if it's a valid test user for this token, otherwise use token userId
         const isTestUserForToken = bodyUserId?.startsWith('test_') && bodyUserId?.endsWith(`_${tokenUserId}`);
         const userId = isTestUserForToken ? bodyUserId : tokenUserId;

@@ -78,6 +78,15 @@ export async function POST(request: NextRequest) {
         // 3. 이미 체험 기록이 있는지 확인
         const existing = await Subscription.findOne({ userId });
 
+        // 디버그: trial-start 요청 로그
+        console.log(`[Subscription] Trial-start request for ${userId}:`, {
+            existing: existing ? {
+                trialStartDate: existing.trialStartDate,
+                status: existing.status,
+            } : 'NOT FOUND',
+            deviceId,
+        });
+
         if (existing?.trialStartDate) {
             return NextResponse.json(
                 {
