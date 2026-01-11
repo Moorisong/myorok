@@ -132,11 +132,18 @@ export async function restorePurchases(setFlags: boolean = true): Promise<boolea
     }
 
     const purchases = await getAvailablePurchases();
+
+    // 디버그: 복원 시 모든 구매 내역 로그
+    console.log('[Payment] restorePurchases - All purchases:', purchases.map(p => p.productId));
+    console.log('[Payment] restorePurchases - Looking for:', SUBSCRIPTION_SKU);
+
     const hasActiveSubscription = purchases.some(
       (purchase: Purchase) =>
         purchase.productId === SUBSCRIPTION_SKU ||
         LEGACY_PRODUCT_IDS.includes(purchase.productId)
     );
+
+    console.log('[Payment] restorePurchases - hasActiveSubscription:', hasActiveSubscription);
 
     // restore 결과 기록 (SSOT 판별용) - 사용자가 버튼을 눌렀을 때만
     if (setFlags) {
@@ -174,11 +181,22 @@ export interface SubscriptionDetails {
 export async function getSubscriptionDetails(): Promise<SubscriptionDetails> {
   try {
     const purchases = await getAvailablePurchases();
+
+    // 디버그: 모든 구매 내역 로그
+    console.log('[Payment] All available purchases:', purchases.map(p => ({
+      productId: p.productId,
+      transactionDate: p.transactionDate,
+    })));
+    console.log('[Payment] Expected SKU:', SUBSCRIPTION_SKU);
+    console.log('[Payment] Legacy IDs:', LEGACY_PRODUCT_IDS);
+
     const subscription = purchases.find(
       (purchase: Purchase) =>
         purchase.productId === SUBSCRIPTION_SKU ||
         LEGACY_PRODUCT_IDS.includes(purchase.productId)
     );
+
+    console.log('[Payment] Matched subscription:', subscription?.productId || 'none');
 
     if (!subscription) {
       return { isActive: false, autoRenewing: false };
