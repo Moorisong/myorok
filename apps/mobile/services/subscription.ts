@@ -69,8 +69,9 @@ export interface SubscriptionState {
 
 const TRIAL_DAYS = 7; // 7일 무료체험
 const API_URL = CONFIG.API_BASE_URL;
-const EXPECTED_PRODUCT_ID = 'myorok_monthly_premium';
-const LEGACY_PRODUCT_IDS = ['myorok_monthly_legacy_v1']; // CASE I: 레거시 상품 ID 허용 목록
+const EXPECTED_PRODUCT_ID = 'monthly_test_260111';
+// 레거시 상품 ID는 더 이상 허용하지 않음 (테스트 초기화 260111)
+const LEGACY_PRODUCT_IDS: string[] = [];
 const TIME_SYNC_TOLERANCE_MS = 5 * 60 * 1000; // 5분 (CASE F: 시간 조작 감지 허용치)
 
 // ============================================================

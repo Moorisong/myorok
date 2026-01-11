@@ -106,9 +106,11 @@ export async function POST(request: NextRequest) {
             });
         }
 
-        // 5. 구독 상태 계산
-        // status가 'active' 또는 'subscribed'면 구독 활성
-        const entitlementActive = subscription.status === 'active' || subscription.status === 'subscribed';
+        // 5. 구독 상태 계산 (expiryDate 기반 - 테스트 초기화 260111)
+        // status 기반이 아닌 expiryDate 기반으로 판별하여 만료된 구독은 확실히 차단
+        const entitlementActive = subscription.subscriptionExpiryDate
+            ? subscription.subscriptionExpiryDate > serverTime
+            : false;
 
         // 체험 활성 여부 계산
         let trialActive = false;
