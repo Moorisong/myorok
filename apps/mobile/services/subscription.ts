@@ -67,7 +67,7 @@ export interface SubscriptionState {
 // SSOT Constants
 // ============================================================
 
-const TRIAL_DAYS = 1; // 1일 무료체험
+const TRIAL_DAYS = 7; // 7일 무료체험
 const API_URL = CONFIG.API_BASE_URL;
 const EXPECTED_PRODUCT_ID = 'myorok_monthly_premium';
 const LEGACY_PRODUCT_IDS = ['myorok_monthly_legacy_v1']; // CASE I: 레거시 상품 ID 허용 목록
