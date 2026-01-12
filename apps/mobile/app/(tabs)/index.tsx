@@ -113,7 +113,14 @@ export default function TodayScreen() {
     );
 
     const handleTrialBannerPress = () => {
-        router.push('/(tabs)/settings/pro');
+        // 탭 간 이동 시 스택 꼬임 방지를 위해 2단계로 이동
+        // 1. 설정 탭으로 이동 (스택 초기화/진입)
+        router.navigate('/(tabs)/settings');
+
+        // 2. 약간의 지연 후 프로 화면으로 이동 (스택 위에 쌓기)
+        setTimeout(() => {
+            router.push('/(tabs)/settings/pro');
+        }, 100);
     };
 
 
