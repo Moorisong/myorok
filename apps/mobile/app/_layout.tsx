@@ -196,14 +196,6 @@ function AppContent() {
           console.log('[App] Skip initializeSubscription - not logged in');
         }
 
-        // Check if app access is allowed (skip blocking in dev mode)
-        if (!__DEV__) {
-          const accessAllowed = await isAppAccessAllowed();
-          setSubscriptionBlocked(!accessAllowed);
-        } else {
-          // In dev mode, always allow access
-          setSubscriptionBlocked(false);
-        }
 
         // Register push token first
         const token = await registerForPushNotificationsAsync();
@@ -664,7 +656,7 @@ function AppContent() {
               <Stack.Screen name="(tabs)" />
             </Stack>
             {/* Dev/Update blocking if needed */}
-            {subscriptionBlocked && <SubscriptionBlockScreen />}
+            {/* {subscriptionBlocked && <SubscriptionBlockScreen />} */}
           </ToastProvider>
         </PetProvider>
       </SafeAreaProvider>
