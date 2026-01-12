@@ -22,6 +22,7 @@ import {
 import {
     Toast,
     NumberEditModal,
+    VomitColorModal,
     CounterButton,
     SupplementChecklist,
     FluidInputSection,
@@ -81,8 +82,20 @@ export default function TodayScreen() {
         // Setters
         setMemo,
         setEditModalVisible,
+
         editTarget,
     } = useTodayScreen();
+
+    const [isVomitModalOpen, setIsVomitModalOpen] = useState(false);
+
+    const onPressVomitAdd = () => {
+        setIsVomitModalOpen(true);
+    };
+
+    const onSelectVomitColor = async (color: any) => {
+        setIsVomitModalOpen(false);
+        await handleVomitColorSelect(color);
+    };
 
     // Date formatting (UI helper)
     const today = new Date();
@@ -203,29 +216,14 @@ export default function TodayScreen() {
                                 emoji="🤮"
                                 label="구토"
                                 count={vomitCount}
-                                onPressAdd={handleVomitAdd}
+                                onPressAdd={onPressVomitAdd}
                                 onPressSubtract={handleVomitSubtract}
                                 onPressCount={() => openEditModal('vomit')}
                                 warning
                             />
                         </View>
 
-                        {showVomitColors && (
-                            <View style={styles.colorSelector}>
-                                <Text style={styles.colorTitle}>구토 색상 선택</Text>
-                                <View style={styles.colorOptions}>
-                                    {VOMIT_COLORS.map(color => (
-                                        <Pressable
-                                            key={color}
-                                            style={styles.colorOption}
-                                            onPress={() => handleVomitColorSelect(color)}
-                                        >
-                                            <Text style={styles.colorText}>{color}</Text>
-                                        </Pressable>
-                                    ))}
-                                </View>
-                            </View>
-                        )}
+
 
                         {vomitColors.length > 0 && (
                             <Text style={styles.vomitHistory}>기록된 구토 색상: {vomitColors.join(', ')}</Text>
@@ -300,6 +298,12 @@ export default function TodayScreen() {
                 vomitColors={vomitColors}
                 isVomitMode={editTarget === 'vomit'}
             />
+
+            <VomitColorModal
+                visible={isVomitModalOpen}
+                onClose={() => setIsVomitModalOpen(false)}
+                onSelect={onSelectVomitColor}
+            />
         </SafeAreaView>
     );
 }
@@ -371,34 +375,7 @@ const styles = StyleSheet.create({
         flexWrap: 'wrap',
         gap: 10,
     },
-    colorSelector: {
-        marginTop: 12,
-        padding: 12,
-        backgroundColor: COLORS.background,
-        borderRadius: 12,
-    },
-    colorTitle: {
-        fontSize: 13,
-        color: COLORS.textSecondary,
-        marginBottom: 8,
-    },
-    colorOptions: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 8,
-    },
-    colorOption: {
-        paddingHorizontal: 14,
-        paddingVertical: 8,
-        backgroundColor: COLORS.surface,
-        borderRadius: 8,
-        borderWidth: 1,
-        borderColor: COLORS.border,
-    },
-    colorText: {
-        fontSize: 13,
-        color: COLORS.textPrimary,
-    },
+
     vomitHistory: {
         marginTop: 10,
         fontSize: 13,

@@ -20,3 +20,4 @@ export { default as ComfortCommentReportModal } from './comfort-comment-report-m
 export { default as MemoEditModal } from './memo-edit-modal';
 export { default as SummaryOverallCards } from './summary-overall-cards';
 export { default as SummaryCharts } from './summary-charts';
+export { default as VomitColorModal } from './vomit-color-modal';
