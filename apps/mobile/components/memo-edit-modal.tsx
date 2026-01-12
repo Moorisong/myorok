@@ -195,6 +195,7 @@ const styles = StyleSheet.create({
     },
     memoInput: {
         minHeight: 100,
+        marginTop: 10,
     },
     typeRow: {
         flexDirection: 'row',
