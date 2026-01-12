@@ -27,7 +27,10 @@ if (!cached) {
 }
 
 async function dbConnect() {
+    console.log('[DEBUG_PROD] dbConnect called');
+
     if (cached.conn) {
+        console.log('[DEBUG_PROD] Returning cached connection');
         return cached.conn;
     }
 
@@ -36,16 +39,29 @@ async function dbConnect() {
             bufferCommands: false,
         };
 
-        cached.promise = mongoose.connect(MONGODB_URI!, opts).then((mongoose) => {
+        const uri = MONGODB_URI!;
+        // Mask URI for security but show DB name/cluster
+        const maskedUri = uri.replace(/\/\/([^:]+):([^@]+)@/, '//***:***@');
+        console.log(`[DEBUG_PROD] Connecting to MongoDB: ${maskedUri}`);
+
+        cached.promise = mongoose.connect(uri, opts).then((mongoose) => {
             console.log('✅ MongoDB 연결 성공');
+            console.log(`[DEBUG_PROD] Connected to DB: ${mongoose.connection.name}, Host: ${mongoose.connection.host}`);
             return mongoose;
+        }).catch((err) => {
+            console.error('[DEBUG_PROD] ❌ MongoDB Connection Error:', err);
+            throw err;
         });
+    } else {
+        console.log('[DEBUG_PROD] Reusing existing connection promise');
     }
 
     try {
         cached.conn = await cached.promise;
+        console.log('[DEBUG_PROD] Connection established successfully');
     } catch (e) {
         cached.promise = null;
+        console.error('[DEBUG_PROD] ❌ Connection promise failed:', e);
         throw e;
     }
 

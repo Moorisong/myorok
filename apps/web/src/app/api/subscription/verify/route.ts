@@ -79,17 +79,20 @@ export async function POST(request: NextRequest) {
         }
 
         // 3. 구독 상태 조회
+        console.log(`[DEBUG_PROD] Finding subscription for userId: ${userId}`);
         const subscription = await Subscription.findOne({ userId });
         const serverTime = new Date();
 
         // 디버그: DB에서 조회된 구독 정보
-        console.log(`[Subscription] Verify DB lookup for ${userId}:`, subscription ? {
+        console.log(`[DEBUG_PROD] [Subscription] Verify DB lookup for ${userId}:`, subscription ? {
+            _id: subscription._id,
             status: subscription.status,
             trialStartDate: subscription.trialStartDate,
             subscriptionStartDate: subscription.subscriptionStartDate,
             subscriptionExpiryDate: subscription.subscriptionExpiryDate,
             createdAt: subscription.createdAt,
-        } : 'NOT FOUND');
+            serverTime: serverTime.toISOString(),
+        } : 'NOT FOUND - Proceeding as NEW user');
 
         // 4. 구독이 없으면 신규 유저
         if (!subscription) {
@@ -107,7 +110,7 @@ export async function POST(request: NextRequest) {
                 hasPurchaseHistory: false,
             };
 
-            console.log(`[Subscription] Verify for user ${userId}: new user`);
+            console.log(`[DEBUG_PROD] [Subscription] Verify for user ${userId}: new user (returning status: trial candidate)`);
 
             return NextResponse.json({
                 success: true,
@@ -126,7 +129,17 @@ export async function POST(request: NextRequest) {
         if (!entitlementActive && subscription.trialStartDate) {
             const trialExpiresAt = new Date(subscription.trialStartDate);
             trialExpiresAt.setDate(trialExpiresAt.getDate() + TRIAL_DAYS);
+
             trialActive = serverTime < trialExpiresAt && subscription.status === 'trial';
+
+            console.log(`[DEBUG_PROD] Trial Check for ${userId}:`, {
+                trialStartDate: subscription.trialStartDate,
+                trialExpiresAt: trialExpiresAt.toISOString(),
+                serverTime: serverTime.toISOString(),
+                isExpired: serverTime >= trialExpiresAt,
+                status: subscription.status,
+                result: trialActive
+            });
         }
 
         // 체험 사용 여부 (trialStartDate가 있으면 사용한 것)
@@ -149,13 +162,7 @@ export async function POST(request: NextRequest) {
             hasPurchaseHistory,
         };
 
-        console.log(`[Subscription] Verify for user ${userId}:`, {
-            status: subscription.status,
-            entitlementActive,
-            trialActive,
-            hasUsedTrial,
-            hasPurchaseHistory,
-        });
+        console.log(`[DEBUG_PROD] [Subscription] Verify FINAL result for user ${userId}:`, JSON.stringify(result));
 
         return NextResponse.json({
             success: true,
