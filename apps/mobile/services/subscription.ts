@@ -481,6 +481,8 @@ export async function verifySubscriptionWithServer(): Promise<{
 /**
  * Initialize subscription on first app launch
  * Sets trial start date if not already set
+ *
+ * 앱 재설치 시 서버 상태를 먼저 확인하여 중복 trial 방지
  */
 export async function initializeSubscription(): Promise<void> {
     // 0. 테스트 모드 확인 - 테스트 중에는 자동 초기화를 건너뜀 (테스트 케이스에서 설정한 상태 보호)
@@ -506,6 +508,67 @@ export async function initializeSubscription(): Promise<void> {
     }
 
     if (!trialStartDate) {
+        // 서버에서 trial 상태 확인 (앱 재설치 후 중복 trial 방지)
+        const userId = await AsyncStorage.getItem('current_user_id');
+        if (userId) {
+            const serverTrialStatus = await fetchTrialStatus(userId);
+
+            if (serverTrialStatus) {
+                // 서버에서 이미 trial을 사용한 경우
+                if (serverTrialStatus.hasUsedTrial) {
+                    console.log('[Subscription] Trial already used on server, syncing local state');
+
+                    // 서버의 trial 시작 날짜로 로컬 동기화
+                    if (serverTrialStatus.trialStartedAt) {
+                        await AsyncStorage.setItem(SUBSCRIPTION_KEYS.TRIAL_START_DATE, serverTrialStatus.trialStartedAt);
+                        await AsyncStorage.setItem(SUBSCRIPTION_KEYS.HAS_USED_TRIAL, 'true');
+
+                        // trial이 아직 활성 상태인지 확인 (서버 시간 기준)
+                        const trialStart = new Date(serverTrialStatus.trialStartedAt);
+                        const serverNow = serverTrialStatus.serverTime;
+                        const trialEnd = new Date(trialStart);
+                        trialEnd.setDate(trialEnd.getDate() + TRIAL_DAYS);
+
+                        const db = await getDatabase();
+                        const nowIso = new Date().toISOString();
+
+                        if (serverNow < trialEnd) {
+                            // trial 아직 활성 - trial 상태로 설정
+                            await AsyncStorage.setItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS, 'trial');
+                            console.log('[Subscription] Trial still active, setting trial status');
+
+                            await db.runAsync(
+                                `INSERT OR REPLACE INTO subscription_state (id, trialStartDate, subscriptionStatus, createdAt, updatedAt)
+                                 VALUES (1, ?, ?, ?, ?)`,
+                                [serverTrialStatus.trialStartedAt, 'trial', nowIso, nowIso]
+                            );
+
+                            // trial 알림 스케줄링
+                            await scheduleTrialEndNotificationIfNeeded(serverTrialStatus.trialStartedAt);
+                        } else {
+                            // trial 만료 - blocked 상태로 설정 (SSOT에서 최종 판정)
+                            await AsyncStorage.setItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS, 'blocked');
+                            console.log('[Subscription] Trial expired on server, setting blocked status');
+
+                            await db.runAsync(
+                                `INSERT OR REPLACE INTO subscription_state (id, trialStartDate, subscriptionStatus, createdAt, updatedAt)
+                                 VALUES (1, ?, ?, ?, ?)`,
+                                [serverTrialStatus.trialStartedAt, 'blocked', nowIso, nowIso]
+                            );
+                        }
+                    }
+                    return;
+                }
+                // 서버에서 trial 미사용 확인됨 - 아래에서 새 trial 시작
+                console.log('[Subscription] Server confirmed: trial not used yet');
+            } else {
+                // 서버 통신 실패 시 - SSOT에서 처리하도록 로컬 초기화 건너뜀
+                console.log('[Subscription] Server trial status check failed, skipping local initialization (SSOT will handle)');
+                return;
+            }
+        }
+
+        // 신규 사용자 또는 서버에서 trial 미사용 확인됨 - 새 trial 시작
         const now = new Date().toISOString();
         await AsyncStorage.setItem(SUBSCRIPTION_KEYS.TRIAL_START_DATE, now);
         await AsyncStorage.setItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS, 'trial');
