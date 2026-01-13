@@ -14,6 +14,7 @@ export const SUBSCRIPTION_KEYS = {
     HAS_USED_TRIAL: 'has_used_trial',
     RESTORE_ATTEMPTED: 'restore_attempted',
     RESTORE_SUCCEEDED: 'restore_succeeded',
+    DAYS_REMAINING: 'days_remaining', // Added for display-only caching
 };
 
 // ============================================================
@@ -52,6 +53,7 @@ export interface VerificationResult {
     hasPurchaseHistory: boolean;         // 서버에서 확인된 결제 이력
     restoreAttempted?: boolean;          // restore 시도 여부 (CASE D)
     restoreSucceeded?: boolean;          // restore 성공 여부
+    daysRemaining?: number;              // 남은 체험 기간 (Trial 상태일 때만 유효, 표시용)
 }
 
 export interface SubscriptionState {
@@ -365,6 +367,7 @@ export async function fetchSubscriptionVerification(userId: string): Promise<Ver
             hasPurchaseHistory: result.hasPurchaseHistory,
             restoreAttempted: undefined, // 클라이언트에서 별도 관리
             restoreSucceeded: undefined,
+            daysRemaining: result.daysRemaining, // 서버에서 내려준 남은 기간 매핑
         };
     } catch (error) {
         console.error('[SSOT] Verification fetch error:', error);
@@ -444,7 +447,11 @@ export async function verifySubscriptionWithServer(): Promise<{
     console.log(`[SSOT] Determined status for ${userId}: ${status}`);
 
     // 4. 로컬 상태 업데이트 (SSOT 결과이므로 서버 sync 건너뜀 - 순환 방지)
-    await setSubscriptionStatus(status, { skipSync: true });
+    // daysRemaining도 함께 저장 (표시용 캐시)
+    await setSubscriptionStatus(status, {
+        skipSync: true,
+        daysRemaining: serverResult.daysRemaining
+    });
 
     // hasPurchaseHistory도 로컬에 저장 (CASE J 판별용)
     if (serverResult.hasPurchaseHistory !== undefined) {
@@ -466,7 +473,10 @@ export async function verifySubscriptionWithServer(): Promise<{
         const trialStartDate = await AsyncStorage.getItem(SUBSCRIPTION_KEYS.TRIAL_START_DATE);
         if (trialStartDate) {
             state.trialStartDate = trialStartDate;
-            state.daysRemaining = calculateDaysRemaining(trialStartDate);
+            // SSOT: daysRemaining은 서버에서 받은 값을 사용 (이미 setSubscriptionStatus에서 저장됨)
+        }
+        if (serverResult.daysRemaining !== undefined) {
+            state.daysRemaining = serverResult.daysRemaining;
         }
     }
 
@@ -568,10 +578,15 @@ export async function initializeSubscription(): Promise<void> {
             }
         }
 
+        // IMPORTANT: initializeSubscription SHOULD NOT calculate days remaining or expiration.
+        // It only initializes state for new users or syncs from server.
+
         // 신규 사용자 또는 서버에서 trial 미사용 확인됨 - 새 trial 시작
         const now = new Date().toISOString();
         await AsyncStorage.setItem(SUBSCRIPTION_KEYS.TRIAL_START_DATE, now);
         await AsyncStorage.setItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS, 'trial');
+        // daysRemaining은 여기서 계산하지 않음. 다음 번 verifySubscriptionWithServer()에서 서버가 내려줌.
+        // UI에서는 loading 또는 기본값 표시.
 
         // Also save to database for backup
         const db = await getDatabase();
@@ -607,6 +622,7 @@ export async function getSubscriptionStatus(): Promise<SubscriptionState> {
     const subscriptionStartDate = await AsyncStorage.getItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_START_DATE);
     const subscriptionExpiryDate = await AsyncStorage.getItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_EXPIRY_DATE);
     const hasPurchaseHistoryStr = await AsyncStorage.getItem('has_purchase_history');
+    const daysRemainingStr = await AsyncStorage.getItem(SUBSCRIPTION_KEYS.DAYS_REMAINING);
 
     // 레거시 상태 값 변환 ('active' -> 'subscribed', 'expired' -> 'blocked')
     let status: SubscriptionStatus;
@@ -623,10 +639,10 @@ export async function getSubscriptionStatus(): Promise<SubscriptionState> {
     const hasPurchaseHistory = hasPurchaseHistoryStr === 'true';
 
     if (status === 'trial' && trialStartDate) {
-        const daysRemaining = calculateDaysRemaining(trialStartDate);
+        // SSOT Rule: daysRemaining is display-only and comes from server (cached in AsyncStorage)
+        // Do NOT calculate it locally.
+        const daysRemaining = daysRemainingStr ? parseInt(daysRemainingStr, 10) : undefined;
 
-        // F-1: 로컬 시간 기반 만료 체크 제거 - SSOT 검증에서 서버 시간 기준으로 판정
-        // daysRemaining은 UI 표시용으로만 사용 (음수 가능)
         return {
             status: 'trial',
             trialStartDate,
@@ -656,17 +672,7 @@ export async function getSubscriptionStatus(): Promise<SubscriptionState> {
 /**
  * Calculate days remaining in trial period
  */
-function calculateDaysRemaining(trialStartDate: string): number {
-    const startDate = new Date(trialStartDate);
-    const now = new Date();
-    const expiryDate = new Date(startDate);
-    expiryDate.setDate(expiryDate.getDate() + TRIAL_DAYS);
-
-    const diffTime = expiryDate.getTime() - now.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    return Math.max(0, diffDays);
-}
+// calculateDaysRemaining removed - SSOT Rule: Server calculates days remaining.
 
 /**
  * Check if user has access to app features
@@ -762,7 +768,13 @@ function getDefaultExpiryDate(): string {
 /**
  * Set subscription status manually (for testing)
  */
-export async function setSubscriptionStatus(status: SubscriptionStatus, options?: { skipSync?: boolean }): Promise<void> {
+export async function setSubscriptionStatus(
+    status: SubscriptionStatus,
+    options?: {
+        skipSync?: boolean;
+        daysRemaining?: number;
+    }
+): Promise<void> {
     const now = new Date().toISOString();
     await AsyncStorage.setItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS, status);
 
@@ -771,6 +783,17 @@ export async function setSubscriptionStatus(status: SubscriptionStatus, options?
         `UPDATE subscription_state SET subscriptionStatus = ?, updatedAt = ? WHERE id = 1`,
         [status, now]
     );
+
+    // Cache daysRemaining if provided (Display-only)
+    if (options?.daysRemaining !== undefined) {
+        await AsyncStorage.setItem(SUBSCRIPTION_KEYS.DAYS_REMAINING, options.daysRemaining.toString());
+    } else {
+        // If not provided (e.g. manual set), maybe clear it or keep existing? 
+        // For safety/cleanness, if status is not trial, clear it.
+        if (status !== 'trial') {
+            await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.DAYS_REMAINING);
+        }
+    }
 
     // SSOT 검증 결과를 로컬에 저장할 때는 서버 sync를 건너뜀 (순환 방지)
     if (options?.skipSync) {
@@ -981,21 +1004,13 @@ export async function getSubscriptionStatusForUser(userId: string): Promise<Subs
         const { trialStartDate, subscriptionStatus, subscriptionStartDate, subscriptionExpiryDate } = record;
 
         if (subscriptionStatus === 'trial' && trialStartDate) {
-            const daysRemaining = calculateDaysRemaining(trialStartDate);
-
-            if (daysRemaining <= 0) {
-                await expireSubscriptionForUser(userId);
-                return {
-                    status: 'blocked',
-                    trialStartDate,
-                    daysRemaining: 0,
-                };
-            }
-
+            // SSOT: Local calculation removed.
+            // Server should update status to 'blocked' if expired.
+            // We cannot know daysRemaining without server response or cached value.
             return {
                 status: 'trial',
                 trialStartDate,
-                daysRemaining,
+                daysRemaining: undefined,
             };
         }
 
