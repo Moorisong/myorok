@@ -18,9 +18,7 @@ export const SUBSCRIPTION_KEYS = {
 
 const TRIAL_DAYS = 7;
 const API_URL = CONFIG.API_BASE_URL;
-const EXPECTED_PRODUCT_ID = 'monthly_test_260111';
 const LEGACY_PRODUCT_IDS: string[] = [];
-const TIME_SYNC_TOLERANCE_MS = 5 * 60 * 1000;
 
 export type SubscriptionStatus = 'loading' | 'trial' | 'subscribed' | 'blocked' | 'expired';
 export type LegacySubscriptionStatus = 'trial' | 'active' | 'expired';
@@ -72,7 +70,7 @@ export async function fetchServerTime(): Promise<Date | null> {
     }
 }
 
-async function fetchTrialStatus(userId: string): Promise<{
+export async function fetchTrialStatus(userId: string): Promise<{
     hasUsedTrial: boolean;
     trialStartedAt: string | null;
     serverTime: Date;
@@ -250,12 +248,18 @@ export async function verifySubscriptionWithServer(): Promise<{
     }
 
     const status = determineSubscriptionState(serverResult);
+    console.log(`[SSOT] Determined status for ${userId}: ${status}`);
+
+    await AsyncStorage.setItem(SUBSCRIPTION_KEYS.DAYS_REMAINING, serverResult.daysRemaining?.toString() || '0');
+    await AsyncStorage.setItem('has_purchase_history', serverResult.hasPurchaseHistory ? 'true' : 'false');
+    await AsyncStorage.setItem('entitlement_active', serverResult.entitlementActive ? 'true' : 'false');
+
     const state: SubscriptionState = {
         status,
         hasPurchaseHistory: serverResult.hasPurchaseHistory,
     };
 
-    if (status === 'trial') {
+    if (status === 'trial' && serverResult.daysRemaining !== undefined) {
         state.daysRemaining = serverResult.daysRemaining;
     }
 
@@ -263,11 +267,11 @@ export async function verifySubscriptionWithServer(): Promise<{
         state.subscriptionExpiryDate = serverResult.expiresDate.toISOString();
     }
 
-    console.log('[SSOT] Determined status for userId:', status);
+    console.log('[SSOT] Final status:', status);
     return { status, state };
 }
 
-export function determineSubscriptionState(result: VerificationResult): SubscriptionStatus {
+function determineSubscriptionState(result: VerificationResult): SubscriptionStatus {
     const {
         success,
         serverSyncSucceeded,
@@ -281,6 +285,9 @@ export function determineSubscriptionState(result: VerificationResult): Subscrip
         hasPurchaseHistory,
         restoreAttempted,
         restoreSucceeded,
+        trialActive,
+        deviceBasedTrialBlock,
+        deviceTrialInfo,
     } = result;
 
     if (!success || !serverSyncSucceeded) {
@@ -298,21 +305,21 @@ export function determineSubscriptionState(result: VerificationResult): Subscrip
         return 'loading';
     }
 
-    if (result.deviceBasedTrialBlock) {
-        console.log('[SSOT] State: blocked (device-based trial block)', result.deviceTrialInfo);
+    if (deviceBasedTrialBlock) {
+        console.log('[SSOT] State: blocked (device-based trial block)');
         return 'blocked';
     }
 
-    if (result.trialActive) {
+    if (trialActive) {
         console.log('[SSOT] State: trial (trial is active)');
         return 'trial';
     }
 
     if (entitlementActive && expiresDate && expiresDate > serverTime) {
         if (productId) {
-            const isValidProductId = productId === EXPECTED_PRODUCT_ID || LEGACY_PRODUCT_IDS.includes(productId || '');
+            const isValidProductId = productId === 'monthly_test_260111' || LEGACY_PRODUCT_IDS.includes(productId || '');
             if (!isValidProductId) {
-                console.log('[SSOT] State: loading (productId mismatch:', productId, ')');
+                console.log('[SSOT] State: loading (productId mismatch)');
                 return 'loading';
             }
         }
@@ -341,7 +348,7 @@ export function determineSubscriptionState(result: VerificationResult): Subscrip
     }
 
     if (hasPurchaseHistory) {
-        console.log('[SSOT] State: blocked (CASE J/C-1: has purchase history but no active entitlement)');
+        console.log('[SSOT] State: blocked (has purchase history but no active entitlement - CASE J/C-1: has purchase history but no active entitlement)');
         return 'blocked';
     }
 
