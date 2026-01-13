@@ -124,20 +124,20 @@ export async function POST(request: NextRequest) {
             ? subscription.subscriptionExpiryDate > serverTime
             : false;
 
-        // 체험 활성 여부 계산
+        // 체험 활성 여부 계산 (시간 기반으로만 판단 - DB status에 의존하지 않음)
         let trialActive = false;
         if (!entitlementActive && subscription.trialStartDate) {
             const trialExpiresAt = new Date(subscription.trialStartDate);
             trialExpiresAt.setDate(trialExpiresAt.getDate() + TRIAL_DAYS);
 
-            trialActive = serverTime < trialExpiresAt && subscription.status === 'trial';
+            // trial 기간이 남아있으면 trialActive = true (DB status와 무관)
+            trialActive = serverTime < trialExpiresAt;
 
             console.log(`[DEBUG_PROD] Trial Check for ${userId}:`, {
                 trialStartDate: subscription.trialStartDate,
                 trialExpiresAt: trialExpiresAt.toISOString(),
                 serverTime: serverTime.toISOString(),
                 isExpired: serverTime >= trialExpiresAt,
-                status: subscription.status,
                 result: trialActive
             });
         }
