@@ -148,6 +148,25 @@ export async function POST(request: NextRequest) {
         // 결제 이력 여부 (subscriptionStartDate가 있으면 결제한 적 있음)
         const hasPurchaseHistory = !!subscription.subscriptionStartDate;
 
+        // trial 남은 일수 계산 (서버 시간 기준 - SSOT)
+        let daysRemaining: number | undefined;
+        if (trialActive && subscription.trialStartDate) {
+            const trialExpiresAt = new Date(subscription.trialStartDate);
+            trialExpiresAt.setDate(trialExpiresAt.getDate() + TRIAL_DAYS);
+
+            const diffMs = trialExpiresAt.getTime() - serverTime.getTime();
+            daysRemaining = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+            daysRemaining = Math.max(0, daysRemaining);
+
+            console.log(`[DEBUG_PROD] daysRemaining calculation for ${userId}:`, {
+                trialStartDate: subscription.trialStartDate,
+                trialExpiresAt: trialExpiresAt.toISOString(),
+                serverTime: serverTime.toISOString(),
+                diffMs,
+                daysRemaining
+            });
+        }
+
         const result = {
             success: true,
             serverSyncSucceeded: true,
@@ -160,6 +179,7 @@ export async function POST(request: NextRequest) {
             hasUsedTrial,
             trialActive,
             hasPurchaseHistory,
+            daysRemaining,
         };
 
         console.log(`[DEBUG_PROD] [Subscription] Verify FINAL result for user ${userId}:`, JSON.stringify(result));
