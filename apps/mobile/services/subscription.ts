@@ -583,10 +583,12 @@ export async function initializeSubscription(): Promise<void> {
 
         // 신규 사용자 또는 서버에서 trial 미사용 확인됨 - 새 trial 시작
         const now = new Date().toISOString();
+        const initialDays = TRIAL_DAYS;
+
         await AsyncStorage.setItem(SUBSCRIPTION_KEYS.TRIAL_START_DATE, now);
         await AsyncStorage.setItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS, 'trial');
-        // daysRemaining은 여기서 계산하지 않음. 다음 번 verifySubscriptionWithServer()에서 서버가 내려줌.
-        // UI에서는 loading 또는 기본값 표시.
+        // SSOT: Initial local state for new trial serves as instant cache
+        await AsyncStorage.setItem(SUBSCRIPTION_KEYS.DAYS_REMAINING, initialDays.toString());
 
         // Also save to database for backup
         const db = await getDatabase();
@@ -639,9 +641,18 @@ export async function getSubscriptionStatus(): Promise<SubscriptionState> {
     const hasPurchaseHistory = hasPurchaseHistoryStr === 'true';
 
     if (status === 'trial' && trialStartDate) {
-        // SSOT Rule: daysRemaining is display-only and comes from server (cached in AsyncStorage)
-        // Do NOT calculate it locally.
-        const daysRemaining = daysRemainingStr ? parseInt(daysRemainingStr, 10) : undefined;
+        // SSOT Rule: daysRemaining is display-only.
+        // Priority: 1. Server/Cache value  2. Local estimation (Fallback for UI)
+        let daysRemaining: number | undefined;
+
+        if (daysRemainingStr) {
+            daysRemaining = parseInt(daysRemainingStr, 10);
+        } else {
+            // Fallback: If server/cache is missing (e.g. existing user or server not updated),
+            // estimate locally for display to avoid stuck "Checking..." state.
+            // This does NOT affect status/blocking logic.
+            daysRemaining = estimateLocalDaysRemaining(trialStartDate);
+        }
 
         return {
             status: 'trial',
@@ -673,6 +684,22 @@ export async function getSubscriptionStatus(): Promise<SubscriptionState> {
  * Calculate days remaining in trial period
  */
 // calculateDaysRemaining removed - SSOT Rule: Server calculates days remaining.
+
+/**
+ * Estimate days remaining locally (Display Fallback Only)
+ * SSOT: This MUST NOT be used for blocking/expiry logic. Only for UI.
+ */
+function estimateLocalDaysRemaining(trialStartDate: string): number {
+    const startDate = new Date(trialStartDate);
+    const now = new Date();
+    const expiryDate = new Date(startDate);
+    expiryDate.setDate(expiryDate.getDate() + TRIAL_DAYS);
+
+    const diffTime = expiryDate.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    return Math.max(0, diffDays); // Don't return negative for estimation
+}
 
 /**
  * Check if user has access to app features
@@ -829,8 +856,10 @@ export async function shouldShowTrialWarning(): Promise<boolean> {
 /**
  * Get formatted trial countdown text
  */
-export function getTrialCountdownText(daysRemaining: number): string {
-    if (daysRemaining <= 0) return '무료 체험 종료';
+export function getTrialCountdownText(daysRemaining: number | undefined): string {
+    if (daysRemaining === undefined) return '무료 체험 확인 중';
+    if (daysRemaining < 0) return '무료 체험 종료';
+    if (daysRemaining === 0) return '무료 체험 오늘 종료';
     return `무료 체험 D-${daysRemaining}`;
 }
 

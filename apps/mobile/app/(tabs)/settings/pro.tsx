@@ -130,7 +130,7 @@ export default function ProScreen() {
         if (!subscriptionState) return '';
 
         if (subscriptionState.status === 'trial') {
-            return `${getTrialCountdownText(subscriptionState.daysRemaining || 0)}`;
+            return `${getTrialCountdownText(subscriptionState.daysRemaining)}`;
         } else if (subscriptionState.status === 'subscribed') {
             return '구독 중';
         } else {
