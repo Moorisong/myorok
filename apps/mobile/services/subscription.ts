@@ -581,6 +581,11 @@ export async function initializeSubscription(): Promise<void> {
             [now, 'trial', now, now]
         );
 
+        // 서버에 trial 시작 기록 (verifySubscriptionWithServer 호출 전에 서버에 기록되어야 함)
+        if (userId) {
+            await recordTrialStartOnServer(userId);
+        }
+
         // Schedule trial end notification
         await scheduleTrialEndNotificationIfNeeded(now);
     } else {
