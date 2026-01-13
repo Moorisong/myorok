@@ -65,12 +65,37 @@ export async function GET(
         const subscription = await Subscription.findOne({ userId });
         const hasUsedTrial = !!subscription?.trialStartDate;
 
+        // 4. deviceId 기반 추가 체험 가능 여부 확인 (앱 재설치 케이스)
+        let deviceBasedTrialAvailable = false;
+        let deviceTrialInfo = null;
+        
+        if (subscription?.deviceId && subscription?.deviceId !== 'unknown') {
+            // deviceId가 있으면 해당 기기의 다른 유저에서 trial 사용 여부 확인
+            const deviceSubscription = await Subscription.findOne({ 
+                deviceId: subscription.deviceId,
+                userId: { $ne: userId } // 다른 유저
+            });
+            
+            deviceBasedTrialAvailable = !deviceSubscription?.trialStartDate;
+            
+            if (deviceSubscription?.trialStartDate) {
+                deviceTrialInfo = {
+                    deviceTrialUsed: true,
+                    deviceTrialUserId: deviceSubscription.userId,
+                    deviceTrialStartedAt: deviceSubscription.trialStartDate.toISOString(),
+                };
+            }
+        }
+
         return NextResponse.json({
             success: true,
             data: {
                 userId,
                 hasUsedTrial,
                 trialStartedAt: subscription?.trialStartDate?.toISOString() || null,
+                deviceId: subscription?.deviceId || null,
+                deviceBasedTrialAvailable,
+                deviceTrialInfo,
                 serverTime: new Date().toISOString(),
             },
         });

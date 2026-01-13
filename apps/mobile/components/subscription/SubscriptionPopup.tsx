@@ -46,7 +46,7 @@ export function SubscriptionPopup({
 
                             {/* Description */}
                             <Text style={styles.description}>
-                                앱하루의 모든 기능을 계속 이용하시려면{'\n'}
+                                묘록의 모든 기능을 계속 이용하시려면{'\n'}
                                 구독을 갱신해주세요.
                             </Text>
 

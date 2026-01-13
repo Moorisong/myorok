@@ -6,22 +6,6 @@ import { restorePurchases, getEntitlementVerification } from './paymentService';
 import { CONFIG } from '../constants/config';
 import { getDeviceId } from './device';
 
-import {
-    SUBSCRIPTION_KEYS,
-    SubscriptionStatus,
-    LegacySubscriptionStatus,
-    VerificationResult,
-    SubscriptionState,
-    fetchServerTime,
-    fetchTrialStatus,
-    recordTrialStartOnServer,
-    fetchSubscriptionVerification,
-    verifySubscriptionWithServer,
-    convertLegacyStatus,
-    convertToLegacyStatus,
-} from './subscription-ssot';
-
-// Re-export for backward compatibility
 export {
     SUBSCRIPTION_KEYS,
     SubscriptionStatus,
@@ -33,13 +17,273 @@ export {
     recordTrialStartOnServer,
     fetchSubscriptionVerification,
     verifySubscriptionWithServer,
+    determineSubscriptionState,
     convertLegacyStatus,
     convertToLegacyStatus,
 } from './subscription-ssot';
+    try {
+        const response = await fetch(`${API_URL}/api/subscription/server-time`);
+        if (!response.ok) {
+            console.log('[SSOT] Server time fetch failed:', response.status);
+            return null;
+        }
+        const data = await response.json();
+        return new Date(data.data.serverTime);
+    } catch (error) {
+        console.error('[SSOT] Server time fetch error:', error);
+        return null;
+    }
+}
 
-// 로컬에서 사용하는 상수 정의
-const TRIAL_DAYS = 7;
-const API_URL = CONFIG.API_BASE_URL;
+/**
+ * 서버에서 체험 사용 여부 조회 (CASE E)
+ */
+export async function fetchTrialStatus(userId: string): Promise<{
+    hasUsedTrial: boolean;
+    trialStartedAt: string | null;
+    serverTime: Date;
+    deviceId?: string | null;
+    deviceBasedTrialAvailable?: boolean;
+    deviceTrialInfo?: {
+        deviceTrialUsed: boolean;
+        deviceTrialUserId: string;
+        deviceTrialStartedAt: string;
+    } | null;
+} | null> {
+    try {
+        const token = await AsyncStorage.getItem('jwt_token');
+        if (!token) {
+            console.log('[SSOT] No JWT token');
+            return null;
+        }
+
+        const response = await fetch(`${API_URL}/api/subscription/trial-status/${userId}`, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+            },
+        });
+
+        if (!response.ok) {
+            console.log('[SSOT] Trial status fetch failed:', response.status);
+            return null;
+        }
+
+        const data = await response.json();
+        return {
+            hasUsedTrial: data.data.hasUsedTrial,
+            trialStartedAt: data.data.trialStartedAt,
+            serverTime: new Date(data.data.serverTime),
+            deviceId: data.data.deviceId,
+            deviceBasedTrialAvailable: data.data.deviceBasedTrialAvailable,
+            deviceTrialInfo: data.data.deviceTrialInfo,
+        };
+    } catch (error) {
+        console.error('[SSOT] Trial status fetch error:', error);
+        return null;
+    }
+}
+
+/**
+ * 서버에 체험 시작 기록 (CASE E: 즉시 동기 기록)
+ */
+export async function recordTrialStartOnServer(userId: string): Promise<boolean> {
+    try {
+        const token = await AsyncStorage.getItem('jwt_token');
+        if (!token) {
+            console.log('[SSOT] No JWT token for trial start');
+            return false;
+        }
+
+        const deviceId = await getDeviceId();
+
+        const response = await fetch(`${API_URL}/api/subscription/trial-start`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ userId, deviceId }),
+        });
+
+        if (response.status === 409) {
+            // 이미 체험 사용함
+            console.log('[SSOT] Trial already used on server');
+            return false;
+        }
+
+        if (!response.ok) {
+            console.log('[SSOT] Trial start record failed:', response.status);
+            return false;
+        }
+
+        console.log('[SSOT] Trial start recorded on server');
+        return true;
+    } catch (error) {
+        console.error('[SSOT] Trial start record error:', error);
+        return false;
+    }
+}
+
+/**
+ * 서버에서 구독 상태 검증 (SSOT 메인 함수)
+ */
+export async function fetchSubscriptionVerification(userId: string): Promise<VerificationResult | null> {
+    try {
+        const token = await AsyncStorage.getItem('jwt_token');
+        if (!token) {
+            console.log('[SSOT] No JWT token for verification');
+            return null;
+        }
+
+        const response = await fetch(`${API_URL}/api/subscription/verify`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ userId }),
+        });
+
+        if (!response.ok) {
+            console.log('[SSOT] Verification fetch failed:', response.status);
+            return null;
+        }
+
+        const data = await response.json();
+        const result = data.data;
+        console.log('[SSOT] Raw server result:', JSON.stringify(result, null, 2));
+
+        // 서버 응답을 VerificationResult로 변환
+        return {
+            success: result.success,
+            serverSyncSucceeded: result.serverSyncSucceeded,
+            entitlementActive: result.entitlementActive,
+            expiresDate: result.expiresDate ? new Date(result.expiresDate) : undefined,
+            productId: result.productId || undefined,
+            isPending: result.isPending || false,
+            source: result.source || 'server',
+            serverTime: new Date(result.serverTime),
+            hasUsedTrial: result.hasUsedTrial,
+            trialActive: result.trialActive,
+            hasPurchaseHistory: result.hasPurchaseHistory,
+            restoreAttempted: undefined, // 클라이언트에서 별도 관리
+            restoreSucceeded: undefined,
+            daysRemaining: result.daysRemaining, // 서버에서 내려준 남은 기간 매핑
+            deviceBasedTrialBlock: result.deviceBasedTrialBlock,
+            deviceTrialInfo: result.deviceTrialInfo,
+        };
+    } catch (error) {
+        console.error('[SSOT] Verification fetch error:', error);
+        return null;
+    }
+}
+
+/**
+ * 전체 SSOT 검증 수행 (서버 + 스토어 통합)
+ * 앱 시작 시, 포그라운드 전환 시 호출
+ */
+export async function verifySubscriptionWithServer(): Promise<{
+    status: SubscriptionStatus;
+    state: SubscriptionState;
+}> {
+    // D-2 테스트: 강제 서버 에러 시뮬레이션
+    const forceServerError = await AsyncStorage.getItem('dev_force_server_error');
+    if (forceServerError === 'true') {
+        console.log('[SSOT] D-2 Test: Simulating server 500 error');
+        throw new Error('D-2 Test: Simulated server 500 error');
+    }
+
+    const userId = await AsyncStorage.getItem('current_user_id');
+
+    if (!userId) {
+        console.log('[SSOT] No user ID, returning blocked');
+        return {
+            status: 'blocked',
+            state: { status: 'blocked' },
+        };
+    }
+
+    // 1. 서버에서 검증 결과 가져오기
+    const serverResult = await fetchSubscriptionVerification(userId);
+
+    if (!serverResult) {
+        // 서버 통신 실패 = loading 상태 (CASE H)
+        console.log('[SSOT] Server verification failed, returning loading');
+        return {
+            status: 'loading',
+            state: { status: 'loading' },
+        };
+    }
+
+    // 2. restore 시도 여부 및 성공 여부 확인 (로컬)
+    const restoreAttempted = await AsyncStorage.getItem(SUBSCRIPTION_KEYS.RESTORE_ATTEMPTED);
+    const restoreSucceeded = await AsyncStorage.getItem(SUBSCRIPTION_KEYS.RESTORE_SUCCEEDED);
+    serverResult.restoreAttempted = restoreAttempted === 'true';
+    serverResult.restoreSucceeded = restoreSucceeded === 'true';
+
+
+    // 2-1. 로컬 스토어 데이터로 보정 (CASE G: 결제 진행 중 앱 종료 후 재실행)
+    // 서버에는 아직 pending 정보가 없을 수 있으므로 로컬 IAP 상태를 확인합니다.
+    const localVerification = await getEntitlementVerification();
+    if (localVerification.isPending) {
+        console.log('[SSOT] Local pending transaction detected (CASE G)');
+        serverResult.isPending = true;
+        // CASE G: pending 상태일 때는 restore 플래그 무시 (복원 실패 화면 대신 로딩 화면 표시)
+        serverResult.restoreAttempted = false;
+        serverResult.restoreSucceeded = false;
+        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.RESTORE_ATTEMPTED);
+        await AsyncStorage.removeItem(SUBSCRIPTION_KEYS.RESTORE_SUCCEEDED);
+    }
+
+    // SSOT 강화: 로컬 fallback 제거
+    // 서버 응답이 오면 그대로 신뢰 (deviceId 기반 trial 블록 등 서버 전용 로직 존재)
+    // 로컬 추측은 deviceId 기반 중복 trial 방지 로직을 무너뜨릴 수 있음
+
+    // 3. SSOT 판별
+    const status = determineSubscriptionState(serverResult);
+    console.log(`[SSOT] Determined status for ${userId}: ${status}`);
+
+    // 4. 로컬 상태 업데이트 (SSOT 결과이므로 서버 sync 건너뜀 - 순환 방지)
+    // daysRemaining도 함께 저장 (표시용 캐시)
+    await setSubscriptionStatus(status, {
+        skipSync: true,
+        daysRemaining: serverResult.daysRemaining
+    });
+
+    // hasPurchaseHistory도 로컬에 저장 (CASE J 판별용)
+    if (serverResult.hasPurchaseHistory !== undefined) {
+        await AsyncStorage.setItem('has_purchase_history', serverResult.hasPurchaseHistory ? 'true' : 'false');
+    }
+
+    // entitlementActive도 로컬에 저장 (B-1 vs C-1 판별용)
+    // B-1: hasPurchaseHistory=true, entitlementActive=false (끝난 구독)
+    // C-1: hasPurchaseHistory=true, entitlementActive=true (살릴 수 있는 구독)
+    await AsyncStorage.setItem('entitlement_active', serverResult.entitlementActive ? 'true' : 'false');
+
+    // 5. SubscriptionState 구성
+    const state: SubscriptionState = {
+        status,
+        hasPurchaseHistory: serverResult.hasPurchaseHistory,
+    };
+
+    if (status === 'trial') {
+        const trialStartDate = await AsyncStorage.getItem(SUBSCRIPTION_KEYS.TRIAL_START_DATE);
+        if (trialStartDate) {
+            state.trialStartDate = trialStartDate;
+            // SSOT: daysRemaining은 서버에서 받은 값을 사용 (이미 setSubscriptionStatus에서 저장됨)
+        }
+        if (serverResult.daysRemaining !== undefined) {
+            state.daysRemaining = serverResult.daysRemaining;
+        }
+    }
+
+    if (status === 'subscribed' && serverResult.expiresDate) {
+        state.subscriptionExpiryDate = serverResult.expiresDate.toISOString();
+    }
+
+    console.log('[SSOT] Final status:', status);
+    return { status, state };
+}
 
 /**
  * Initialize subscription on first app launch
@@ -90,7 +334,7 @@ export async function initializeSubscription(): Promise<void> {
 
                     // 서버의 trial 시작 날짜로 로컬 동기화
                     const trialStartedAt = serverTrialStatus.trialStartedAt || serverTrialStatus.deviceTrialInfo?.deviceTrialStartedAt;
-
+                    
                     if (trialStartedAt) {
                         await AsyncStorage.setItem(SUBSCRIPTION_KEYS.TRIAL_START_DATE, trialStartedAt);
                         await AsyncStorage.setItem(SUBSCRIPTION_KEYS.HAS_USED_TRIAL, 'true');

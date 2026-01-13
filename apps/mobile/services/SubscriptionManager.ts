@@ -189,17 +189,9 @@ class SubscriptionManager {
 
         } catch (error) {
             console.error('[SubscriptionManager] Error during resolution:', error);
-            // F-1 오프라인 처리 원칙:
-            // - 마지막 상태가 active/trial → loading (추측 금지)
-            // - 마지막 상태가 expired → blocked 유지
-            const lastStatus = await AsyncStorage.getItem('subscription_status');
-            if (lastStatus === 'blocked' || lastStatus === 'expired') {
-                console.log('[SubscriptionManager] Offline + expired → blocked');
-                this.lastResult = 'expired';
-                this.lastProcessedAt = Date.now();
-                return 'expired';
-            }
-            console.log('[SubscriptionManager] Offline + unknown/active → loading');
+            // SSOT 강화: 서버 통신 실패 시 항상 loading 상태 반환 (로컬 추측 제거)
+            // 이유: deviceId 기반 trial 블록 등 서버 전용 로직이 있으므로 로컬 판단 위험
+            console.log('[SubscriptionManager] Server error → loading (no local fallback)');
             this.lastResult = 'loading';
             this.lastProcessedAt = Date.now();
             return 'loading';
