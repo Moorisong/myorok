@@ -67,6 +67,13 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        if (!deviceId) {
+            return NextResponse.json(
+                { success: false, error: 'deviceId is required' },
+                { status: 400 }
+            );
+        }
+
         // 토큰의 userId와 요청의 userId 일치 확인
         if (tokenUserId !== userId) {
             return NextResponse.json(
@@ -75,26 +82,52 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // 3. 이미 체험 기록이 있는지 확인
-        const existing = await Subscription.findOne({ userId });
+        // 3. deviceId 기반 중복 trial 체크 (앱 재설치 후 중복 사용 방지)
+        const existingByDevice = await Subscription.findOne({ deviceId });
+        
+        // 4. userId 기준 기존 체험 기록 확인
+        const existingByUser = await Subscription.findOne({ userId });
 
         // 디버그: trial-start 요청 로그
         console.log(`[Subscription] Trial-start request for ${userId}:`, {
-            existing: existing ? {
-                trialStartDate: existing.trialStartDate,
-                status: existing.status,
+            deviceCheck: existingByDevice ? {
+                userId: existingByDevice.userId,
+                trialStartDate: existingByDevice.trialStartDate,
+                status: existingByDevice.status,
+            } : 'NOT FOUND',
+            userCheck: existingByUser ? {
+                trialStartDate: existingByUser.trialStartDate,
+                status: existingByUser.status,
             } : 'NOT FOUND',
             deviceId,
         });
 
-        if (existing?.trialStartDate) {
+        // deviceId로 이미 trial 사용한 경우 (앱 재설치 후 중복 방지)
+        if (existingByDevice?.trialStartDate) {
             return NextResponse.json(
                 {
                     success: false,
-                    error: 'Trial already used',
+                    error: 'Trial already used on this device',
                     data: {
                         hasUsedTrial: true,
-                        trialStartedAt: existing.trialStartDate.toISOString(),
+                        trialStartedAt: existingByDevice.trialStartDate.toISOString(),
+                        existingUserId: existingByDevice.userId,
+                        deviceId,
+                    },
+                },
+                { status: 409 }
+            );
+        }
+
+        // userId로 이미 trial 사용한 경우
+        if (existingByUser?.trialStartDate) {
+            return NextResponse.json(
+                {
+                    success: false,
+                    error: 'Trial already used by this user',
+                    data: {
+                        hasUsedTrial: true,
+                        trialStartedAt: existingByUser.trialStartDate.toISOString(),
                     },
                 },
                 { status: 409 }

@@ -20,6 +20,38 @@ interface VerifyRequest {
  * POST /api/subscription/verify
  * SSOT 구독 상태 검증
  */
+/**
+ * deviceId 기반 중복 trial 블록 확인 (SSOT - 앱 재설치 후 방지)
+ * deviceId가 'unknown'이면 신규 사용자로 간주하여 블록하지 않음
+ */
+async function checkDeviceBasedTrialBlock(
+    subscription: any,
+    userId: string
+): Promise<{ block: boolean; info: any }> {
+    if (!subscription?.deviceId || subscription?.deviceId === 'unknown') {
+        return { block: false, info: null };
+    }
+
+    // 해당 deviceId로 다른 유저가 이미 trial 사용했는지 확인
+    const deviceSubscription = await Subscription.findOne({
+        deviceId: subscription.deviceId,
+        userId: { $ne: userId }, // 다른 유저
+        trialStartDate: { $exists: true }
+    });
+
+    if (deviceSubscription) {
+        const deviceTrialInfo = {
+            deviceTrialUsed: true,
+            deviceTrialUserId: deviceSubscription.userId,
+            deviceTrialStartedAt: deviceSubscription.trialStartDate.toISOString(),
+        };
+        console.log(`[DEBUG_PROD] [SSOT] Device-based trial block for ${userId}:`, deviceTrialInfo);
+        return { block: true, info: deviceTrialInfo };
+    }
+
+    return { block: false, info: null };
+}
+
 export async function POST(request: NextRequest) {
     try {
         await dbConnect();
@@ -78,10 +110,13 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // 3. 구독 상태 조회
+        // 3. 구독 상태 조회 (SSOT - deviceId 기반 중복 trial 방지)
         console.log(`[DEBUG_PROD] Finding subscription for userId: ${userId}`);
         const subscription = await Subscription.findOne({ userId });
         const serverTime = new Date();
+
+        // 3-1. deviceId 기반 trial 상태 확인 (앱 재설치 후 SSOT 강화)
+        const { block: deviceBasedTrialBlock, info: deviceTrialInfo } = await checkDeviceBasedTrialBlock(subscription, userId);
 
         // 디버그: DB에서 조회된 구독 정보
         console.log(`[DEBUG_PROD] [Subscription] Verify DB lookup for ${userId}:`, subscription ? {
@@ -90,11 +125,13 @@ export async function POST(request: NextRequest) {
             trialStartDate: subscription.trialStartDate,
             subscriptionStartDate: subscription.subscriptionStartDate,
             subscriptionExpiryDate: subscription.subscriptionExpiryDate,
+            deviceId: subscription.deviceId,
+            deviceBasedTrialBlock,
             createdAt: subscription.createdAt,
             serverTime: serverTime.toISOString(),
         } : 'NOT FOUND - Proceeding as NEW user');
 
-        // 4. 구독이 없으면 신규 유저
+        // 4. 구독이 없으면 신규 유저 (deviceId 기반 체크 포함)
         if (!subscription) {
             const result = {
                 success: true,
@@ -108,6 +145,8 @@ export async function POST(request: NextRequest) {
                 hasUsedTrial: false,
                 trialActive: false,
                 hasPurchaseHistory: false,
+                deviceBasedTrialBlock,
+                deviceTrialInfo,
             };
 
             console.log(`[DEBUG_PROD] [Subscription] Verify for user ${userId}: new user (returning status: trial candidate)`);
@@ -124,9 +163,9 @@ export async function POST(request: NextRequest) {
             ? subscription.subscriptionExpiryDate > serverTime
             : false;
 
-        // 체험 활성 여부 계산 (시간 기반으로만 판단 - DB status에 의존하지 않음)
+        // 체험 활성 여부 계산 (SSOT: deviceId 기반 블록 우선 적용)
         let trialActive = false;
-        if (!entitlementActive && subscription.trialStartDate) {
+        if (!entitlementActive && subscription.trialStartDate && !deviceBasedTrialBlock) {
             const trialExpiresAt = new Date(subscription.trialStartDate);
             trialExpiresAt.setDate(trialExpiresAt.getDate() + TRIAL_DAYS);
 
@@ -137,9 +176,12 @@ export async function POST(request: NextRequest) {
                 trialStartDate: subscription.trialStartDate,
                 trialExpiresAt: trialExpiresAt.toISOString(),
                 serverTime: serverTime.toISOString(),
+                deviceBasedTrialBlock,
                 isExpired: serverTime >= trialExpiresAt,
                 result: trialActive
             });
+        } else if (deviceBasedTrialBlock) {
+            console.log(`[DEBUG_PROD] Trial blocked for ${userId} due to device-based trial usage`);
         }
 
         // 체험 사용 여부 (trialStartDate가 있으면 사용한 것)
@@ -180,6 +222,8 @@ export async function POST(request: NextRequest) {
             trialActive,
             hasPurchaseHistory,
             daysRemaining,
+            deviceBasedTrialBlock,
+            deviceTrialInfo,
         };
 
         console.log(`[DEBUG_PROD] [Subscription] Verify FINAL result for user ${userId}:`, JSON.stringify(result));

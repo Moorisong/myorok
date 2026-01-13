@@ -38,6 +38,48 @@ export {
 /**
  * 서버에서 체험 사용 여부 조회 (CASE E)
  */
+export async function fetchTrialStatus(userId: string): Promise<{
+    hasUsedTrial: boolean;
+    trialStartedAt: string | null;
+    serverTime: Date;
+    deviceId?: string | null;
+    deviceBasedTrialAvailable?: boolean;
+    deviceTrialInfo?: {
+        deviceTrialUsed: boolean;
+        deviceTrialUserId: string;
+        deviceTrialStartedAt: string;
+    } | null;
+} | null> {
+    try {
+        const token = await AsyncStorage.getItem('jwt_token');
+        if (!token) {
+            console.log('[SSOT] No JWT token');
+            return null;
+        }
+
+        const response = await fetch(`${API_URL}/api/subscription/trial-status/${userId}`, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+            },
+        });
+
+        if (!response.ok) {
+            console.log('[SSOT] Trial status fetch failed:', response.status);
+            return null;
+        }
+
+        const data = await response.json();
+        return {
+            hasUsedTrial: data.data.hasUsedTrial,
+            trialStartedAt: data.data.trialStartedAt,
+            serverTime: new Date(data.data.serverTime),
+            deviceId: data.data.deviceId,
+            deviceBasedTrialAvailable: data.data.deviceBasedTrialAvailable,
+            deviceTrialInfo: data.data.deviceTrialInfo,
+        };
+    } catch (error) {
+        console.error('[SSOT] Trial status fetch error:', error);
+        return null;
     }
 }
 
