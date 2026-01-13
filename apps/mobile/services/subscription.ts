@@ -443,8 +443,8 @@ export async function verifySubscriptionWithServer(): Promise<{
     const status = determineSubscriptionState(serverResult);
     console.log(`[SSOT] Determined status for ${userId}: ${status}`);
 
-    // 4. 로컬 상태 업데이트
-    await setSubscriptionStatus(status);
+    // 4. 로컬 상태 업데이트 (SSOT 결과이므로 서버 sync 건너뜀 - 순환 방지)
+    await setSubscriptionStatus(status, { skipSync: true });
 
     // hasPurchaseHistory도 로컬에 저장 (CASE J 판별용)
     if (serverResult.hasPurchaseHistory !== undefined) {
@@ -757,7 +757,7 @@ function getDefaultExpiryDate(): string {
 /**
  * Set subscription status manually (for testing)
  */
-export async function setSubscriptionStatus(status: SubscriptionStatus): Promise<void> {
+export async function setSubscriptionStatus(status: SubscriptionStatus, options?: { skipSync?: boolean }): Promise<void> {
     const now = new Date().toISOString();
     await AsyncStorage.setItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS, status);
 
@@ -766,6 +766,12 @@ export async function setSubscriptionStatus(status: SubscriptionStatus): Promise
         `UPDATE subscription_state SET subscriptionStatus = ?, updatedAt = ? WHERE id = 1`,
         [status, now]
     );
+
+    // SSOT 검증 결과를 로컬에 저장할 때는 서버 sync를 건너뜀 (순환 방지)
+    if (options?.skipSync) {
+        console.log('[Subscription] Skipping server sync (SSOT result storage)');
+        return;
+    }
 
     // Sync to server - use the status parameter directly to avoid circular reference
     const userId = await AsyncStorage.getItem('current_user_id');
