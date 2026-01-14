@@ -68,9 +68,21 @@ export default function ProScreen() {
         setSimpleState(state);
 
         // 구독 상세 정보 조회 (해지 예정 여부 포함)
+        // SSOT: 서버에서 구독 중(subscribed)인 경우에만 Google Play 상세 조회
+        // Google Play에 이전 구독 이력이 있어도 서버에서 구독 중이 아니면 무시
         if (state === 'active') {
-            const details = await getSubscriptionDetails();
-            setSubscriptionDetails(details);
+            // 서버 SSOT에서 hasPurchaseHistory 확인 (Google Play 이력이 서버와 일치하는지)
+            const hasPurchaseHistory = status.hasPurchaseHistory;
+
+            if (hasPurchaseHistory) {
+                // 서버에서도 결제 이력 확인됨 → Google Play 상세 정보 조회 (해지 예정 여부 등)
+                const details = await getSubscriptionDetails();
+                setSubscriptionDetails(details);
+            } else {
+                // 서버에 결제 이력 없음 → Google Play의 이전 테스트 구독은 무시
+                console.log('[ProScreen] Server has no purchase history, ignoring Google Play legacy subscription');
+                setSubscriptionDetails(null);
+            }
         }
     };
 

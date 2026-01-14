@@ -250,6 +250,13 @@ export async function verifySubscriptionWithServer(): Promise<{
     const status = determineSubscriptionState(serverResult);
     console.log(`[SSOT] Determined status for ${userId}: ${status}`);
 
+    // SSOT 검증 결과를 로컬 캐시에 저장 (설정 탭 서브타이틀 등에서 사용)
+    // loading 상태는 일시적이므로 저장하지 않음
+    if (status !== 'loading') {
+        await AsyncStorage.setItem(SUBSCRIPTION_KEYS.SUBSCRIPTION_STATUS, status);
+        console.log(`[SSOT] Saved status '${status}' to local cache`);
+    }
+
     await AsyncStorage.setItem(SUBSCRIPTION_KEYS.DAYS_REMAINING, serverResult.daysRemaining?.toString() || '0');
     await AsyncStorage.setItem('has_purchase_history', serverResult.hasPurchaseHistory ? 'true' : 'false');
     await AsyncStorage.setItem('entitlement_active', serverResult.entitlementActive ? 'true' : 'false');
