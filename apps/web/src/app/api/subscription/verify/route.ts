@@ -226,34 +226,8 @@ export async function POST(request: NextRequest) {
             deviceTrialInfo,
         };
 
-        // === SSOT 디버깅 로그 (프로덕션 vs 개발 차이 분석용) ===
-        console.log(`\n========== [SSOT_DEBUG] VERIFY for ${userId} @ ${serverTime.toISOString()} ==========`);
-        console.log(`[SSOT_DEBUG] DB Raw Data:`, {
-            dbStatus: subscription.status,
-            dbTrialStartDate: subscription.trialStartDate?.toISOString() || null,
-            dbSubscriptionStartDate: subscription.subscriptionStartDate?.toISOString() || null,
-            dbSubscriptionExpiryDate: subscription.subscriptionExpiryDate?.toISOString() || null,
-            dbDeviceId: subscription.deviceId,
-            dbForceExpired: subscription.forceExpired,
-        });
-        console.log(`[SSOT_DEBUG] Computed State:`, {
-            entitlementActive,
-            trialActive,
-            hasUsedTrial,
-            hasPurchaseHistory,
-            daysRemaining,
-            deviceBasedTrialBlock,
-        });
-        console.log(`[SSOT_DEBUG] Expected Client Status:`,
-            entitlementActive ? 'subscribed' :
-                trialActive ? 'trial' :
-                    deviceBasedTrialBlock ? 'blocked (device trial used)' :
-                        hasPurchaseHistory ? 'blocked (has purchase history but expired)' :
-                            hasUsedTrial ? 'blocked (trial expired)' : 'trial (new user)'
-        );
-        console.log(`==========================================================\n`);
-
-        console.log(`[DEBUG_PROD] [Subscription] Verify FINAL result for user ${userId}:`, JSON.stringify(result));
+        console.log(`[Subscription] Verify result for ${userId}: status=${entitlementActive ? 'subscribed' : trialActive ? 'trial' : 'blocked'
+            }, daysRemaining=${daysRemaining || 0}`);
 
         return NextResponse.json({
             success: true,
