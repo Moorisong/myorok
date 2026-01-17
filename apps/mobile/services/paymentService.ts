@@ -210,9 +210,24 @@ export async function getSubscriptionDetails(): Promise<SubscriptionDetails> {
       ? new Date(subscription.transactionDate).toISOString()
       : undefined;
 
-    // 만료일 계산: 마지막 결제일 + 30일 (월간 구독 기준)
+    // 만료일 계산: Google Play 실제 만료일 우선 사용, 실패 시 +30일 Fallback
     let expiryDate: string | undefined;
-    if (subscription.transactionDate) {
+
+    // 1. Android: 구글 플레이의 실제 만료일(expiryTimeMillis) 파싱
+    if (Platform.OS === 'android' && (subscription as any).dataAndroid) {
+      try {
+        const receiptData = JSON.parse((subscription as any).dataAndroid);
+        // expiryTimeMillis는 문자열로 된 밀리초 타임스탬프입니다.
+        if (receiptData.expiryTimeMillis) {
+          expiryDate = new Date(parseInt(receiptData.expiryTimeMillis, 10)).toISOString();
+        }
+      } catch (e) {
+        console.warn('[Payment] Failed to parse dataAndroid for expiry:', e);
+      }
+    }
+
+    // 2. Fallback: iOS거나 파싱 실패 시 기존 로직 유지 (안전장치)
+    if (!expiryDate && subscription.transactionDate) {
       const expiry = new Date(subscription.transactionDate);
       expiry.setDate(expiry.getDate() + 30);
       expiryDate = expiry.toISOString();
@@ -258,9 +273,23 @@ export async function getEntitlementVerification(): Promise<Partial<Verification
       };
     }
 
-    // 만료일 계산
+    // 만료일 계산: Google Play 실제 만료일 우선 사용
     let expiresDate: Date | undefined;
-    if (subscription.transactionDate) {
+
+    // 1. Android: 구글 플레이의 실제 만료일 사용
+    if (Platform.OS === 'android' && (subscription as any).dataAndroid) {
+      try {
+        const receiptData = JSON.parse((subscription as any).dataAndroid);
+        if (receiptData.expiryTimeMillis) {
+          expiresDate = new Date(parseInt(receiptData.expiryTimeMillis, 10));
+        }
+      } catch (e) {
+        console.warn('[Payment] Failed to parse expiryTimeMillis for entitlement:', e);
+      }
+    }
+
+    // 2. Fallback: 기존 로직 유지
+    if (!expiresDate && subscription.transactionDate) {
       expiresDate = new Date(subscription.transactionDate);
       expiresDate.setDate(expiresDate.getDate() + 30);
     }
