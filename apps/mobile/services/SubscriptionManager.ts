@@ -51,6 +51,15 @@ class SubscriptionManager {
         return SubscriptionManager.instance;
     }
 
+    /**
+     * 싱글톤 인스턴스 초기화 (테스트 격리용)
+     * - 각 테스트 beforeEach에서 호출하여 완전 격리
+     * - 프로덕션 코드에서는 사용 금지
+     */
+    static resetInstance(): void {
+        SubscriptionManager.instance = undefined as any;
+    }
+
     async setTestMode(skipRestore: boolean, skipSSOT: boolean = true): Promise<void> {
         this.forceSkipRestore = skipRestore;
         this.forceSkipSSOT = skipSSOT;
