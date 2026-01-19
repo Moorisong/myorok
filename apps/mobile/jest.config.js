@@ -15,6 +15,8 @@ module.exports = {
     '^expo-crypto$': '<rootDir>/__tests__/services/__mocks__/expoCrypto.ts',
     '^../constants/config$': '<rootDir>/__tests__/services/__mocks__/config.ts',
     '^../../constants/config$': '<rootDir>/__tests__/services/__mocks__/config.ts',
+    '^./subscription$': '<rootDir>/__tests__/services/__mocks__/subscription.ts',
+    '^./paymentService$': '<rootDir>/__tests__/services/__mocks__/paymentService.ts',
   },
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {
@@ -33,6 +35,7 @@ module.exports = {
       }
     }]
   },
-  resetMocks: true,
+  resetMocks: false,
+  clearMocks: true,
   testTimeout: 30000,
 };

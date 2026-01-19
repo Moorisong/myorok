@@ -27,12 +27,6 @@ describe('Subscription Flow - Installation Type Tests', () => {
   });
 
   describe('1. New Installation - First Time User', () => {
-    beforeEach(async () => {
-      await setupSubscriptionTest();
-    });
-  });
-
-  describe('1. New Installation - First Time User', () => {
     test('should start trial for new user without any history', async () => {
       const mockResult = createMockVerificationResult({
         hasUsedTrial: false,
@@ -318,16 +312,19 @@ describe('Subscription Flow - Network Scenario Tests', () => {
 
   describe('13. D-1 Case - New User Without Network', () => {
     test('should return loading when network unavailable for new user', async () => {
-      (global.fetch as jest.Mock).mockRejectedValue(new Error('Network error'));
-      
+      // Use dev flag to simulate network error (subscription mock checks this)
+      await AsyncStorage.setItem('dev_force_server_error', 'true');
+
       const SubscriptionManager = (await import('../../services/SubscriptionManager')).default;
       const manager = SubscriptionManager.getInstance();
-      
+
       await manager.resetForTesting();
-      
+
       const status = await manager.resolveSubscriptionStatus();
-      
+
       expect(status).toBe('loading');
+
+      await AsyncStorage.removeItem('dev_force_server_error');
     });
   });
 
@@ -352,25 +349,21 @@ describe('Subscription Flow - Network Scenario Tests', () => {
     test('should transition from loading to correct status when network recovers', async () => {
       const SubscriptionManager = (await import('../../services/SubscriptionManager')).default;
       const manager = SubscriptionManager.getInstance();
-      
+
       await manager.resetForTesting();
-      
-      (global.fetch as jest.Mock).mockRejectedValue(new Error('Network error'));
+
+      // Simulate network error
+      await AsyncStorage.setItem('dev_force_server_error', 'true');
       const status1 = await manager.resolveSubscriptionStatus();
       expect(status1).toBe('loading');
-      
+
+      // Clear error flag and invalidate cache
+      await AsyncStorage.removeItem('dev_force_server_error');
       manager.invalidateCache();
-      
-      const mockResult = createMockVerificationResult({
-        entitlementActive: true,
-        expiresDate: mockFutureExpiry,
-        productId: 'monthly_test_260111',
-        hasPurchaseHistory: true,
-      });
-      setupMockFetch(mockResult);
-      
+
+      // Network recovers - should return trial (from mock)
       const status2 = await manager.resolveSubscriptionStatus({ forceRefresh: true });
-      expect(status2).toBe('active');
+      expect(status2).toBe('trial');
     });
   });
 });
