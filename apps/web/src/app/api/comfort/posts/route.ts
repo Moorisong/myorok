@@ -11,6 +11,7 @@ import {
 } from '@/lib/comfort';
 import dbConnect from '@/lib/mongodb';
 import Device from '@/models/Device';
+import { checkRateLimit, createRateLimitKey, getClientIp, RATE_LIMITS } from '@/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 
@@ -98,6 +99,24 @@ export async function POST(request: NextRequest) {
         // 1시간 제한 체크 (Async) - skipCooldown이 true면 스킵
         const skipCooldown = body.skipCooldown === true;
         if (!skipCooldown) {
+            const clientIp = getClientIp(request);
+            const rateLimitKey = createRateLimitKey('post', deviceId, clientIp);
+            const rateLimitResult = await checkRateLimit(rateLimitKey, RATE_LIMITS.post);
+
+            if (!rateLimitResult.allowed) {
+                return NextResponse.json(
+                    {
+                        success: false,
+                        error: {
+                            code: 'RATE_LIMITED',
+                            message: rateLimitResult.reason || '잠시 후 다시 시도해주세요.',
+                        },
+                        waitSeconds: rateLimitResult.waitSeconds,
+                    },
+                    { status: 429 }
+                );
+            }
+
             const postStatus = await canPost(deviceId);
             if (!postStatus.canPost) {
                 return NextResponse.json(
