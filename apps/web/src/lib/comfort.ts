@@ -305,12 +305,12 @@ export async function canComment(deviceId: string): Promise<{ canComment: boolea
     const commentsInLastMinute = result?.lastMinute ?? 0;
     const commentsInLastFiveMinutes = result?.lastFiveMinutes ?? 0;
 
-    // 1분에 10개 이상 → 5분 대기
+    // 1분에 10개 이상 → 10분 대기
     if (commentsInLastMinute >= 10) {
         return {
             canComment: false,
-            waitSeconds: 300,
-            reason: '댓글을 너무 빠르게 작성하고 있습니다. 5분 후에 다시 시도해주세요.',
+            waitSeconds: 600,
+            reason: '댓글을 너무 빠르게 작성하고 있습니다. 10분 후에 다시 시도해주세요.',
         };
     }
 
