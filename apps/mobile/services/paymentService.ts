@@ -16,7 +16,7 @@ import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { VerificationResult } from './subscription';
 
-export const SUBSCRIPTION_SKU = 'monthly_test_260111';
+export const SUBSCRIPTION_SKU = 'myorok_pro_260130';
 // 레거시 상품 ID는 더 이상 허용하지 않음 (테스트 초기화 260111)
 // 기존 구독 이력이 있어도 무시하고 새 상품으로만 구매 가능
 const LEGACY_PRODUCT_IDS: string[] = [];
