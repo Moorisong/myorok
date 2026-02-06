@@ -99,7 +99,7 @@ export default function AdaptiveChart({
     }
 
     const maxValue = Math.max(...chartData.map(d => d.value)) * 1.2 || 100;
-    const showValues = chartType === 'DotChart' && chartData.length <= 15;
+    const showValues = true; // 항상 수치값 표시
 
     const handlePointPress = (point: typeof chartData[0], x: number, y: number) => {
         setTooltip({
@@ -190,16 +190,36 @@ export default function AdaptiveChart({
 }
 
 function formatDisplayDate(dateStr: string): string {
-    // Handle different date formats
+    // 주간 형식: 2026-W03 → 26년\n01월 01주
     if (dateStr.includes('-W')) {
-        // Week format: 2026-W01
-        return dateStr.replace('-W', '/W');
+        const [yearPart, weekPart] = dateStr.split('-W');
+        const year = yearPart.substring(2); // 26
+
+        // ISO 주차로부터 해당 주의 날짜 계산
+        const yearNum = parseInt(yearPart);
+        const weekNum = parseInt(weekPart);
+
+        // ISO week 기준 해당 주의 목요일 날짜 계산
+        const jan4 = new Date(yearNum, 0, 4); // 1월 4일은 항상 첫째 주에 속함
+        const dayOfWeek = jan4.getDay() || 7; // 일요일을 7로
+        const firstThursday = new Date(jan4);
+        firstThursday.setDate(jan4.getDate() - dayOfWeek + 4); // 첫째 주 목요일
+
+        const targetThursday = new Date(firstThursday);
+        targetThursday.setDate(firstThursday.getDate() + (weekNum - 1) * 7);
+
+        // 해당 월과 월 기준 주차 계산
+        const month = String(targetThursday.getMonth() + 1).padStart(2, '0');
+        const dayOfMonth = targetThursday.getDate();
+        const weekOfMonth = String(Math.ceil(dayOfMonth / 7)).padStart(2, '0');
+
+        return `${year}년\n${month}월 ${weekOfMonth}주`;
     }
+    // 월별 형식: 2026-01 → 26/01
     if (dateStr.length === 7) {
-        // Month format: 2026-01
         return dateStr.substring(2).replace('-', '/');
     }
-    // Day format: 2026-01-15
+    // 일별 형식: 2026-01-15 → 01/15
     return dateStr.substring(5).replace('-', '/');
 }
 
@@ -267,9 +287,10 @@ const styles = StyleSheet.create({
         marginTop: 12,
     },
     pointDate: {
-        fontSize: 10,
+        fontSize: 9,
         color: COLORS.textSecondary,
-        marginTop: 4,
+        marginTop: 8,
+        textAlign: 'center',
     },
     tooltip: {
         position: 'absolute',

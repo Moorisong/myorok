@@ -3,7 +3,6 @@ import { ScrollView } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 
 import { getRecentDailyRecords } from '../services/dailyRecords';
-import { getRecentSupplementHistory } from '../services/supplements';
 import { getRecentFluidHistory } from '../services/fluidRecords';
 import { useSelectedPet } from './use-selected-pet';
 
@@ -11,21 +10,17 @@ import type {
     Period,
     ChartData,
     HydrationData,
-    MedicineRow,
     OverallSummaryData,
     WeeklyChartData,
     WeeklyHydrationData,
-    MedicineSegment
+    MonthlyChartData,
+    MonthlyHydrationData
 } from '../types/chart-types';
 
 export function useSummaryChart() {
     const { selectedPetId } = useSelectedPet();
     const [chartData, setChartData] = useState<ChartData[]>([]);
     const [hydrationData, setHydrationData] = useState<HydrationData[]>([]);
-
-    // Medicine Chart State
-    const [medicineRows, setMedicineRows] = useState<MedicineRow[]>([]);
-    const [chartDates, setChartDates] = useState<string[]>([]);
 
     const [maxValue, setMaxValue] = useState(5);
     const [maxVolValue, setMaxVolValue] = useState(100);
@@ -40,6 +35,10 @@ export function useSummaryChart() {
     // Weekly Chart State (for '3m' period)
     const [weeklyChartData, setWeeklyChartData] = useState<WeeklyChartData[]>([]);
     const [weeklyHydrationData, setWeeklyHydrationData] = useState<WeeklyHydrationData[]>([]);
+
+    // Monthly Chart State (for '6m' period)
+    const [monthlyChartData, setMonthlyChartData] = useState<MonthlyChartData[]>([]);
+    const [monthlyHydrationData, setMonthlyHydrationData] = useState<MonthlyHydrationData[]>([]);
 
     // ScrollView refs
     const scrollViewRef = useRef<ScrollView>(null);
@@ -56,6 +55,7 @@ export function useSummaryChart() {
             case '15d': return 15;
             case '1m': return 30;
             case '3m': return 90;
+            case '6m': return 180;
             case 'all': return 365;
             default: return 15;
         }
@@ -65,7 +65,6 @@ export function useSummaryChart() {
         try {
             // Clear previous data to prevent flash of old data during period transition
             setIsLoading(true);
-            setMedicineRows([]);
 
             // Determine days for data fetching based on period
             let daysToFetch = 15;
@@ -77,6 +76,9 @@ export function useSummaryChart() {
             } else if (currentPeriod === '3m') {
                 daysToFetch = 90;
                 chartColumns = 12;
+            } else if (currentPeriod === '6m') {
+                daysToFetch = 180;
+                chartColumns = 6;
             } else if (currentPeriod === 'all') {
                 daysToFetch = 365;
                 chartColumns = 0;
@@ -102,16 +104,9 @@ export function useSummaryChart() {
                     const ddPad = String(d.getDate()).padStart(2, '0');
                     dateObjs.push(`${yyyy}-${mmPad}-${ddPad}`);
                 }
-            } else if (currentPeriod === '3m') {
-                for (let i = 11; i >= 0; i--) {
-                    dates.push(`W-${i}`);
-                }
             }
 
-            setChartDates(dates);
-
             const records = await getRecentDailyRecords(days);
-            const medicines = await getRecentSupplementHistory(Math.max(days, daysToFetch));
             const fluids = await getRecentFluidHistory(days);
 
             // Process Chart Data (Daily Records - Fill empty dates)
@@ -237,139 +232,6 @@ export function useSummaryChart() {
             setMaxValue(maxVal);
             setMaxVolValue(maxVol);
 
-            // --- Process Medicine Data (Adaptive) ---
-            const medMap = new Map<string, { isDeleted: boolean, takenMap: Map<string, boolean>, allDates: string[] }>();
-
-            medicines.forEach(m => {
-                let name = m.name;
-                let isDeleted = false;
-                if (m.name.includes('(삭제된 항목)')) {
-                    name = m.name.replace('(삭제된 항목)', '').trim();
-                    isDeleted = true;
-                }
-
-                if (!medMap.has(name)) {
-                    medMap.set(name, { isDeleted, takenMap: new Map(), allDates: [] });
-                }
-
-                const entry = medMap.get(name)!;
-                if (m.taken === 1) {
-                    entry.takenMap.set(m.date, true);
-                    entry.allDates.push(m.date);
-                }
-            });
-
-            const rows: MedicineRow[] = [];
-
-            medMap.forEach((data, name) => {
-                const row: MedicineRow = {
-                    name,
-                    isDeleted: data.isDeleted,
-                    segments: [],
-                    weekSegments: [],
-                    summary: undefined
-                };
-
-                if (currentPeriod === '15d' || currentPeriod === '1m') {
-                    // Timeline Logic
-                    const segments: MedicineSegment[] = [];
-                    let currentSegment: { start: number, length: number } | null = null;
-
-                    for (let i = 0; i < dateObjs.length; i++) {
-                        const date = dateObjs[i];
-                        const isTaken = data.takenMap.has(date);
-
-                        if (isTaken) {
-                            if (currentSegment) {
-                                currentSegment.length++;
-                            } else {
-                                currentSegment = { start: i, length: 1 };
-                            }
-                        } else {
-                            if (currentSegment) {
-                                segments.push({
-                                    type: currentSegment.length >= 2 ? 'bar' : 'dot',
-                                    startIndex: currentSegment.start,
-                                    length: currentSegment.length,
-                                    dateLabel: dates[currentSegment.start]
-                                });
-                                currentSegment = null;
-                            }
-                        }
-                    }
-                    if (currentSegment) {
-                        segments.push({
-                            type: currentSegment.length >= 2 ? 'bar' : 'dot',
-                            startIndex: currentSegment.start,
-                            length: currentSegment.length,
-                            dateLabel: dates[currentSegment.start]
-                        });
-                    }
-                    row.segments = segments;
-
-                } else if (currentPeriod === '3m') {
-                    // Week Aggregation Logic
-                    const weekSegments = [];
-                    for (let i = 11; i >= 0; i--) {
-                        const weekStart = new Date();
-                        weekStart.setDate(today.getDate() - (i * 7 + 6));
-                        const weekEnd = new Date();
-                        weekEnd.setDate(today.getDate() - (i * 7));
-
-                        let count = 0;
-                        for (let d = 0; d < 7; d++) {
-                            const checkDate = new Date(weekStart);
-                            checkDate.setDate(weekStart.getDate() + d);
-                            const y = checkDate.getFullYear();
-                            const m = String(checkDate.getMonth() + 1).padStart(2, '0');
-                            const dayStr = String(checkDate.getDate()).padStart(2, '0');
-                            if (data.takenMap.has(`${y}-${m}-${dayStr}`)) {
-                                count++;
-                            }
-                        }
-
-                        let type: 'thick' | 'thin' | 'dot' | 'none' = 'none';
-                        if (count >= 5) type = 'thick';
-                        else if (count >= 2) type = 'thin';
-                        else if (count >= 1) type = 'dot';
-                        else type = 'none';
-
-                        weekSegments.push({
-                            weekIndex: 11 - i,
-                            count,
-                            type,
-                            label: `${weekStart.getMonth() + 1}/${weekStart.getDate()}`
-                        });
-                    }
-                    row.weekSegments = weekSegments;
-
-                } else if (currentPeriod === 'all') {
-                    // Summary Logic
-                    data.allDates.sort();
-                    if (data.allDates.length > 0) {
-                        const start = data.allDates[0];
-                        const end = data.allDates[data.allDates.length - 1];
-
-                        const startDate = new Date(start);
-                        const endDate = new Date(end);
-                        const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
-                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-
-                        const weeks = Math.max(diffDays / 7, 1);
-                        const avg = (data.allDates.length / weeks).toFixed(1);
-
-                        row.summary = {
-                            startDate: start.substring(5).replace('-', '.'),
-                            endDate: end.substring(5).replace('-', '.'),
-                            totalDays: data.allDates.length,
-                            avgFreq: `주 ${avg}회`
-                        };
-                    }
-                }
-
-                rows.push(row);
-            });
-
             // --- Calculate Overall Summary for 'all' period ---
             if (currentPeriod === 'all' && records.length > 0) {
                 const sortedRecords = [...records].sort((a, b) => a.date.localeCompare(b.date));
@@ -432,23 +294,35 @@ export function useSummaryChart() {
 
                 const numWeeks = Math.min(Math.ceil(days / 7), 13);
 
+                const todayDate = new Date();
+                const startDate = new Date(todayDate);
+                startDate.setDate(startDate.getDate() - days + 1);
+
                 for (let i = 0; i < numWeeks; i++) {
+                    // 해당 주의 시작일 계산
+                    const weekStartDate = new Date(startDate);
+                    weekStartDate.setDate(startDate.getDate() + (i * 7));
+
+                    // 해당 월에서 몇째 주인지 계산
+                    const year = weekStartDate.getFullYear() % 100; // 2자리 연도
+                    const month = String(weekStartDate.getMonth() + 1).padStart(2, '0');
+                    const dayOfMonth = weekStartDate.getDate();
+                    const weekOfMonth = String(Math.ceil(dayOfMonth / 7)).padStart(2, '0');
+
+                    const weekLabel = `${year}년\n${month}월 ${weekOfMonth}주`;
+
                     weeklyData.push({
-                        weekLabel: `W${i + 1}`,
+                        weekLabel,
                         poop: 0,
                         diarrhea: 0,
                         vomit: 0
                     });
                     weeklyHydration.push({
-                        weekLabel: `W${i + 1}`,
+                        weekLabel,
                         force: 0,
                         fluid: 0
                     });
                 }
-
-                const todayDate = new Date();
-                const startDate = new Date(todayDate);
-                startDate.setDate(startDate.getDate() - days + 1);
 
                 sortedRecords.forEach(r => {
                     const recordDate = new Date(r.date);
@@ -483,7 +357,81 @@ export function useSummaryChart() {
                 setWeeklyHydrationData([]);
             }
 
-            setMedicineRows(rows);
+            // --- Calculate Monthly Data for '6m' period ---
+            if (currentPeriod === '6m') {
+                const monthlyData: MonthlyChartData[] = [];
+                const monthlyHydration: MonthlyHydrationData[] = [];
+
+                for (let i = 5; i >= 0; i--) {
+                    const monthDate = new Date();
+                    monthDate.setMonth(today.getMonth() - i);
+                    const monthLabel = `${monthDate.getMonth() + 1}월`;
+
+                    monthlyData.push({
+                        monthLabel,
+                        poop: 0,
+                        diarrhea: 0,
+                        vomit: 0
+                    });
+
+                    monthlyHydration.push({
+                        monthLabel,
+                        hasForce: false,
+                        hasFluid: false,
+                        force: 0,
+                        fluid: 0
+                    });
+                }
+
+                // Aggregate symptoms by month
+                records.forEach(r => {
+                    const recordDate = new Date(r.date);
+                    const recordMonth = recordDate.getMonth();
+                    const recordYear = recordDate.getFullYear();
+
+                    for (let i = 0; i < 6; i++) {
+                        const checkDate = new Date();
+                        checkDate.setMonth(today.getMonth() - (5 - i));
+
+                        if (recordMonth === checkDate.getMonth() && recordYear === checkDate.getFullYear()) {
+                            monthlyData[i].poop += r.poopCount || 0;
+                            monthlyData[i].diarrhea += r.diarrheaCount || 0;
+                            monthlyData[i].vomit += r.vomitCount || 0;
+                            break;
+                        }
+                    }
+                });
+
+                // Aggregate hydration by month (existence + volume)
+                fluids.forEach(f => {
+                    const recordDate = new Date(f.date);
+                    const recordMonth = recordDate.getMonth();
+                    const recordYear = recordDate.getFullYear();
+
+                    for (let i = 0; i < 6; i++) {
+                        const checkDate = new Date();
+                        checkDate.setMonth(today.getMonth() - (5 - i));
+
+                        if (recordMonth === checkDate.getMonth() && recordYear === checkDate.getFullYear()) {
+                            if (f.fluidType === 'force') {
+                                monthlyHydration[i].hasForce = true;
+                                monthlyHydration[i].force += f.volume || 0;
+                            } else {
+                                monthlyHydration[i].hasFluid = true;
+                                monthlyHydration[i].fluid += f.volume || 0;
+                            }
+                            break;
+                        }
+                    }
+                });
+
+                setMonthlyChartData(monthlyData);
+                setMonthlyHydrationData(monthlyHydration);
+            } else {
+                setMonthlyChartData([]);
+                setMonthlyHydrationData([]);
+            }
+
             setIsLoading(false);
 
         } catch (error) {
@@ -525,13 +473,13 @@ export function useSummaryChart() {
         isLoading,
         chartData,
         hydrationData,
-        medicineRows,
-        chartDates,
         maxValue,
         maxVolValue,
         overallSummary,
         weeklyChartData,
         weeklyHydrationData,
+        monthlyChartData,
+        monthlyHydrationData,
 
         // Refs
         scrollViewRef,

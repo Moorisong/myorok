@@ -2,7 +2,8 @@ import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { Platform, AppState } from 'react-native';
+import { Platform, AppState, View, ActivityIndicator, Text, StyleSheet, TouchableOpacity as RNTouchableOpacity } from 'react-native';
+const TouchableOpacity = RNTouchableOpacity;
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState, useRef } from 'react';
@@ -28,12 +29,14 @@ import { checkAndRestoreSubscription } from '../services/subscription';
 function AppContent() {
   const { isLoggedIn, setIsLoggedIn, isLoggingIn, setIsLoggingIn, checkAuthStatus, subscriptionStatus, setSubscriptionStatus } = useAuth();
   const [subscriptionBlocked, setSubscriptionBlocked] = useState(false);
+  const [isRestoreRetryNeeded, setIsRestoreRetryNeeded] = useState(false);
   const router = useRouter();
   const notificationListener = useRef<any>(null);
   const responseListener = useRef<any>(null);
   const NotificationsRef = useRef<any>(null);
   const appState = useRef(AppState.currentState);
   const subscriptionCheckInterval = useRef<NodeJS.Timeout | null>(null);
+  const subscriptionStatusRef = useRef(subscriptionStatus); // For closure access
 
   // Direct OAuth URL construction (bypasses expo-auth-session to avoid PKCE issues)
 
@@ -45,6 +48,9 @@ function AppContent() {
       try {
         // Check login status first using context
         await checkAuthStatus();
+
+        // Get login status after check (needed for conditional restore)
+        const currentUserId = await getCurrentUserId();
 
         // Initialize payment system
         try {
@@ -60,14 +66,23 @@ function AppContent() {
             async (purchase) => {
               // 결제 완료 처리
               try {
-                await completePurchase(purchase);
-                await handleSubscriptionSuccess();
+                // 1. SubscriptionManager를 통해 상태 업데이트 (중앙 집중식) - 레이스 컨디션 방지를 위해 최상단에서 수행
+                const SubscriptionManager = (await import('../services/SubscriptionManager')).default;
+                const manager = SubscriptionManager.getInstance();
+                await manager.handlePurchaseComplete();
 
-                // Auth context 업데이트하여 구독 상태 갱신
-                await checkAuthStatus();
-
-                // 즉시 구독 상태를 'active'로 설정 (React 상태 강제 업데이트)
+                // 2. UI 상태를 즉시 업데이트
+                console.log('[Payment] Purchase complete, setting status to active');
                 setSubscriptionStatus('active');
+
+                // 3. 결제 완료 처리 및 서버 동기화 (네트워크 작업은 백그라운드 성격으로 진행)
+                try {
+                  await completePurchase(purchase);
+                  await handleSubscriptionSuccess();
+                } catch (syncError) {
+                  console.error('[Payment] Background sync failed:', syncError);
+                  // UI는 이미 active이므로 사용자에게는 성공으로 보임
+                }
 
                 // 성공 토스트 표시
                 setTimeout(() => {
@@ -94,21 +109,32 @@ function AppContent() {
                 console.log('[Payment] Item already owned, syncing subscription status');
                 (async () => {
                   try {
-                    // 이미 구독 중이므로 Google Play에서 상태 가져오기
+                    // 1. 먼저 restore 플래그를 제거 (C-2 상태 해제 - 가장 먼저 해야 함)
+                    console.log('[Payment] Removing restore flags...');
+                    await AsyncStorage.removeItem('restore_attempted');
+                    await AsyncStorage.removeItem('restore_succeeded');
+
+                    // 2. 이미 구독 중이므로 Google Play에서 상태 가져오기
                     const { getSubscriptionDetails } = await import('../services/paymentService');
                     const { handleLicenseResponse } = await import('../services/licenseChecker');
 
                     const subscriptionDetails = await getSubscriptionDetails();
 
                     if (subscriptionDetails.isActive) {
-                      // 구독 활성화 처리
-                      await handleLicenseResponse('LICENSED', subscriptionDetails.expiryDate);
+                      // 3. 구독 활성화 처리 (실제 productId와 purchaseToken 전달)
+                      await handleLicenseResponse(
+                        'LICENSED',
+                        subscriptionDetails.expiryDate,
+                        subscriptionDetails.productId,
+                        subscriptionDetails.purchaseToken
+                      );
 
-                      // Auth context 업데이트하여 화면 갱신
-                      await checkAuthStatus();
-
-                      // 즉시 구독 상태를 'active'로 설정 (React 상태 강제 업데이트)
+                      // 4. UI 상태를 즉시 업데이트 (차단 화면 해제)
+                      console.log('[Payment] Setting subscription status to active');
                       setSubscriptionStatus('active');
+
+                      // 5. 강제로 메인 탭으로 이동 (React 상태 업데이트가 UI에 반영되지 않는 문제 해결)
+                      router.replace('/(tabs)');
 
                       setTimeout(() => {
                         const { showToast } = require('../utils/toast');
@@ -149,13 +175,12 @@ function AppContent() {
           // Cleanup 함수를 subscription 변수에 할당하여 나중에 제거
           subscription = { remove: cleanupListeners };
 
-          // 3. 기존 구독 복원 (재설치 시) - 로컬 상태가 expired인 경우에만 시도
-          const { getSubscriptionState } = await import('../services/subscription');
-          const localState = await getSubscriptionState();
-
-          // 만료 상태일 때만 Google Play에서 복원 시도 (active 상태는 유지)
-          if (localState === 'expired') {
-            await checkAndRestoreSubscription();
+          // 3. 기존 구독 복원 (재설치 시) - 이제 checkAuthStatus()에서 처리됨
+          // (Auto-restore가 checkAuthStatus() 내부에서 SSOT 호출 전에 실행됨)
+          if (currentUserId) {
+            console.log('[App] Auto-restore is now handled in checkAuthStatus()');
+          } else {
+            console.log('[App] Skip restore - not logged in');
           }
 
         } catch (error) {
@@ -163,17 +188,14 @@ function AppContent() {
           // 초기화 실패해도 앱은 계속 실행
         }
 
-        // Initialize subscription on first launch
-        await initializeSubscription();
-
-        // Check if app access is allowed (skip blocking in dev mode)
-        if (!__DEV__) {
-          const accessAllowed = await isAppAccessAllowed();
-          setSubscriptionBlocked(!accessAllowed);
+        if (currentUserId) {
+          // initializeSubscription is now handled within checkAuthStatus() 
+          // to ensure trial start date is set before main screen renders
+          console.log('[App] initializeSubscription is now handled in checkAuthStatus');
         } else {
-          // In dev mode, always allow access
-          setSubscriptionBlocked(false);
+          console.log('[App] Skip initializeSubscription - not logged in');
         }
+
 
         // Register push token first
         const token = await registerForPushNotificationsAsync();
@@ -296,13 +318,26 @@ function AppContent() {
             const now = new Date().toISOString();
 
             if (!existingUser) {
-              // New user - create in DB and start trial
+              // New user - create in DB
               await db.runAsync(
                 `INSERT INTO users (id, nickname, profileImage, createdAt, lastLogin)
                  VALUES (?, ?, ?, ?, ?)`,
                 [user.id, user.nickname, user.profileImage || null, now, now]
               );
-              await startTrialForUser(user.id);
+
+              // Dev auto-login에서는 trial 시작 건너뛰기 (이미 서버에 기록된 사용자일 수 있음)
+              const isDevAutoLogin = await AsyncStorage.getItem('dev_auto_login');
+              if (!isDevAutoLogin) {
+                try {
+                  await startTrialForUser(user.id);
+                } catch (trialError) {
+                  // 체험 시작 실패 (이미 사용함) - 로그인은 계속 진행
+                  // checkAuthStatus에서 blocked 상태로 전환됨
+                  console.log('[DeepLink] Trial start failed (already used or rejected), continuing login:', trialError);
+                }
+              } else {
+                console.log('[DeepLink] Skipping trial start for dev auto-login');
+              }
 
               // Migrate legacy data (data created before login)
               await migrateLegacyDataToUser(user.id);
@@ -314,7 +349,9 @@ function AppContent() {
               );
             }
 
-            // Re-check auth status to update context (including subscription)
+            // SubscriptionManager가 checkAuthStatus() 내에서 복원 + SSOT 처리
+            // 별도 restore 호출 불필요 (중복 호출 방지)
+            console.log('[DeepLink] Calling checkAuthStatus (SubscriptionManager handles restore + SSOT)');
             await checkAuthStatus();
 
             setIsLoggingIn(false);
@@ -364,6 +401,39 @@ function AppContent() {
     };
   }, []);
 
+  // Check if restore retry is needed when in loading state
+  useEffect(() => {
+    // 약간의 지연을 두고 체크 (플래그 제거가 완전히 반영되도록)
+    const timeoutId = setTimeout(async () => {
+      if (subscriptionStatus === 'loading') {
+        try {
+          const restoreAttempted = await AsyncStorage.getItem('restore_attempted');
+          const restoreSucceeded = await AsyncStorage.getItem('restore_succeeded');
+
+          console.log('[AppContent] Checking restore retry:', { restoreAttempted, restoreSucceeded });
+
+          // CASE C-2: Restore 시도했으나 실패
+          // restoreAttempted === 'true' && restoreSucceeded !== 'true'는
+          // 복원을 시도했지만 성공하지 않았다는 의미 (실패 또는 에러)
+          if (restoreAttempted === 'true' && restoreSucceeded !== 'true') {
+            console.log('[AppContent] Restore retry needed - showing block screen');
+            setIsRestoreRetryNeeded(true);
+          } else {
+            console.log('[AppContent] Restore retry not needed');
+            setIsRestoreRetryNeeded(false);
+          }
+        } catch (error) {
+          console.error('[AppContent] Failed to check restore retry:', error);
+          setIsRestoreRetryNeeded(false);
+        }
+      } else {
+        setIsRestoreRetryNeeded(false);
+      }
+    }, 100); // 100ms 지연
+
+    return () => clearTimeout(timeoutId);
+  }, [subscriptionStatus]);
+
   // AppState listener and periodic subscription check
   useEffect(() => {
     // 로그인하지 않았거나 로그인 중이면 체크하지 않음
@@ -371,16 +441,30 @@ function AppContent() {
       return;
     }
 
-    // 구독 상태 체크 함수
+    // Ref를 현재 값으로 업데이트 (closure 문제 해결)
+    subscriptionStatusRef.current = subscriptionStatus;
+
+    // 구독 상태 체크 함수 (SubscriptionManager 사용)
     const checkSubscriptionStatus = async () => {
       try {
-        const { getSubscriptionState } = await import('../services/subscription');
-        const currentState = await getSubscriptionState();
+        // Ref에서 현재 상태 읽기 (closure가 아닌 최신 값)
+        const currentStatus = subscriptionStatusRef.current;
+
+        // SSOT가 아직 실행되지 않았거나 'loading'을 반환한 경우, 체크하지 않음
+        if (currentStatus === null || currentStatus === 'loading') {
+          console.log('[AppState] Skipping status check - status is', currentStatus, '(D-1 SSOT)');
+          return;
+        }
+
+        // SubscriptionManager를 통해 상태 확인 (skipRestore: 포그라운드 전환에서는 복원 생략)
+        const SubscriptionManager = (await import('../services/SubscriptionManager')).default;
+        const manager = SubscriptionManager.getInstance();
+        const uiStatus = await manager.resolveSubscriptionStatus({ skipRestore: true });
 
         // 상태가 변경되었으면 context 업데이트
-        if (currentState !== subscriptionStatus) {
-          console.log('[AppState] Subscription status changed:', subscriptionStatus, '→', currentState);
-          setSubscriptionStatus(currentState as any);
+        if (uiStatus !== subscriptionStatus) {
+          console.log('[AppState] Subscription status changed:', subscriptionStatus, '→', uiStatus);
+          setSubscriptionStatus(uiStatus);
         }
       } catch (error) {
         console.error('[AppState] Failed to check subscription status:', error);
@@ -452,7 +536,24 @@ function AppContent() {
     }
   };
 
-  // 1. Initial Loading
+  const handleClearTestMode = async () => {
+    try {
+      const TestUserManager = (await import('../services/testUserManager')).default;
+      const testManager = TestUserManager.getInstance();
+      await testManager.endTest();
+
+      // SubscriptionManager 강제 리셋 (D-1/D-2 무한 로딩 탈출용)
+      const SubscriptionManager = (await import('../services/SubscriptionManager')).default;
+      const manager = SubscriptionManager.getInstance();
+      await manager.forceReset();
+
+      await checkAuthStatus();
+    } catch (error) {
+      console.error('[RootLayout] Failed to clear test mode:', error);
+    }
+  };
+
+  // 1. Initial Loading (로그인 상태 확인 중)
   if (isLoggedIn === null) {
     return (
       <GestureHandlerRootView style={{ flex: 1 }}>
@@ -480,19 +581,51 @@ function AppContent() {
     );
   }
 
-  // 3. Logging In Or Checking Subscription (Logged In but status unknown)
-  if (isLoggingIn || (isLoggedIn === true && subscriptionStatus === null)) {
+  // 3. Logging In / Checking Subscription / SSOT Loading State
+  // SSOT: subscriptionStatus === 'loading'일 때도 로딩 UI 표시 (스토어 검증 중)
+  // CASE C-2: Restore 실패 시 복원 재시도 화면 표시
+  if (isLoggingIn || (isLoggedIn === true && (subscriptionStatus === null || subscriptionStatus === 'loading'))) {
+    // C-2: Restore 재시도 필요 (복원 실패)
+    if (subscriptionStatus === 'loading' && isRestoreRetryNeeded) {
+      console.log('[AppContent] Detected C-2 case (loading + restore failed), showing block screen');
+      return (
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <SafeAreaProvider>
+            <StatusBar style="dark" />
+            <ToastProvider>
+              <SubscriptionBlockScreen />
+            </ToastProvider>
+          </SafeAreaProvider>
+        </GestureHandlerRootView>
+      );
+    }
+
+    // 일반 로딩 상태
     return (
       <GestureHandlerRootView style={{ flex: 1 }}>
         <SafeAreaProvider>
           <StatusBar style="dark" />
-          {/* Loading screen during login process */}
+          <View style={loadingStyles.container}>
+            <ActivityIndicator size="large" color={COLORS.primary} />
+            <Text style={loadingStyles.text}>
+              {isLoggingIn ? '로그인 중...' : '구독 상태 확인 중...'}
+            </Text>
+            {__DEV__ && (
+              <TouchableOpacity
+                onPress={handleClearTestMode}
+                style={loadingStyles.testModeButton}
+              >
+                <Text style={loadingStyles.testModeButtonText}>테스트 모드 종료</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </SafeAreaProvider>
       </GestureHandlerRootView>
     );
   }
 
-  // 4. Logged In & Expired -> Block Screen
+  // 4. Logged In & Expired/Blocked -> Block Screen
+  // SSOT: 'expired' 상태 = 'blocked' 상태 (차단 화면 표시)
   if (isLoggedIn === true && subscriptionStatus === 'expired') {
     return (
       <GestureHandlerRootView style={{ flex: 1 }}>
@@ -507,6 +640,7 @@ function AppContent() {
   }
 
   // 5. Active / Trial -> Main App
+  // SSOT: 'active' = 'subscribed', 'trial' = trial
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
@@ -522,7 +656,7 @@ function AppContent() {
               <Stack.Screen name="(tabs)" />
             </Stack>
             {/* Dev/Update blocking if needed */}
-            {subscriptionBlocked && <SubscriptionBlockScreen />}
+            {/* {subscriptionBlocked && <SubscriptionBlockScreen />} */}
           </ToastProvider>
         </PetProvider>
       </SafeAreaProvider>
@@ -538,3 +672,31 @@ export default function RootLayout() {
     </AuthProvider>
   );
 }
+
+// Loading screen styles
+const loadingStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+  },
+  text: {
+    marginTop: 16,
+    fontSize: 16,
+    color: COLORS.textSecondary,
+    fontWeight: '500',
+  },
+  testModeButton: {
+    marginTop: 40,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+  },
+  testModeButtonText: {
+    color: COLORS.primary,
+    fontWeight: 'bold',
+  },
+});

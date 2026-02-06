@@ -13,9 +13,13 @@ import {
   PurchaseError,
 } from 'react-native-iap';
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { VerificationResult } from './subscription';
 
-export const SUBSCRIPTION_SKU = 'myorok_monthly_premium';
-// const PRODUCT_ID = 'myorok_monthly_premium'; // Replaced by exported constant
+export const SUBSCRIPTION_SKU = 'myorok_pro_260130';
+// 레거시 상품 ID는 더 이상 허용하지 않음 (테스트 초기화 260111)
+// 기존 구독 이력이 있어도 무시하고 새 상품으로만 구매 가능
+const LEGACY_PRODUCT_IDS: string[] = [];
 
 // Export requestPurchase so it can be used directly if needed, or use purchaseSubscription wrapper
 export { requestPurchase };
@@ -30,7 +34,6 @@ let globalOnPurchaseError: ((error: PurchaseError) => void) | null = null;
 export async function initializePayment(): Promise<void> {
   try {
     await initConnection();
-    console.log('Payment system initialized');
   } catch (error) {
     console.error('Failed to initialize payment system:', error);
     throw error;
@@ -44,27 +47,20 @@ export function setupPurchaseListeners(
   onPurchaseUpdate: (purchase: Purchase) => void,
   onPurchaseError: (error: PurchaseError) => void
 ): () => void {
-  console.log('Setting up purchase listeners...');
-
   // Purchase 업데이트 리스너
   const purchaseUpdateSubscription = purchaseUpdatedListener((purchase: Purchase) => {
-    console.log('Purchase update received:', purchase);
     onPurchaseUpdate(purchase);
   });
 
   // Purchase 에러 리스너
   const purchaseErrorSubscription = purchaseErrorListener((error: PurchaseError) => {
-    console.log('Purchase error received:', error);
     onPurchaseError(error);
   });
-
-  console.log('Purchase listeners setup completed');
 
   // Cleanup 함수 반환
   return () => {
     purchaseUpdateSubscription.remove();
     purchaseErrorSubscription.remove();
-    console.log('Purchase listeners removed');
   };
 }
 
@@ -88,7 +84,6 @@ export async function fetchProducts(): Promise<Product[]> {
  */
 export async function purchaseSubscription(): Promise<void> {
   try {
-    console.log('Purchase request initiated');
     // react-native-iap v14 requires request object with platform-specific fields
     await requestPurchase({
       request: {
@@ -111,15 +106,11 @@ export async function purchaseSubscription(): Promise<void> {
  */
 export async function completePurchase(purchase: Purchase): Promise<void> {
   try {
-    console.log('Completing purchase:', purchase.productId);
-
     // 구독은 consumable이 아님
     await finishTransaction({
       purchase,
       isConsumable: false,
     });
-
-    console.log('Purchase completed and finished');
   } catch (error) {
     console.error('Failed to complete purchase:', error);
     throw error;
@@ -128,16 +119,49 @@ export async function completePurchase(purchase: Purchase): Promise<void> {
 
 /**
  * 구독 복원 (재설치 시)
+ * SSOT: restore 시도를 기록 (CASE D)
+ * @param setFlags 복원 시도/성공 플래그 설정 여부 (기본값: true)
+ *                 - true: 사용자가 명시적으로 복원 버튼을 눌렀을 때
+ *                 - false: 앱 초기화 시 자동 복원 시도 (플래그 설정 안 함)
  */
-export async function restorePurchases(): Promise<boolean> {
+export async function restorePurchases(setFlags: boolean = true): Promise<boolean> {
   try {
+    // restore 시도 기록 (CASE D) - 사용자가 버튼을 눌렀을 때만
+    if (setFlags) {
+      await AsyncStorage.setItem('restore_attempted', 'true');
+    }
+
     const purchases = await getAvailablePurchases();
+
+    // 디버그: 복원 시 모든 구매 내역 로그
+    console.log('[Payment] restorePurchases - All purchases:', purchases.map(p => p.productId));
+    console.log('[Payment] restorePurchases - Looking for:', SUBSCRIPTION_SKU);
+
     const hasActiveSubscription = purchases.some(
-      (purchase: Purchase) => purchase.productId === SUBSCRIPTION_SKU
+      (purchase: Purchase) =>
+        purchase.productId === SUBSCRIPTION_SKU ||
+        LEGACY_PRODUCT_IDS.includes(purchase.productId)
     );
+
+    console.log('[Payment] restorePurchases - hasActiveSubscription:', hasActiveSubscription);
+
+    // restore 결과 기록 (SSOT 판별용) - 사용자가 버튼을 눌렀을 때만
+    if (setFlags) {
+      await AsyncStorage.setItem('restore_succeeded', hasActiveSubscription ? 'true' : 'false');
+    }
+
+    if (hasActiveSubscription) {
+      console.log('[Payment] Restore successful');
+    } else {
+      console.log('[Payment] No active subscription found');
+    }
+
     return hasActiveSubscription;
   } catch (error) {
     console.error('Failed to restore purchases:', error);
+    if (setFlags) {
+      await AsyncStorage.setItem('restore_succeeded', 'false');
+    }
     return false;
   }
 }
@@ -147,6 +171,8 @@ export interface SubscriptionDetails {
   autoRenewing: boolean;  // true면 구독중, false면 해지 예정
   transactionDate?: string;  // 마지막 결제일
   expiryDate?: string;  // 만료 예정일 (다음 결제일)
+  productId?: string;
+  purchaseToken?: string;
 }
 
 /**
@@ -155,9 +181,22 @@ export interface SubscriptionDetails {
 export async function getSubscriptionDetails(): Promise<SubscriptionDetails> {
   try {
     const purchases = await getAvailablePurchases();
+
+    // 디버그: 모든 구매 내역 로그
+    console.log('[Payment] All available purchases:', purchases.map(p => ({
+      productId: p.productId,
+      transactionDate: p.transactionDate,
+    })));
+    console.log('[Payment] Expected SKU:', SUBSCRIPTION_SKU);
+    console.log('[Payment] Legacy IDs:', LEGACY_PRODUCT_IDS);
+
     const subscription = purchases.find(
-      (purchase: Purchase) => purchase.productId === SUBSCRIPTION_SKU
+      (purchase: Purchase) =>
+        purchase.productId === SUBSCRIPTION_SKU ||
+        LEGACY_PRODUCT_IDS.includes(purchase.productId)
     );
+
+    console.log('[Payment] Matched subscription:', subscription?.productId || 'none');
 
     if (!subscription) {
       return { isActive: false, autoRenewing: false };
@@ -171,25 +210,37 @@ export async function getSubscriptionDetails(): Promise<SubscriptionDetails> {
       ? new Date(subscription.transactionDate).toISOString()
       : undefined;
 
-    // 만료일 계산: 마지막 결제일 + 30일 (월간 구독 기준)
+    // 만료일 계산: Google Play 실제 만료일 우선 사용, 실패 시 +30일 Fallback
     let expiryDate: string | undefined;
-    if (subscription.transactionDate) {
+
+    // 1. Android: 구글 플레이의 실제 만료일(expiryTimeMillis) 파싱
+    if (Platform.OS === 'android' && (subscription as any).dataAndroid) {
+      try {
+        const receiptData = JSON.parse((subscription as any).dataAndroid);
+        // expiryTimeMillis는 문자열로 된 밀리초 타임스탬프입니다.
+        if (receiptData.expiryTimeMillis) {
+          expiryDate = new Date(parseInt(receiptData.expiryTimeMillis, 10)).toISOString();
+        }
+      } catch (e) {
+        console.warn('[Payment] Failed to parse dataAndroid for expiry:', e);
+      }
+    }
+
+    // 2. Fallback: iOS거나 파싱 실패 시 기존 로직 유지 (안전장치)
+    if (!expiryDate && subscription.transactionDate) {
       const expiry = new Date(subscription.transactionDate);
       expiry.setDate(expiry.getDate() + 30);
       expiryDate = expiry.toISOString();
     }
 
-    console.log('[PaymentService] Subscription details:', {
-      autoRenewing,
-      transactionDate,
-      expiryDate
-    });
 
     return {
       isActive: true,
       autoRenewing,
       transactionDate,
       expiryDate,
+      productId: subscription.productId,
+      purchaseToken: subscription.purchaseToken || undefined,
     };
   } catch (error) {
     console.error('Failed to get subscription details:', error);
@@ -197,6 +248,72 @@ export async function getSubscriptionDetails(): Promise<SubscriptionDetails> {
   }
 }
 
+/**
+ * SSOT용 Entitlement 검증 (VerificationResult 형식)
+ * Google Play 스토어에서 구독 상태를 조회하여 SSOT 판별에 사용
+ */
+export async function getEntitlementVerification(): Promise<Partial<VerificationResult>> {
+  try {
+    const purchases = await getAvailablePurchases();
+    const subscription = purchases.find(
+      (purchase: Purchase) =>
+        purchase.productId === SUBSCRIPTION_SKU ||
+        LEGACY_PRODUCT_IDS.includes(purchase.productId)
+    );
+
+    if (!subscription) {
+      // 구독 없음
+      return {
+        success: true,
+        entitlementActive: false,
+        productId: undefined,
+        expiresDate: undefined,
+        isPending: false,
+        source: 'cache', // 로컬 스토어 캐시에서 가져옴
+      };
+    }
+
+    // 만료일 계산: Google Play 실제 만료일 우선 사용
+    let expiresDate: Date | undefined;
+
+    // 1. Android: 구글 플레이의 실제 만료일 사용
+    if (Platform.OS === 'android' && (subscription as any).dataAndroid) {
+      try {
+        const receiptData = JSON.parse((subscription as any).dataAndroid);
+        if (receiptData.expiryTimeMillis) {
+          expiresDate = new Date(parseInt(receiptData.expiryTimeMillis, 10));
+        }
+      } catch (e) {
+        console.warn('[Payment] Failed to parse expiryTimeMillis for entitlement:', e);
+      }
+    }
+
+    // 2. Fallback: 기존 로직 유지
+    if (!expiresDate && subscription.transactionDate) {
+      expiresDate = new Date(subscription.transactionDate);
+      expiresDate.setDate(expiresDate.getDate() + 30);
+    }
+
+    // pending 상태 확인
+    const isPending = (subscription as any).purchaseStateAndroid === 4; // PENDING state
+
+    return {
+      success: true,
+      entitlementActive: true,
+      productId: subscription.productId,
+      expiresDate,
+      isPending,
+      source: 'cache', // 로컬 스토어 캐시에서 가져옴
+    };
+  } catch (error) {
+    console.error('[Payment] Entitlement verification failed:', error);
+    return {
+      success: false,
+      entitlementActive: false,
+      source: 'cache',
+    };
+  }
+}
 
 /**
  * 결제 시스템 연결 해제
@@ -204,8 +321,8 @@ export async function getSubscriptionDetails(): Promise<SubscriptionDetails> {
 export async function disconnectPayment(): Promise<void> {
   try {
     await endConnection();
-    console.log('Payment system disconnected');
   } catch (error) {
     console.error('Failed to disconnect payment system:', error);
   }
 }
+

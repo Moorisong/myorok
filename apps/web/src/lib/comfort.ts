@@ -77,6 +77,8 @@ const PostSchema = new mongoose.Schema({
     cheerCount: { type: Number, default: 0 },
 });
 
+PostSchema.index({ 'comments.deviceId': 1, 'comments.createdAt': -1 });
+
 const BlockedDeviceSchema = new mongoose.Schema({
     deviceId: { type: String, required: true },
     blockedDeviceId: { type: String, required: true },
@@ -104,15 +106,20 @@ export async function cleanupOldPosts(): Promise<void> {
     await dbConnect();
     const { PostModel } = getModels();
 
-    // Get current time in Korea (UTC+9)
+    // 한국 시간(UTC+9) 기준 오늘 자정을 UTC로 계산
     const now = new Date();
-    const koreaTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+    const koreaOffset = 9 * 60 * 60 * 1000; // 9시간 (밀리초)
 
-    // Set to midnight in Korea time
-    koreaTime.setHours(0, 0, 0, 0);
+    // 현재 시간을 한국 시간으로 변환
+    const koreaTime = new Date(now.getTime() + koreaOffset);
 
-    // Convert back to ISO string for comparison
-    const koreaMidnightIso = koreaTime.toISOString();
+    // 한국 시간 기준 오늘 자정 (UTC 기준으로 설정)
+    koreaTime.setUTCHours(0, 0, 0, 0);
+
+    // 다시 UTC로 변환 (한국 자정 = UTC 전날 15:00)
+    const koreaMidnightUtc = new Date(koreaTime.getTime() - koreaOffset);
+
+    const koreaMidnightIso = koreaMidnightUtc.toISOString();
 
     // Delete posts created before today's midnight (Korea time)
     await PostModel.deleteMany({ createdAt: { $lt: koreaMidnightIso } });
@@ -267,6 +274,7 @@ export async function getModelsAsync() {
 }
 
 // 댓글 도배 방지 체크 (1분 10개, 5분 50개)
+// 최적화: O(N) 전체 스캔 → O(log N + K) aggregate + index 활용
 export async function canComment(deviceId: string): Promise<{ canComment: boolean; waitSeconds?: number; reason?: string }> {
     await dbConnect();
     const { PostModel } = getModels();
@@ -275,32 +283,34 @@ export async function canComment(deviceId: string): Promise<{ canComment: boolea
     const oneMinuteAgo = new Date(now.getTime() - 60 * 1000).toISOString();
     const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000).toISOString();
 
-    // 모든 게시글에서 해당 사용자의 댓글 수 카운트
-    const posts = await PostModel.find({}).lean();
+    const [result] = await PostModel.aggregate([
+        { $unwind: { path: '$comments', preserveNullAndEmptyArrays: false } },
+        {
+            $match: {
+                'comments.deviceId': deviceId,
+                'comments.createdAt': { $gte: fiveMinutesAgo },
+            },
+        },
+        {
+            $group: {
+                _id: null,
+                lastMinute: {
+                    $sum: { $cond: [{ $gte: ['$comments.createdAt', oneMinuteAgo] }, 1, 0] },
+                },
+                lastFiveMinutes: { $sum: 1 },
+            },
+        },
+    ]);
 
-    let commentsInLastMinute = 0;
-    let commentsInLastFiveMinutes = 0;
+    const commentsInLastMinute = result?.lastMinute ?? 0;
+    const commentsInLastFiveMinutes = result?.lastFiveMinutes ?? 0;
 
-    for (const post of posts) {
-        for (const comment of (post as any).comments || []) {
-            if (comment.deviceId !== deviceId) continue;
-
-            const commentTime = comment.createdAt;
-            if (commentTime >= oneMinuteAgo) {
-                commentsInLastMinute++;
-            }
-            if (commentTime >= fiveMinutesAgo) {
-                commentsInLastFiveMinutes++;
-            }
-        }
-    }
-
-    // 1분에 10개 이상 → 5분 대기
+    // 1분에 10개 이상 → 10분 대기
     if (commentsInLastMinute >= 10) {
         return {
             canComment: false,
-            waitSeconds: 300,
-            reason: '댓글을 너무 빠르게 작성하고 있습니다. 5분 후에 다시 시도해주세요.',
+            waitSeconds: 600,
+            reason: '댓글을 너무 빠르게 작성하고 있습니다. 10분 후에 다시 시도해주세요.',
         };
     }
 

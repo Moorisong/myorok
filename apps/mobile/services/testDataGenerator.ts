@@ -82,7 +82,18 @@ export async function generateTestData(): Promise<{ petsCreated: number; records
         for (let j = 0; j < intakeCount; j++) {
             const id = generateId();
             const volume = randomInt(10, 50);
-            const fluidType = Math.random() < 0.7 ? 'water' : 'wet_food'; // 70% 물, 30% 습식사료
+            // 60% 물, 20% 습식사료, 10% 강수, 10% 수액
+            const rand = Math.random();
+            let fluidType: string;
+            if (rand < 0.6) {
+                fluidType = 'water';
+            } else if (rand < 0.8) {
+                fluidType = 'wet_food';
+            } else if (rand < 0.9) {
+                fluidType = 'force';  // 강수
+            } else {
+                fluidType = 'fluid';  // 수액
+            }
 
             await db.runAsync(
                 `INSERT INTO fluid_records (id, petId, date, fluidType, volume, createdAt, userId)

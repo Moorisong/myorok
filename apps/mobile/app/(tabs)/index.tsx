@@ -22,6 +22,7 @@ import {
 import {
     Toast,
     NumberEditModal,
+    VomitColorModal,
     CounterButton,
     SupplementChecklist,
     FluidInputSection,
@@ -30,10 +31,12 @@ import {
 } from '../../components';
 import PetSelector from '../../components/pet-selector';
 import { useTodayScreen } from '../../hooks/use-today-screen';
+import { useAuth } from '../../hooks/useAuth';
 import { getSubscriptionStatus } from '../../services';
 
 export default function TodayScreen() {
     const router = useRouter();
+    const { subscriptionStatus } = useAuth();
     const [trialDaysRemaining, setTrialDaysRemaining] = useState<number | null>(null);
     const {
         // States
@@ -54,9 +57,13 @@ export default function TodayScreen() {
 
         // Handlers
         handlePeeAdd,
+        handlePeeSubtract,
         handlePoopAdd,
+        handlePoopSubtract,
         handleDiarrheaAdd,
+        handleDiarrheaSubtract,
         handleVomitAdd,
+        handleVomitSubtract,
         handleVomitColorSelect,
         handleFluidDelete,
         handleSupplementToggle,
@@ -75,31 +82,58 @@ export default function TodayScreen() {
         // Setters
         setMemo,
         setEditModalVisible,
+
         editTarget,
     } = useTodayScreen();
+
+    const [isVomitModalOpen, setIsVomitModalOpen] = useState(false);
+
+    const onPressVomitAdd = () => {
+        setIsVomitModalOpen(true);
+    };
+
+    const onSelectVomitColor = async (color: any) => {
+        setIsVomitModalOpen(false);
+        await handleVomitColorSelect(color);
+    };
 
     // Date formatting (UI helper)
     const today = new Date();
     const dateString = `${today.getMonth() + 1}월 ${today.getDate()}일`;
     const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
 
-    // Fetch subscription status when screen comes into focus
+    // Load trial days remaining (only needed for the banner text)
+    const loadTrialDays = useCallback(async () => {
+        if (subscriptionStatus === 'trial') {
+            const status = await getSubscriptionStatus();
+            console.log('[TodayScreen] Trial days remaining:', status.daysRemaining);
+            setTrialDaysRemaining(status.daysRemaining ?? 7);
+        } else {
+            setTrialDaysRemaining(null);
+        }
+    }, [subscriptionStatus]);
+
+    // Load trial days when subscriptionStatus changes
+    useEffect(() => {
+        loadTrialDays();
+    }, [loadTrialDays, subscriptionStatus]);
+
+    // Refresh when screen comes into focus (returning from other tabs)
     useFocusEffect(
         useCallback(() => {
-            (async () => {
-                const status = await getSubscriptionStatus();
-
-                if (status.status === 'trial' && status.daysRemaining !== undefined) {
-                    setTrialDaysRemaining(status.daysRemaining);
-                } else {
-                    setTrialDaysRemaining(null);
-                }
-            })();
-        }, [])
+            loadTrialDays();
+        }, [loadTrialDays])
     );
 
     const handleTrialBannerPress = () => {
-        router.push('/(tabs)/settings/pro');
+        // 탭 간 이동 시 스택 꼬임 방지를 위해 2단계로 이동
+        // 1. 설정 탭으로 이동 (스택 초기화/진입)
+        router.navigate('/(tabs)/settings');
+
+        // 2. 약간의 지연 후 프로 화면으로 이동 (스택 위에 쌓기)
+        setTimeout(() => {
+            router.push('/(tabs)/settings/pro');
+        }, 100);
     };
 
 
@@ -133,10 +167,10 @@ export default function TodayScreen() {
                     keyboardShouldPersistTaps="handled"
                 >
                     {/* Trial Banner */}
-                    {trialDaysRemaining !== null && trialDaysRemaining > 0 && (
+                    {subscriptionStatus === 'trial' && (
                         <View style={styles.trialBannerContainer}>
                             <TrialBanner
-                                daysRemaining={trialDaysRemaining}
+                                daysRemaining={trialDaysRemaining ?? 7}
                                 onPress={handleTrialBannerPress}
                             />
                         </View>
@@ -158,6 +192,7 @@ export default function TodayScreen() {
                                 label="소변"
                                 count={peeCount}
                                 onPressAdd={handlePeeAdd}
+                                onPressSubtract={handlePeeSubtract}
                                 onPressCount={() => openEditModal('pee')}
                             />
                             <CounterButton
@@ -165,6 +200,7 @@ export default function TodayScreen() {
                                 label="배변"
                                 count={poopCount}
                                 onPressAdd={handlePoopAdd}
+                                onPressSubtract={handlePoopSubtract}
                                 onPressCount={() => openEditModal('poop')}
                             />
                             <CounterButton
@@ -172,6 +208,7 @@ export default function TodayScreen() {
                                 label="묽은 변"
                                 count={diarrheaCount}
                                 onPressAdd={handleDiarrheaAdd}
+                                onPressSubtract={handleDiarrheaSubtract}
                                 onPressCount={() => openEditModal('diarrhea')}
                                 warning
                             />
@@ -179,28 +216,14 @@ export default function TodayScreen() {
                                 emoji="🤮"
                                 label="구토"
                                 count={vomitCount}
-                                onPressAdd={handleVomitAdd}
+                                onPressAdd={onPressVomitAdd}
+                                onPressSubtract={handleVomitSubtract}
                                 onPressCount={() => openEditModal('vomit')}
                                 warning
                             />
                         </View>
 
-                        {showVomitColors && (
-                            <View style={styles.colorSelector}>
-                                <Text style={styles.colorTitle}>구토 색상 선택</Text>
-                                <View style={styles.colorOptions}>
-                                    {VOMIT_COLORS.map(color => (
-                                        <Pressable
-                                            key={color}
-                                            style={styles.colorOption}
-                                            onPress={() => handleVomitColorSelect(color)}
-                                        >
-                                            <Text style={styles.colorText}>{color}</Text>
-                                        </Pressable>
-                                    ))}
-                                </View>
-                            </View>
-                        )}
+
 
                         {vomitColors.length > 0 && (
                             <Text style={styles.vomitHistory}>기록된 구토 색상: {vomitColors.join(', ')}</Text>
@@ -275,6 +298,12 @@ export default function TodayScreen() {
                 vomitColors={vomitColors}
                 isVomitMode={editTarget === 'vomit'}
             />
+
+            <VomitColorModal
+                visible={isVomitModalOpen}
+                onClose={() => setIsVomitModalOpen(false)}
+                onSelect={onSelectVomitColor}
+            />
         </SafeAreaView>
     );
 }
@@ -346,34 +375,7 @@ const styles = StyleSheet.create({
         flexWrap: 'wrap',
         gap: 10,
     },
-    colorSelector: {
-        marginTop: 12,
-        padding: 12,
-        backgroundColor: COLORS.background,
-        borderRadius: 12,
-    },
-    colorTitle: {
-        fontSize: 13,
-        color: COLORS.textSecondary,
-        marginBottom: 8,
-    },
-    colorOptions: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 8,
-    },
-    colorOption: {
-        paddingHorizontal: 14,
-        paddingVertical: 8,
-        backgroundColor: COLORS.surface,
-        borderRadius: 8,
-        borderWidth: 1,
-        borderColor: COLORS.border,
-    },
-    colorText: {
-        fontSize: 13,
-        color: COLORS.textPrimary,
-    },
+
     vomitHistory: {
         marginTop: 10,
         fontSize: 13,

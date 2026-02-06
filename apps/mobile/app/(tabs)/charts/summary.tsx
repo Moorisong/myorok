@@ -6,11 +6,9 @@ import { COLORS } from '../../../constants';
 import {
     Header,
     Card,
-    SummaryOverallCards,
-    SummaryWeeklyCharts,
-    SummaryDailyCharts,
-    SummaryMedicineChart
+    SummaryOverallCards
 } from '../../../components';
+import SummaryCharts from '../../../components/summary-charts';
 import { useSummaryChart } from '../../../hooks/use-summary-chart';
 import type { Period } from '../../../types/chart-types';
 
@@ -21,13 +19,13 @@ export default function SummaryChartScreen() {
         isLoading,
         chartData,
         hydrationData,
-        medicineRows,
-        chartDates,
         maxValue,
         maxVolValue,
         overallSummary,
         weeklyChartData,
         weeklyHydrationData,
+        monthlyChartData,
+        monthlyHydrationData,
 
         // Refs
         scrollViewRef,
@@ -49,7 +47,7 @@ export default function SummaryChartScreen() {
 
             {/* Period Selector */}
             <View style={styles.periodSelector}>
-                {(['15d', '1m', '3m', 'all'] as Period[]).map((p) => (
+                {(['15d', '1m', '3m', '6m', 'all'] as Period[]).map((p) => (
                     <Pressable
                         key={p}
                         style={[
@@ -62,13 +60,16 @@ export default function SummaryChartScreen() {
                             styles.periodButtonText,
                             period === p && styles.periodButtonTextSelected
                         ]}>
-                            {p === '15d' ? '15일' : p === '1m' ? '1개월' : p === '3m' ? '3개월' : '전체'}
+                            {p === '15d' ? '15일' : p === '1m' ? '1개월' : p === '3m' ? '3개월' : p === '6m' ? '6개월' : '전체'}
                         </Text>
                     </Pressable>
                 ))}
             </View>
 
-            <ScrollView style={styles.content}>
+            <ScrollView
+                style={styles.content}
+                contentContainerStyle={styles.scrollContent}
+            >
                 {/* 전체 기간: 요약 카드 표시 */}
                 {period === 'all' && overallSummary ? (
                     <SummaryOverallCards overallSummary={overallSummary} />
@@ -78,34 +79,22 @@ export default function SummaryChartScreen() {
                             <Text style={styles.emptyText}>기록이 없습니다.</Text>
                         </View>
                     </Card>
-                ) : period === '3m' ? (
-                    <SummaryWeeklyCharts
+                ) : (
+                    <SummaryCharts
+                        period={period}
+                        chartData={chartData}
+                        hydrationData={hydrationData}
+                        maxValue={maxValue}
+                        maxVolValue={maxVolValue}
                         weeklyChartData={weeklyChartData}
                         weeklyHydrationData={weeklyHydrationData}
-                        scrollViewRef3m1={scrollViewRef3m1}
-                        scrollViewRef3m2={scrollViewRef3m2}
-                        scrollViewRef3m3={scrollViewRef3m3}
-                        scrollViewRef3m4={scrollViewRef3m4}
+                        monthlyChartData={monthlyChartData}
+                        monthlyHydrationData={monthlyHydrationData}
+                        scrollViewRefs={{
+                            daily: [scrollViewRef, scrollViewRef2, scrollViewRef3, scrollViewRef4],
+                            weekly: [scrollViewRef3m1, scrollViewRef3m2, scrollViewRef3m3, scrollViewRef3m4]
+                        }}
                     />
-                ) : (
-                    <>
-                        <SummaryDailyCharts
-                            chartData={chartData}
-                            hydrationData={hydrationData}
-                            maxValue={maxValue}
-                            maxVolValue={maxVolValue}
-                            scrollViewRef={scrollViewRef}
-                            scrollViewRef2={scrollViewRef2}
-                            scrollViewRef3={scrollViewRef3}
-                            scrollViewRef4={scrollViewRef4}
-                        />
-
-                        <SummaryMedicineChart
-                            medicineRows={medicineRows}
-                            chartDates={chartDates}
-                            period={period}
-                        />
-                    </>
                 )}
             </ScrollView>
         </SafeAreaView>
@@ -162,5 +151,8 @@ const styles = StyleSheet.create({
     periodButtonTextSelected: {
         color: COLORS.surface,
         fontWeight: '600',
+    },
+    scrollContent: {
+        paddingBottom: 100,
     },
 });

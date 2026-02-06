@@ -34,6 +34,8 @@ export default function ComfortPostCard({
     const [commentReportModalVisible, setCommentReportModalVisible] = useState(false);
     const [reportingCommentId, setReportingCommentId] = useState<string | null>(null);
 
+    const [visibleCommentCount, setVisibleCommentCount] = useState(20);
+
     const formatTime = (dateString: string) => {
         const date = new Date(dateString);
         const now = new Date();
@@ -59,6 +61,7 @@ export default function ComfortPostCard({
             const response = await getComments(post.id);
             if (response.success && response.data) {
                 setComments(response.data.comments);
+                setVisibleCommentCount(20); // Reset pagination
             }
         } catch {
             // 조용히 처리
@@ -203,6 +206,10 @@ export default function ComfortPostCard({
         }
     };
 
+    const handleLoadMore = () => {
+        setVisibleCommentCount(prev => prev + 20);
+    };
+
     return (
         <View style={styles.card}>
             {/* 헤더 */}
@@ -262,7 +269,7 @@ export default function ComfortPostCard({
             {/* 댓글 섹션 */}
             {showComments && (
                 <View style={styles.commentsSection}>
-                    {comments.map((comment, index) => (
+                    {comments.slice(0, visibleCommentCount).map((comment, index) => (
                         <View key={comment.id || `comment-${index}`} style={styles.commentItem}>
                             {editingCommentId === comment.id ? (
                                 /* 댓글 수정 모드 */
@@ -316,6 +323,14 @@ export default function ComfortPostCard({
                             )}
                         </View>
                     ))}
+
+                    {/* 더보기 버튼 */}
+                    {visibleCommentCount < comments.length && (
+                        <Pressable style={styles.loadMoreButton} onPress={handleLoadMore}>
+                            <Text style={styles.loadMoreText}>댓글 더보기 ({comments.length - visibleCommentCount})</Text>
+                            <Feather name="chevron-down" size={16} color={COLORS.textSecondary} />
+                        </Pressable>
+                    )}
 
                     {/* 댓글 입력 */}
                     <View style={styles.commentInputContainer}>
@@ -456,13 +471,13 @@ const styles = StyleSheet.create({
     },
     commentsSection: {
         marginTop: 12,
-        paddingTop: 12,
+        paddingTop: 20,
         borderTopWidth: 1,
         borderTopColor: COLORS.border,
     },
     commentItem: {
         marginBottom: 12,
-        paddingLeft: 8,
+        paddingLeft: 12,
         borderLeftWidth: 2,
         borderLeftColor: COLORS.border,
     },
@@ -470,10 +485,9 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 8,
-        marginBottom: 4,
     },
     commentAuthor: {
-        fontSize: 12,
+        fontSize: 14,
         fontWeight: '600',
         color: COLORS.textPrimary,
     },
@@ -497,8 +511,8 @@ const styles = StyleSheet.create({
         padding: 4,
     },
     commentContent: {
-        fontSize: 13,
-        lineHeight: 18,
+        fontSize: 14,
+        lineHeight: 24,
         color: COLORS.textPrimary,
     },
     commentInput: {
@@ -508,7 +522,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'flex-end',
         gap: 8,
-        marginTop: 8,
+        marginTop: 4,
     },
     commentInputField: {
         flex: 1,
@@ -582,5 +596,18 @@ const styles = StyleSheet.create({
     },
     commentEditButtonTextDisabled: {
         color: COLORS.textSecondary,
+    },
+    loadMoreButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 12,
+        marginBottom: 4,
+        gap: 4,
+    },
+    loadMoreText: {
+        fontSize: 13,
+        color: COLORS.textSecondary,
+        fontWeight: '500',
     },
 });

@@ -16,13 +16,22 @@ export type LicenseResponse =
  * Note: Toast 메시지는 UI 레이어에서 처리하도록 합니다.
  * @param response - License response from Google Play
  * @param expiryDate - Optional expiry date from Google Play subscription details
+ * @param productId - Optional product ID
+ * @param purchaseToken - Optional purchase token
+ * @param requireServerSync - If true, require server sync success before activating (D-1 compliance)
  */
-export async function handleLicenseResponse(response: LicenseResponse, expiryDate?: string): Promise<void> {
+export async function handleLicenseResponse(
+  response: LicenseResponse,
+  expiryDate?: string,
+  productId?: string,
+  purchaseToken?: string,
+  requireServerSync: boolean = false
+): Promise<void> {
   switch (response) {
     case 'LICENSED':
       // 구독 활성화 (실제 만료일 사용)
       console.log('License valid - activating subscription with expiry:', expiryDate);
-      await activateSubscription(expiryDate); // state = 'active', isPro=true
+      await activateSubscription(expiryDate, productId, purchaseToken, requireServerSync);
       break;
 
     case 'NOT_LICENSED':

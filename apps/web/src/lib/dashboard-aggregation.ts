@@ -24,34 +24,58 @@ interface DashboardData {
 export async function aggregateDashboardData(): Promise<DashboardData> {
     const now = new Date();
 
+    // 운영자 ID 목록 가져오기
+    const adminsStr = process.env.ADMIN_KAKAO_IDS || '';
+    const adminIds = adminsStr.split(',').map(id => id.trim()).filter(id => id.length > 0);
+
+    // 공통 필터: 운영자 제외
+    const userFilter = adminIds.length > 0 ? { userId: { $nin: adminIds } } : {};
+
     // === KPI 지표 ===
 
     // 1. 유효 구독 수 (active이면서 만료되지 않은 것)
     const activeSubscriptions = await Subscription.countDocuments({
         status: 'active',
         subscriptionExpiryDate: { $gt: now },
+        ...userFilter,
     });
 
     // 2. 월 매출 (유효 구독 × 3,500원)
     const monthlyRevenue = activeSubscriptions * 3500;
 
     // 3. 증감률 계산
-    const growthRate = await calculateGrowthRate(now);
+    const growthRate = await calculateGrowthRate(now, userFilter);
 
     // === 전환 지표 ===
 
     // 1. 체험 사용자 수
     const trialUsers = await Subscription.countDocuments({
         status: 'trial',
+        ...userFilter,
     });
 
     // 2. 전환율 계산
-    const conversionRate = await calculateConversionRate();
+    const conversionRate = await calculateConversionRate(userFilter);
 
     // === 보조 지표 ===
 
+    // 운영자 기기 식별 (Subscription을 통해 역추적)
+    let deviceFilter = {};
+    if (adminIds.length > 0) {
+        const adminSubscriptions = await Subscription.find({ userId: { $in: adminIds } }).select('deviceId');
+        const adminDeviceIds = adminSubscriptions
+            .map(sub => sub.deviceId)
+            .filter(id => id && id !== 'unknown');
+
+        if (adminDeviceIds.length > 0) {
+            deviceFilter = { deviceId: { $nin: adminDeviceIds } };
+        }
+    }
+
     // 1. 총 기기 수
-    const totalDevices = await Device.countDocuments({});
+    const totalDevices = await Device.countDocuments({
+        ...deviceFilter,
+    });
 
     // 2. 최근 7일 신규 기기 수
     const sevenDaysAgo = new Date();
@@ -59,6 +83,7 @@ export async function aggregateDashboardData(): Promise<DashboardData> {
 
     const newDevices7Days = await Device.countDocuments({
         createdAt: { $gte: sevenDaysAgo },
+        ...deviceFilter,
     });
 
     return {
@@ -81,7 +106,7 @@ export async function aggregateDashboardData(): Promise<DashboardData> {
 /**
  * 증감률 계산 (이번 달 vs 지난 달)
  */
-async function calculateGrowthRate(now: Date): Promise<number> {
+async function calculateGrowthRate(now: Date, userFilter: any): Promise<number> {
     // 이번 달 첫날 00:00:00
     const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
@@ -94,6 +119,7 @@ async function calculateGrowthRate(now: Date): Promise<number> {
         status: 'active',
         subscriptionStartDate: { $lt: thisMonthStart },
         subscriptionExpiryDate: { $gt: thisMonthStart },
+        ...userFilter,
     });
 
     // 지난 달 active 수
@@ -101,6 +127,7 @@ async function calculateGrowthRate(now: Date): Promise<number> {
         status: 'active',
         subscriptionStartDate: { $lt: lastMonthStart },
         subscriptionExpiryDate: { $gt: lastMonthStart },
+        ...userFilter,
     });
 
     if (lastMonthActive === 0) {
@@ -114,10 +141,11 @@ async function calculateGrowthRate(now: Date): Promise<number> {
 /**
  * 전환율 계산 (trial → active)
  */
-async function calculateConversionRate(): Promise<number> {
+async function calculateConversionRate(userFilter: any): Promise<number> {
     // 전체 체험 시작 수 (SubscriptionLog에서 newStatus='trial' 카운트)
     const totalTrialStarts = await SubscriptionLog.countDocuments({
         newStatus: 'trial',
+        ...userFilter,
     });
 
     if (totalTrialStarts === 0) {
@@ -128,6 +156,7 @@ async function calculateConversionRate(): Promise<number> {
     const trialToActiveCount = await SubscriptionLog.countDocuments({
         previousStatus: 'trial',
         newStatus: 'active',
+        ...userFilter,
     });
 
     const conversionRate = (trialToActiveCount / totalTrialStarts) * 100;

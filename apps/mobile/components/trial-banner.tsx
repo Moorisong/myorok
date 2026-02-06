@@ -3,12 +3,13 @@ import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { COLORS } from '../constants';
 
 interface TrialBannerProps {
-    daysRemaining: number;
+    daysRemaining: number | undefined; // 서버에서 내려준 값 (SSOT)
     onPress?: () => void;
 }
 
 export default function TrialBanner({ daysRemaining, onPress }: TrialBannerProps) {
-    if (daysRemaining <= 0) return null;
+    // daysRemaining이 undefined이거나 0 이하면 표시하지 않음 (SSOT 기준)
+    if (!daysRemaining || daysRemaining <= 0) return null;
 
     const getMessage = () => {
         if (daysRemaining === 1) {

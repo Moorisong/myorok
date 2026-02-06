@@ -3,6 +3,7 @@ import { getPostById, savePost, generateId, filterBadWords, getModelsAsync, canC
 import { sendPushNotification } from '@/lib/notification';
 import dbConnect from '@/lib/mongodb';
 import Device from '@/models/Device';
+import { checkRateLimit, createRateLimitKey, getClientIp, RATE_LIMITS } from '@/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 
@@ -92,7 +93,24 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             );
         }
 
-        // 도배 방지 체크
+        const clientIp = getClientIp(request);
+        const rateLimitKey = createRateLimitKey('comment', deviceId, clientIp);
+        const rateLimitResult = await checkRateLimit(rateLimitKey, RATE_LIMITS.comment);
+
+        if (!rateLimitResult.allowed) {
+            return NextResponse.json(
+                {
+                    success: false,
+                    error: {
+                        code: 'RATE_LIMITED',
+                        message: rateLimitResult.reason || '잠시 후 다시 시도해주세요.',
+                    },
+                    waitSeconds: rateLimitResult.waitSeconds,
+                },
+                { status: 429 }
+            );
+        }
+
         const commentStatus = await canComment(deviceId);
         if (!commentStatus.canComment) {
             return NextResponse.json(

@@ -2,7 +2,7 @@
 
 ## 개요
 카카오 로그인 및 월 구독 기능 구현을 위한 서브 에이전트입니다.
-앱하루는 로컬 SQLite 기반의 다묘 병상일지 앱으로, 사용자 식별 및 월 구독 결제를 위해 카카오 로그인을 필수로 합니다.
+묘록은 로컬 SQLite 기반의 다묘 병상일지 앱으로, 사용자 식별 및 월 구독 결제를 위해 카카오 로그인을 필수로 합니다.
 
 ---
 
@@ -186,7 +186,7 @@ interface LoginScreenProps {
 /**
  * 로그인 화면 컴포넌트
  * - 카카오 로그인 버튼 (노란색, 카카오 디자인 가이드 준수)
- * - 안내 문구: "월 구독 결제로 앱하루를 이용하려면 로그인하세요."
+ * - 안내 문구: "월 구독 결제로 묘록을 이용하려면 로그인하세요."
  */
 export function LoginScreen({ onLoginSuccess }: LoginScreenProps): JSX.Element;
 ```
@@ -648,7 +648,7 @@ JWT_SECRET=your_jwt_secret
 
 ---
 
-## 🔐 앱하루 로그인 후 구독 플로우 (User Specification)
+## 🔐 묘록 로그인 후 구독 플로우 (User Specification)
 
 ### 1. 앱 실행 시
 

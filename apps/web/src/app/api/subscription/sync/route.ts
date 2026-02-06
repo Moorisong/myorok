@@ -13,8 +13,8 @@ interface JwtPayload {
 
 interface SyncRequest {
     deviceId: string;
-    status: 'trial' | 'active' | 'expired';
-    trialStartDate: string;
+    status: 'trial' | 'active' | 'expired' | 'subscribed' | 'blocked';
+    trialStartDate?: string | null;  // Optional for restore scenarios
     subscriptionStartDate?: string | null;
     subscriptionExpiryDate?: string | null;
 }
@@ -44,10 +44,10 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        let userId: string;
+        let tokenUserId: string;
         try {
             const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
-            userId = decoded.userId;
+            tokenUserId = decoded.userId;
         } catch (error) {
             return NextResponse.json(
                 { error: 'Invalid token' },
@@ -56,16 +56,30 @@ export async function POST(request: NextRequest) {
         }
 
         // 2. 요청 데이터 파싱
-        const body: SyncRequest = await request.json();
+        const body: SyncRequest & { userId?: string } = await request.json();
         const {
             deviceId,
             status,
             trialStartDate,
             subscriptionStartDate,
             subscriptionExpiryDate,
+            userId: bodyUserId, // Optional userId in body for test mode
         } = body;
 
-        if (!deviceId || !status || !trialStartDate) {
+        // 디버그: sync 요청 데이터 로그
+        console.log('[Subscription] Sync request:', {
+            userId: tokenUserId,
+            status,
+            trialStartDate,
+            subscriptionStartDate,
+            subscriptionExpiryDate,
+        });
+
+        // Use bodyUserId if it's a valid test user for this token, otherwise use token userId
+        const isTestUserForToken = bodyUserId?.startsWith('test_') && bodyUserId?.endsWith(`_${tokenUserId}`);
+        const userId = isTestUserForToken ? bodyUserId : tokenUserId;
+
+        if (!deviceId || !status) {
             return NextResponse.json(
                 { error: 'Missing required fields' },
                 { status: 400 }
@@ -74,6 +88,11 @@ export async function POST(request: NextRequest) {
 
         // 3. 기존 구독 상태 확인
         const existingSubscription = await Subscription.findOne({ userId });
+
+        // trialStartDate가 없는 경우: 기존 값 사용 또는 현재 시간 (복원 시나리오)
+        const effectiveTrialStartDate = trialStartDate
+            || existingSubscription?.trialStartDate?.toISOString()
+            || new Date().toISOString();
 
         // 4. 상태 변경 감지 및 로그 기록
         if (existingSubscription && existingSubscription.status !== status) {
@@ -92,7 +111,7 @@ export async function POST(request: NextRequest) {
                 $set: {
                     deviceId,
                     status,
-                    trialStartDate: new Date(trialStartDate),
+                    trialStartDate: new Date(effectiveTrialStartDate),
                     subscriptionStartDate: subscriptionStartDate
                         ? new Date(subscriptionStartDate)
                         : null,
@@ -119,10 +138,14 @@ export async function POST(request: NextRequest) {
         }
 
         return NextResponse.json({ success: true });
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error syncing subscription:', error);
+        // Log more details if it's a validation error
+        if (error.name === 'ValidationError') {
+            console.error('Validation Error Details:', JSON.stringify(error.errors, null, 2));
+        }
         return NextResponse.json(
-            { error: 'Internal Server Error' },
+            { error: 'Internal Server Error', message: error.message },
             { status: 500 }
         );
     }

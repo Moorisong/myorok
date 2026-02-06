@@ -57,7 +57,7 @@ export default function CalendarScreen() {
         useCallback(() => {
             // Load subscription status
             getSubscriptionStatus().then(status => {
-                const hasAccess = status.status === 'trial' || status.status === 'active';
+                const hasAccess = status.status === 'trial' || status.status === 'subscribed';
                 setIsPremium(hasAccess);
             });
 

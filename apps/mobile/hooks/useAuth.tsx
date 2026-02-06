@@ -1,7 +1,14 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import { getCurrentUserId, logout as logoutService, getIsAdmin } from '../services/auth';
 
-export type SubscriptionStatus = 'active' | 'trial' | 'expired' | null;
+/**
+ * UI 레이어 구독 상태 (SSOT와 호환)
+ * - loading: 검증 중 (스피너 표시)
+ * - active: 유효한 구독 (= SSOT의 'subscribed')
+ * - trial: 무료체험 중
+ * - expired: 차단 상태 (= SSOT의 'blocked')
+ */
+export type SubscriptionStatus = 'loading' | 'active' | 'trial' | 'expired' | null;
 
 interface AuthContextType {
     isLoggedIn: boolean | null;
@@ -29,50 +36,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const checkAuthStatus = useCallback(async () => {
         try {
+            // DEV Code removed: Auto-login with EXPO_PUBLIC_DEV_ADMIN_ID is no longer supported
+
             const currentUserId = await getCurrentUserId();
             setUserId(currentUserId);
             setIsLoggedIn(!!currentUserId);
 
             if (currentUserId) {
-                // 실제 구독 상태 조회
-                const { getSubscriptionState, getSubscriptionStatus } = await import('../services/subscription');
-                const status = await getSubscriptionState();
-                setSubscriptionStatus(status as SubscriptionStatus);
+                console.log('[AuthContext] User logged in:', currentUserId);
+                // SubscriptionManager를 통해 구독 상태 결정 (중앙 집중식)
+                // - 중복 호출 방지
+                // - 복원 성공 시 SSOT 건너뜀
+                // - 모든 상태 변경을 한 곳에서 처리
+                const { initializeSubscription } = await import('../services/subscription');
+                await initializeSubscription();
+
+                const SubscriptionManager = (await import('../services/SubscriptionManager')).default;
+                const manager = SubscriptionManager.getInstance();
+                const uiStatus = await manager.resolveSubscriptionStatus();
+
+                setSubscriptionStatus(uiStatus);
+                console.log(`[AuthContext] Subscription resolved for ${currentUserId}: ${uiStatus}`);
 
                 // 운영자 권한 조회
                 const adminStatus = await getIsAdmin();
                 console.log('[AuthContext] isAdmin status:', adminStatus);
                 setIsAdmin(adminStatus);
-
-                // 서버에 구독 상태 동기화 (초기 동기화)
-                try {
-                    const subscriptionState = await getSubscriptionStatus();
-                    const API_URL = (await import('../constants/config')).CONFIG.API_BASE_URL;
-                    const token = await import('@react-native-async-storage/async-storage').then(m => m.default.getItem('jwt_token'));
-                    const { getDeviceId } = await import('../services/device');
-
-                    if (token) {
-                        const deviceId = await getDeviceId();
-                        await fetch(`${API_URL}/api/subscription/sync`, {
-                            method: 'POST',
-                            headers: {
-                                'Authorization': `Bearer ${token}`,
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({
-                                deviceId,
-                                status: subscriptionState.status,
-                                trialStartDate: subscriptionState.trialStartDate,
-                                subscriptionStartDate: subscriptionState.subscriptionStartDate,
-                                subscriptionExpiryDate: subscriptionState.subscriptionExpiryDate,
-                            }),
-                        });
-                    }
-                } catch (syncError) {
-                    console.log('[AuthContext] Subscription sync skipped:', syncError);
-                }
             } else {
-                setSubscriptionStatus(null);
+                console.log('[AuthContext] No user logged in');
+                setSubscriptionStatus('loading');
                 setIsAdmin(false);
             }
         } catch (error) {

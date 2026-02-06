@@ -37,6 +37,31 @@ export default function DaySummaryCard({
 
     const { dailyRecord, supplements, fluidRecords } = selectedDayData;
 
+    // Check if there's actually something to display
+    const hasDailyRecordContent = dailyRecord && (
+        dailyRecord.peeCount > 0 ||
+        dailyRecord.poopCount > 0 ||
+        dailyRecord.diarrheaCount > 0 ||
+        dailyRecord.vomitCount > 0 ||
+        dailyRecord.waterIntake > 0 ||
+        dailyRecord.memo
+    );
+    const hasTakenSupplements = supplements && supplements.some(s => s.taken);
+    const hasFluidContent = fluidRecords && fluidRecords.length > 0;
+    const hasAnyContent = hasDailyRecordContent || hasTakenSupplements || hasFluidContent;
+
+    // If there's data object but no displayable content, show "기록 없음"
+    if (!hasAnyContent && canViewDetail) {
+        return (
+            <View style={styles.summaryCard}>
+                <Text style={styles.summaryTitle}>
+                    {selectedDate.split('-')[1]}/{selectedDate.split('-')[2]} ({getDayName(selectedDate)})
+                </Text>
+                <Text style={styles.noRecordText}>기록 없음</Text>
+            </View>
+        );
+    }
+
     return (
         <View style={[styles.summaryCard, !canViewDetail && styles.summaryCardBlurred]}>
             <View style={styles.summaryHeader}>

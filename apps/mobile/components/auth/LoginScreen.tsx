@@ -21,7 +21,7 @@ interface LoginScreenProps {
 /**
  * 로그인 화면 컴포넌트
  * - 카카오 로그인 버튼 (노란색, 카카오 디자인 가이드 준수)
- * - 안내 문구: "월 구독 결제로 앱하루를 이용하려면 로그인하세요."
+ * - 안내 문구: "월 구독 결제로 묘록을 이용하려면 로그인하세요."
  */
 export function LoginScreen({ onLoginSuccess, onLoginPress, isLoading = false }: LoginScreenProps) {
     const handleOpenTerms = () => {

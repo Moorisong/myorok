@@ -88,6 +88,24 @@ export default function ReferenceMemosScreen() {
         );
     };
 
+    const handleDeleteCurrentItem = () => {
+        if (!modalMode || !editingItem.id) return;
+
+        if (modalMode === 'edit-food') {
+            const foodItem = foodMemos.find(m => m.id === editingItem.id);
+            if (foodItem) {
+                setModalMode(null); // Close modal first
+                handleDeleteFood(foodItem);
+            }
+        } else if (modalMode === 'edit-medication') {
+            const medItem = medicationMemos.find(m => m.id === editingItem.id);
+            if (medItem) {
+                setModalMode(null); // Close modal first
+                handleDeleteMedication(medItem);
+            }
+        }
+    };
+
     const handleAddMedication = () => {
         setEditingItem({ name: '', memo: '' });
         setModalMode('add-medication');
@@ -309,6 +327,11 @@ export default function ReferenceMemosScreen() {
                 showTypeSelector={modalMode === 'add-food' || modalMode === 'edit-food'}
                 onCancel={() => setModalMode(null)}
                 onSave={handleSave}
+                onDelete={
+                    (modalMode === 'edit-food' || modalMode === 'edit-medication')
+                        ? handleDeleteCurrentItem
+                        : undefined
+                }
             />
         </SafeAreaView>
     );

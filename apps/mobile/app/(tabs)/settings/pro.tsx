@@ -18,6 +18,7 @@ import type { SubscriptionState } from '../../../services';
 import { purchaseSubscription, getSubscriptionDetails } from '../../../services/paymentService';
 import type { SubscriptionDetails } from '../../../services/paymentService';
 import { showToast } from '../../../utils/toast';
+import { useAuth } from '../../../hooks/useAuth';
 
 const FEATURES = [
     { emoji: '📝', title: '모든 기록 기능', description: '배변/구토/사료/약/병원 기록' },
@@ -28,6 +29,7 @@ const FEATURES = [
 
 export default function ProScreen() {
     const router = useRouter();
+    const { checkAuthStatus } = useAuth();
     const appState = useRef(AppState.currentState);
     const [subscriptionState, setSubscriptionState] = useState<SubscriptionState | null>(null);
     const [simpleState, setSimpleState] = useState<'free' | 'trial' | 'active' | 'expired'>('free');
@@ -42,11 +44,13 @@ export default function ProScreen() {
 
     // 앱이 foreground로 돌아올 때 구독 상태 새로고침
     // (결제 완료 후 또는 Google Play에서 해지하고 돌아왔을 때)
+    // NOTE: _layout.tsx의 전역 AppState 리스너가 먼저 동작하므로,
+    // 여기서는 단순히 로컬 상태만 업데이트
     useEffect(() => {
         const handleAppStateChange = async (nextAppState: AppStateStatus) => {
             if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-                // Google Play 구독 상태 동기화 후 로컬 상태 업데이트
-                await checkAndRestoreSubscription();
+                console.log('[ProScreen] App returned to foreground, reloading subscription status');
+                // 로컬 상태만 새로고침 (_layout.tsx가 이미 SSOT 검증을 수행함)
                 await loadSubscriptionStatus();
             }
             appState.current = nextAppState;
@@ -64,14 +68,26 @@ export default function ProScreen() {
         setSimpleState(state);
 
         // 구독 상세 정보 조회 (해지 예정 여부 포함)
+        // SSOT: 서버에서 구독 중(subscribed)인 경우에만 Google Play 상세 조회
+        // Google Play에 이전 구독 이력이 있어도 서버에서 구독 중이 아니면 무시
         if (state === 'active') {
-            const details = await getSubscriptionDetails();
-            setSubscriptionDetails(details);
+            // 서버 SSOT에서 hasPurchaseHistory 확인 (Google Play 이력이 서버와 일치하는지)
+            const hasPurchaseHistory = status.hasPurchaseHistory;
+
+            if (hasPurchaseHistory) {
+                // 서버에서도 결제 이력 확인됨 → Google Play 상세 정보 조회 (해지 예정 여부 등)
+                const details = await getSubscriptionDetails();
+                setSubscriptionDetails(details);
+            } else {
+                // 서버에 결제 이력 없음 → Google Play의 이전 테스트 구독은 무시
+                console.log('[ProScreen] Server has no purchase history, ignoring Google Play legacy subscription');
+                setSubscriptionDetails(null);
+            }
         }
     };
 
-    const formatDate = (isoDate: string | undefined) => {
-        if (!isoDate) return '';
+    const formatDate = (isoDate: string | undefined, fallback: string = '곧') => {
+        if (!isoDate) return fallback;
         const date = new Date(isoDate);
         return `${date.getMonth() + 1}월 ${date.getDate()}일`;
     };
@@ -126,15 +142,15 @@ export default function ProScreen() {
         if (!subscriptionState) return '';
 
         if (subscriptionState.status === 'trial') {
-            return `${getTrialCountdownText(subscriptionState.daysRemaining || 0)}`;
-        } else if (subscriptionState.status === 'active') {
+            return `${getTrialCountdownText(subscriptionState.daysRemaining)}`;
+        } else if (subscriptionState.status === 'subscribed') {
             return '구독 중';
         } else {
             return '무료 체험 종료';
         }
     };
 
-    const isSubscribed = subscriptionState?.status === 'active';
+    const isSubscribed = subscriptionState?.status === 'subscribed';
 
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
@@ -161,7 +177,9 @@ export default function ProScreen() {
                             <>
                                 <Text style={styles.cancelledText}>⚠️ 해지 예정</Text>
                                 <Text style={styles.cancelledSubtext}>
-                                    {formatDate(subscriptionDetails?.expiryDate)}에 해지됩니다
+                                    {subscriptionDetails?.expiryDate
+                                        ? `${formatDate(subscriptionDetails.expiryDate)}에 해지됩니다`
+                                        : '곧 해지됩니다'}
                                 </Text>
                             </>
                         ) : (
@@ -178,7 +196,7 @@ export default function ProScreen() {
                 {simpleState === 'trial' && (
                     <View style={styles.trialSubscription}>
                         <Text style={styles.trialText}>무료 체험 중</Text>
-                        <Text style={styles.trialSubtext}>7일 후 자동 만료</Text>
+                        <Text style={styles.trialSubtext}>무료 체험 기간: 최대 7일</Text>
                     </View>
                 )}
 
@@ -262,7 +280,9 @@ export default function ProScreen() {
                                 <Card style={styles.card}>
                                     <Text style={styles.cancelledInfoTitle}>📅 해지 예정</Text>
                                     <Text style={styles.cancelledInfoText}>
-                                        {formatDate(subscriptionDetails?.expiryDate)}까지 모든 기능을 사용하실 수 있습니다.{"\n"}
+                                        {subscriptionDetails?.expiryDate
+                                            ? `${formatDate(subscriptionDetails.expiryDate)}까지 모든 기능을 사용하실 수 있습니다.`
+                                            : '만료일까지 모든 기능을 사용하실 수 있습니다.'}{"\n"}
                                         이후 구독이 자동으로 해지됩니다.
                                     </Text>
                                 </Card>

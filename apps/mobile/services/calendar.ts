@@ -50,9 +50,12 @@ export async function getMonthRecords(year: number, month: number): Promise<Map<
 
     // Process daily records
     for (const record of dailyRecords) {
+        // hasRecord should only be true if there's actual pee/poop data
+        const hasActualRecord = record.peeCount > 0 || record.poopCount > 0 ||
+            record.diarrheaCount > 0 || record.vomitCount > 0;
         result.set(record.date, {
             date: record.date,
-            hasRecord: true,
+            hasRecord: hasActualRecord,
             hasDiarrheaOrVomit: record.diarrheaCount > 0 || record.vomitCount > 0,
             hasMedicine: false,
             hasFluid: false,
@@ -67,7 +70,7 @@ export async function getMonthRecords(year: number, month: number): Promise<Map<
         if (!result.has(sr.date)) {
             result.set(sr.date, {
                 date: sr.date,
-                hasRecord: true,
+                hasRecord: false, // Green dot is only for pee/poop, not supplements
                 hasDiarrheaOrVomit: false,
                 hasMedicine: sr.taken === 1,
                 hasFluid: false,
@@ -91,7 +94,7 @@ export async function getMonthRecords(year: number, month: number): Promise<Map<
         if (!result.has(fr.date)) {
             result.set(fr.date, {
                 date: fr.date,
-                hasRecord: true,
+                hasRecord: false, // Green dot is only for pee/poop, not fluid records
                 hasDiarrheaOrVomit: false,
                 hasMedicine: false,
                 hasFluid: true,
@@ -135,9 +138,15 @@ export async function getDayDetail(date: string): Promise<CalendarDayData | null
         return null;
     }
 
+    // hasRecord should only be true if there's actual pee/poop data
+    const hasActualRecord = dailyRecord
+        ? (dailyRecord.peeCount > 0 || dailyRecord.poopCount > 0 ||
+           dailyRecord.diarrheaCount > 0 || dailyRecord.vomitCount > 0)
+        : false;
+
     return {
         date,
-        hasRecord: true,
+        hasRecord: hasActualRecord,
         hasDiarrheaOrVomit: dailyRecord ? (dailyRecord.diarrheaCount > 0 || dailyRecord.vomitCount > 0) : false,
         hasMedicine: supplementRecords.some(sr => sr.taken === 1),
         hasFluid: fluidRecords.length > 0,

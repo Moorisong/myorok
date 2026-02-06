@@ -20,7 +20,7 @@ export const COLORS = {
 
   // Status Colors
   error: '#E57373',         // Soft Red
-  warning: '#FFB300',       // Amber
+  warning: '#D4915C',       // Soft Amber (less harsh)
   warningBg: '#FFF8E1',     // Warning Background
 
   // Chart & Data Colors
@@ -35,4 +35,12 @@ export const COLORS = {
   yellowDark: '#FDE68A',    // Dark Yellow
   avatarBg: '#FFF3E0',      // Avatar Background
   pink: '#E91E63',          // Pink (Like)
+
+  // Pastel Tones (for buttons)
+  pastelGray: '#F3F4F6',
+  pastelGreen: '#D1FAE5',
+  pastelRed: '#FEF2F2',
+  textGreen: '#059669',
+  textRed: '#DC2626',
+  textGray: '#9CA3AF',
 } as const;

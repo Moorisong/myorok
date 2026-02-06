@@ -71,12 +71,7 @@ export default function TabLayout() {
                 }}
             />
             {/* Hidden screens */}
-            <Tabs.Screen
-                name="today"
-                options={{
-                    href: null,
-                }}
-            />
+
             <Tabs.Screen
                 name="records"
                 options={{

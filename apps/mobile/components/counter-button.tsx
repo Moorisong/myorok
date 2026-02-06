@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import React, { useRef } from 'react';
+import { View, Text, StyleSheet, Pressable, Animated } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 
 import { COLORS } from '../constants';
@@ -9,6 +9,7 @@ interface CounterButtonProps {
     label: string;
     count: number;
     onPressAdd: () => void;
+    onPressSubtract?: () => void;
     onPressCount: () => void;
     warning?: boolean;
 }
@@ -18,101 +19,161 @@ export default function CounterButton({
     label,
     count,
     onPressAdd,
+    onPressSubtract,
     onPressCount,
     warning = false,
 }: CounterButtonProps) {
+    const scaleAnim = useRef(new Animated.Value(1)).current;
+
+    const animateButton = () => {
+        Animated.sequence([
+            Animated.timing(scaleAnim, {
+                toValue: 0.95,
+                duration: 100,
+                useNativeDriver: true,
+            }),
+            Animated.timing(scaleAnim, {
+                toValue: 1,
+                duration: 100,
+                useNativeDriver: true,
+            }),
+        ]).start();
+    };
+
+    const handleAdd = () => {
+        animateButton();
+        onPressAdd();
+    };
+
+    const handleSubtract = () => {
+        if (onPressSubtract) onPressSubtract();
+    };
+
     return (
-        <View style={[styles.counterBtn, warning && styles.counterBtnWarning]}>
-            {/* Edit Area (Top) */}
+        <Animated.View style={[styles.container, { transform: [{ scale: scaleAnim }] }]}>
             <Pressable
-                style={({ pressed }) => [
-                    styles.counterContent,
-                    pressed && { backgroundColor: 'rgba(0,0,0,0.02)' },
-                ]}
+                style={[styles.card, warning && styles.cardWarning]}
                 onPress={onPressCount}
             >
-                <View style={styles.editIconContainer}>
-                    <Feather name="edit-2" size={12} color={COLORS.textSecondary} style={{ opacity: 0.5 }} />
-                </View>
-                <View style={{ height: 40, justifyContent: 'center', marginBottom: 4 }}>
+                <View style={[styles.emojiContainer, warning && styles.emojiContainerWarning]}>
                     {typeof emoji === 'string' ? (
-                        <Text style={styles.counterEmoji}>{emoji}</Text>
+                        <Text style={styles.emoji}>{emoji}</Text>
                     ) : (
                         emoji
                     )}
                 </View>
-                <Text style={styles.counterLabel}>{label}</Text>
-                <Text style={styles.counterCount}>{count}회</Text>
-            </Pressable>
 
-            {/* +1 Button (Bottom) */}
-            <Pressable
-                style={({ pressed }) => [
-                    styles.plusButton,
-                    { backgroundColor: warning ? COLORS.error : COLORS.primary },
-                    pressed && { opacity: 0.8 },
-                ]}
-                onPress={onPressAdd}
-            >
-                <Feather name="plus" size={16} color="#FFFFFF" style={{ marginRight: 4 }} />
-                <Text style={styles.counterPlusWhite}>1</Text>
+                <View style={styles.contentContainer}>
+                    <Text style={styles.label}>{label}</Text>
+                    <Text style={styles.count}>{count}회</Text>
+                </View>
+
+                <View style={styles.actions}>
+                    {onPressSubtract && (
+                        <Pressable
+                            style={styles.actionButtonSecondary}
+                            onPress={handleSubtract}
+                            hitSlop={10}
+                        >
+                            <Feather name="minus" size={16} color={COLORS.textSecondary} />
+                        </Pressable>
+                    )}
+
+                    <Pressable
+                        style={[styles.actionButtonPrimary, warning && styles.actionButtonWarning]}
+                        onPress={handleAdd}
+                    >
+                        <Feather name="plus" size={20} color="#FFF" />
+                    </Pressable>
+                </View>
             </Pressable>
-        </View>
+        </Animated.View>
     );
 }
 
 const styles = StyleSheet.create({
-    counterBtn: {
+    container: {
         width: '48%',
+        marginBottom: 8,
+    },
+    card: {
         backgroundColor: COLORS.surface,
-        borderRadius: 16,
-        overflow: 'hidden',
+        borderRadius: 20,
+        padding: 12, // Reduced padding
+        alignItems: 'center',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.05,
-        shadowRadius: 4,
+        shadowRadius: 8,
         elevation: 2,
-        marginBottom: 10,
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.03)',
     },
-    counterContent: {
-        padding: 12,
-        paddingTop: 16,
-        alignItems: 'center',
-        width: '100%',
+    cardWarning: {
+        backgroundColor: '#FFFBF5',
+        borderColor: 'rgba(212, 145, 92, 0.2)',
+    },
+    emojiContainer: {
+        width: 44, // Reduced size
+        height: 44, // Reduced size
+        borderRadius: 22,
         backgroundColor: COLORS.lightBg,
-    },
-    editIconContainer: {
-        position: 'absolute',
-        top: 6,
-        right: 6,
-    },
-    plusButton: {
-        flexDirection: 'row',
         justifyContent: 'center',
-        paddingVertical: 10,
         alignItems: 'center',
-        width: '100%',
+        marginBottom: 8, // Reduced margin
     },
-    counterBtnWarning: {
-        backgroundColor: COLORS.warningBg,
+    emojiContainerWarning: {
+        backgroundColor: '#FFF0E0',
     },
-    counterEmoji: {
-        fontSize: 24,
-        marginBottom: 2,
+    emoji: {
+        fontSize: 22, // Reduced font size
     },
-    counterLabel: {
+    contentContainer: {
+        alignItems: 'center',
+        marginBottom: 12, // Reduced margin
+    },
+    label: {
         fontSize: 12,
         color: COLORS.textSecondary,
-        marginBottom: 0,
+        marginBottom: 2,
+        fontWeight: '500',
     },
-    counterCount: {
-        fontSize: 20,
-        fontWeight: '800',
+    count: {
+        fontSize: 18, // Reduced font size
+        fontWeight: '700',
         color: COLORS.textPrimary,
     },
-    counterPlusWhite: {
-        fontSize: 14,
-        color: '#FFFFFF',
-        fontWeight: '800',
+    actions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 16, // Increased gap
+    },
+    actionButtonPrimary: {
+        width: 36, // Reduced size
+        height: 36, // Reduced size
+        borderRadius: 18,
+        backgroundColor: COLORS.primary,
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: COLORS.primary,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+        elevation: 3,
+    },
+    actionButtonWarning: {
+        backgroundColor: COLORS.warning,
+        shadowColor: COLORS.warning,
+    },
+    actionButtonSecondary: {
+        width: 30, // Reduced size
+        height: 30, // Reduced size
+        borderRadius: 15,
+        backgroundColor: COLORS.background,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: COLORS.border,
     },
 });
+

@@ -189,30 +189,59 @@ export function useTodayScreen() {
         }
     };
 
-    // Count handlers
     const handlePeeAdd = async () => {
         const newCount = peeCount + 1;
         setPeeCount(newCount);
         await updateDailyRecord({ peeCount: newCount });
-        showToast(TOAST_MESSAGES.PEE_RECORDED, { type: 'pee' });
+    };
+
+    const handlePeeSubtract = async () => {
+        if (peeCount <= 0) return;
+        const newCount = peeCount - 1;
+        setPeeCount(newCount);
+        await updateDailyRecord({ peeCount: newCount });
     };
 
     const handlePoopAdd = async () => {
         const newCount = poopCount + 1;
         setPoopCount(newCount);
         await updateDailyRecord({ poopCount: newCount });
-        showToast(TOAST_MESSAGES.POOP_RECORDED, { type: 'poop' });
+    };
+
+    const handlePoopSubtract = async () => {
+        if (poopCount <= 0) return;
+        const newCount = poopCount - 1;
+        setPoopCount(newCount);
+        await updateDailyRecord({ poopCount: newCount });
     };
 
     const handleDiarrheaAdd = async () => {
         const newCount = diarrheaCount + 1;
         setDiarrheaCount(newCount);
         await updateDailyRecord({ diarrheaCount: newCount });
-        showToast(TOAST_MESSAGES.DIARRHEA_RECORDED, { type: 'diarrhea' });
+    };
+
+    const handleDiarrheaSubtract = async () => {
+        if (diarrheaCount <= 0) return;
+        const newCount = diarrheaCount - 1;
+        setDiarrheaCount(newCount);
+        await updateDailyRecord({ diarrheaCount: newCount });
     };
 
     const handleVomitAdd = () => {
         setShowVomitColors(true);
+    };
+
+    const handleVomitSubtract = async () => {
+        if (vomitCount <= 0) return;
+        const newCount = vomitCount - 1;
+        const newColors = vomitColors.slice(0, -1);
+        setVomitCount(newCount);
+        setVomitColors(newColors);
+        await updateDailyRecord({
+            vomitCount: newCount,
+            vomitTypes: newColors.length > 0 ? JSON.stringify(newColors) : null,
+        });
     };
 
     const handleVomitColorSelect = async (color: VomitColor) => {
@@ -332,21 +361,12 @@ export function useTodayScreen() {
         }
     };
 
-    const handleSupplementDelete = async (supplementId: string, deleteRecords: boolean) => {
+    const handleSupplementDelete = async (supplementId: string) => {
         try {
             await deleteSupplement(supplementId);
             // Refresh list
             const suppList = await getSupplements();
             setSupplements(suppList);
-
-            // Remove from takenStatus only if we deleted the records
-            if (deleteRecords) {
-                setTakenStatus(prev => {
-                    const newMap = new Map(prev);
-                    newMap.delete(supplementId);
-                    return newMap;
-                });
-            }
         } catch (error) {
             showGlobalToast(ERROR_MESSAGES.DELETE_FAILED, { variant: 'error' });
         }
@@ -417,9 +437,13 @@ export function useTodayScreen() {
 
         // Handlers
         handlePeeAdd,
+        handlePeeSubtract,
         handlePoopAdd,
+        handlePoopSubtract,
         handleDiarrheaAdd,
+        handleDiarrheaSubtract,
         handleVomitAdd,
+        handleVomitSubtract,
         handleVomitColorSelect,
         handleWaterAdd,
         handleWaterEdit,
