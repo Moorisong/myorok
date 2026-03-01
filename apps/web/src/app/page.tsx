@@ -57,7 +57,7 @@ export default function LandingPage() {
 
           <div className={styles.empathyHighlight}>
             <p className={styles.empathyMessage}>
-              보호자는 기억해야 할 것이<br />너무 많습니다.
+              보호자는 기억해야 할 것들이 너무 많습니다.
             </p>
           </div>
         </div>
@@ -94,7 +94,7 @@ export default function LandingPage() {
               <span className={styles.featureIcon}>🕒</span>
               <h3 className={styles.featureCardTitle}>투약 기록</h3>
               <p className={styles.featureCardDesc}>
-                약 이름, 시간, 메모를 빠르게 기록하고 투약 관리 스트레스를 줄이세요.
+                약 이름, 메모, 강수 등을 빠르게 기록하고 투약 관리 스트레스를 줄이세요.
               </p>
               <span className={styles.featureCardHighlight}>"약 언제 먹였지?" 해결</span>
             </article>
@@ -104,7 +104,7 @@ export default function LandingPage() {
               <span className={styles.featureIcon}>🩺</span>
               <h3 className={styles.featureCardTitle}>증상 기록</h3>
               <p className={styles.featureCardDesc}>
-                사진과 메모로 간단하게 기록하고 작은 변화도 놓치지 마세요.
+                메모로 간단하게 기록하고 작은 변화도 놓치지 마세요.
               </p>
               <span className={styles.featureCardHighlight}>작은 변화가 큰 신호가 됩니다</span>
             </article>
@@ -124,7 +124,7 @@ export default function LandingPage() {
               <span className={styles.featureIcon}>📊</span>
               <h3 className={styles.featureCardTitle}>건강 리포트</h3>
               <p className={styles.featureCardDesc}>
-                체중, 음수량, 구토 횟수 등을 차트로 확인하고 건강 흐름을 파악하세요.
+                투약 현황, 음수량, 구토 횟수 등을 차트로 확인하고 건강 흐름을 파악하세요.
               </p>
               <span className={styles.featureCardHighlight}>눈에 보이는 건강 변화</span>
             </article>
@@ -162,7 +162,7 @@ export default function LandingPage() {
           </div>
 
           <p className={styles.diffMessage}>
-            "기억이 아닌 기록으로 돌보기"
+            "기억이 아닌 기록으로"
           </p>
         </div>
       </section>
@@ -219,7 +219,7 @@ export default function LandingPage() {
           <nav className={styles.footerLinks}>
             <Link href={PLAY_STORE_URL} target="_blank" className={styles.footerLink}>Play Store</Link>
             <Link href="/privacy" className={styles.footerLink}>개인정보처리방침</Link>
-            <a href="mailto:support@myorok.app" className={styles.footerLink}>문의하기</a>
+            <a href="mailto:thiagooo@naver.com" className={styles.footerLink}>문의하기</a>
           </nav>
 
           <p className={styles.copyright}>© 2026 Myorok. All rights reserved.</p>
