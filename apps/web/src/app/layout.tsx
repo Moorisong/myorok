@@ -46,7 +46,8 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <head>
-        <link rel="icon" href="/favicon.ico" />
+        <link rel="icon" type="image/png" href="/myorok_logo_small.png" />
+        <link rel="apple-touch-icon" href="/myorok_logo_small.png" />
         <link
           rel="preconnect"
           href="https://fonts.googleapis.com"
