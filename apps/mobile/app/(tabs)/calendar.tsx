@@ -15,13 +15,13 @@ import { Feather } from '@expo/vector-icons';
 import { COLORS } from '../../constants';
 import { CalendarGrid, DaySummaryCard } from '../../components';
 import { useToast } from '../../components/ToastContext';
-import { getMonthRecords, getDayDetail, CalendarDayData, getTodayDateString, getSubscriptionStatus } from '../../services';
+import { getMonthRecords, getDayDetail, CalendarDayData, getTodayDateString } from '../../services';
 import { useSelectedPet } from '../../hooks/use-selected-pet';
 
 
 
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
-const FREE_DAYS_LIMIT = 15;
+
 
 export default function CalendarScreen() {
     const router = useRouter();
@@ -33,7 +33,7 @@ export default function CalendarScreen() {
     const [selectedDate, setSelectedDate] = useState<string | null>(null);
     const [selectedDayData, setSelectedDayData] = useState<CalendarDayData | null>(null);
     const [loading, setLoading] = useState(true);
-    const [isPremium, setIsPremium] = useState(false);
+
     const fadeAnim = React.useRef(new Animated.Value(1)).current;
 
     const animateTransition = (callback: () => void) => {
@@ -55,11 +55,7 @@ export default function CalendarScreen() {
 
     useFocusEffect(
         useCallback(() => {
-            // Load subscription status
-            getSubscriptionStatus().then(status => {
-                const hasAccess = status.status === 'trial' || status.status === 'subscribed';
-                setIsPremium(hasAccess);
-            });
+
 
             loadMonthData();
             if (selectedDate) {
@@ -162,9 +158,7 @@ export default function CalendarScreen() {
     const handleDateSelect = async (dateStr: string) => {
         setSelectedDate(dateStr);
 
-        if (!isPremium && !isWithinFreeLimit(dateStr)) {
-            showToast('프리미엄에서 전체 기록을 확인할 수 있어요.');
-        }
+
 
         try {
             const detail = await getDayDetail(dateStr);
@@ -174,13 +168,7 @@ export default function CalendarScreen() {
         }
     };
 
-    const isWithinFreeLimit = (dateStr: string): boolean => {
-        const today = new Date();
-        const targetDate = new Date(dateStr);
-        const diffTime = today.getTime() - targetDate.getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        return diffDays <= FREE_DAYS_LIMIT;
-    };
+
 
     const getDayName = (dateStr: string): string => {
         const date = new Date(dateStr);
@@ -318,9 +306,9 @@ export default function CalendarScreen() {
                         <DaySummaryCard
                             selectedDate={selectedDate}
                             selectedDayData={selectedDayData}
-                            isPremium={isPremium}
-                            canViewDetail={isPremium || (selectedDate ? isWithinFreeLimit(selectedDate) : false)}
-                            onUpgrade={() => router.push('/pro')}
+                            isPremium={true}
+                            canViewDetail={true}
+                            onUpgrade={() => router.push('/(tabs)/settings')}
                             getDayName={getDayName}
                         />
                         <View style={styles.bottomPadding} />

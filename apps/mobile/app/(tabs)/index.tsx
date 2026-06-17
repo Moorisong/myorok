@@ -27,17 +27,13 @@ import {
     SupplementChecklist,
     FluidInputSection,
     CustomMetricInputSection,
-    TrialBanner,
 } from '../../components';
 import PetSelector from '../../components/pet-selector';
 import { useTodayScreen } from '../../hooks/use-today-screen';
-import { useAuth } from '../../hooks/useAuth';
-import { getSubscriptionStatus } from '../../services';
+
 
 export default function TodayScreen() {
     const router = useRouter();
-    const { subscriptionStatus } = useAuth();
-    const [trialDaysRemaining, setTrialDaysRemaining] = useState<number | null>(null);
     const {
         // States
         peeCount,
@@ -102,42 +98,6 @@ export default function TodayScreen() {
     const dateString = `${today.getMonth() + 1}월 ${today.getDate()}일`;
     const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
 
-    // Load trial days remaining (only needed for the banner text)
-    const loadTrialDays = useCallback(async () => {
-        if (subscriptionStatus === 'trial') {
-            const status = await getSubscriptionStatus();
-            console.log('[TodayScreen] Trial days remaining:', status.daysRemaining);
-            setTrialDaysRemaining(status.daysRemaining ?? 7);
-        } else {
-            setTrialDaysRemaining(null);
-        }
-    }, [subscriptionStatus]);
-
-    // Load trial days when subscriptionStatus changes
-    useEffect(() => {
-        loadTrialDays();
-    }, [loadTrialDays, subscriptionStatus]);
-
-    // Refresh when screen comes into focus (returning from other tabs)
-    useFocusEffect(
-        useCallback(() => {
-            loadTrialDays();
-        }, [loadTrialDays])
-    );
-
-    const handleTrialBannerPress = () => {
-        // 탭 간 이동 시 스택 꼬임 방지를 위해 2단계로 이동
-        // 1. 설정 탭으로 이동 (스택 초기화/진입)
-        router.navigate('/(tabs)/settings');
-
-        // 2. 약간의 지연 후 프로 화면으로 이동 (스택 위에 쌓기)
-        setTimeout(() => {
-            router.push('/(tabs)/settings/pro');
-        }, 100);
-    };
-
-
-
 
     if (loading) {
         return (
@@ -166,15 +126,7 @@ export default function TodayScreen() {
                     showsVerticalScrollIndicator={false}
                     keyboardShouldPersistTaps="handled"
                 >
-                    {/* Trial Banner */}
-                    {subscriptionStatus === 'trial' && (
-                        <View style={styles.trialBannerContainer}>
-                            <TrialBanner
-                                daysRemaining={trialDaysRemaining ?? 7}
-                                onPress={handleTrialBannerPress}
-                            />
-                        </View>
-                    )}
+
 
                     {/* Header */}
                     <View style={styles.header}>

@@ -65,30 +65,3 @@ export {
 } from './foodPreferenceMemos';
 export type { FoodPreferenceMemo } from './foodPreferenceMemos';
 
-// Subscription service
-export {
-    initializeSubscription,
-    getSubscriptionStatus,
-    isAppAccessAllowed,
-    activateSubscription,
-    shouldShowTrialWarning,
-    getTrialCountdownText,
-    resetSubscription,
-    markTrialNotificationAsSent,
-    // User-based subscription functions (for Kakao login)
-    getSubscriptionStatusForUser,
-    startTrialForUser,
-    activateSubscriptionForUser,
-    expireSubscriptionForUser,
-    // Test mode functions
-    setTrialExpiringTestMode,
-    // Payment-related functions
-    handlePurchaseSuccess,
-    checkAndRestoreSubscription,
-    startTrialSubscription,
-    getSubscriptionState,
-    deactivateSubscription,
-    setSubscriptionStatus,
-} from './subscription';
-export type { SubscriptionStatus, SubscriptionState } from './subscription';
-
