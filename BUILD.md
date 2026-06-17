@@ -8,15 +8,32 @@
 
 플레이 스토어 제출용 배포 빌드(`.aab` 파일 생성)를 내 로컬 환경의 자원을 활용하여 수행하는 방법입니다.
 
-### 실행 방법
-`apps/mobile` 경로로 이동한 뒤 아래 명령어를 실행합니다.
+### 실행 방법 (추천: 직접 Gradle 빌드)
+로컬에 생성되어 있는 네이티브 설정(`android` 디렉토리)에 `app.json` 버전 설정을 동기화하여 확실하게 빌드하는 방법입니다.
+
+`apps/mobile` 경로에서 아래 명령어들을 실행합니다.
+```bash
+# 1. app.json의 변경사항(versionCode 등)을 android 폴더에 동기화
+npx expo prebuild --platform android --no-install
+
+# 2. android 폴더로 이동하여 직접 AAB 빌드 실행
+cd android && ./gradlew bundleRelease
+```
+
+> [!NOTE]
+> 빌드가 완료되면 `apps/mobile/android/app/build/outputs/bundle/release/app-release.aab` 경로에 파일이 생성됩니다.
+
+---
+
+### 실행 방법 2 (EAS 빌드 툴 사용)
 ```bash
 cd apps/mobile
 eas build --platform android --profile production --local
 ```
 
-> [!NOTE]
-> 빌드가 완료되면 `apps/mobile/build-xxxxxxxxxxxxx.aab` 파일이 생성됩니다.
+> [!WARNING]
+> `.gitignore`에 의해 `android` 디렉토리가 추적되지 않으므로, `eas build --local` 명령어 사용 시 `versionCode` 변경 사항이 누락될 수 있습니다. 버전 코드가 변경되었을 때는 위의 **직접 Gradle 빌드** 방식을 사용하는 것이 안전합니다.
+
 
 ### ⚠️ 빌드 실패 시 주요 해결법
 
