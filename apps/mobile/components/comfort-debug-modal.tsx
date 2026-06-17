@@ -30,12 +30,7 @@ export default function ComfortDebugModal({
     const handleAction = async (action: string, params = {}) => {
         setIsLoading(true);
         try {
-            if (action === 'set-trial-expiring') {
-                const { setTrialExpiringTestMode } = require('../services/subscription');
-                await setTrialExpiringTestMode();
-                Alert.alert('성공', '무료체험이 24시간 남은 상태로 변경되었습니다.', [{ text: '확인', onPress: onClose }]);
-                return;
-            }
+
 
             const response = await debugAction(action, params) as ApiResponse<{ message: string }>;
             if (response.success) {
@@ -122,13 +117,7 @@ export default function ComfortDebugModal({
                         isLoading={isLoading}
                     />
 
-                    <DebugButton
-                        icon="credit-card"
-                        title="무료체험 24시간 남음"
-                        description="구독 만료일 조정 (구독 알림 테스트)"
-                        onPress={() => handleAction('set-trial-expiring')}
-                        isLoading={isLoading}
-                    />
+
                 </View>
             </View>
         </Modal>

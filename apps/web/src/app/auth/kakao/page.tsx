@@ -13,6 +13,7 @@ function KakaoAuthContent() {
       try {
         // Get the authorization code from URL
         const code = searchParams.get('code');
+        const state = searchParams.get('state');
 
         if (!code) {
           setError('인증 코드가 없습니다. 다시 시도해주세요.');
@@ -42,7 +43,11 @@ function KakaoAuthContent() {
 
         // Redirect to app with deep link (token + user info)
         const userInfo = encodeURIComponent(JSON.stringify(data.user));
-        const deepLink = `myorok://?token=${encodeURIComponent(data.token)}&user=${userInfo}`;
+        
+        // Use state as the base URL if provided (for Expo Go), otherwise fallback to production scheme
+        const baseUrl = state ? decodeURIComponent(state) : 'myorok://';
+        const separator = baseUrl.includes('?') ? '&' : '?';
+        const deepLink = `${baseUrl}${separator}token=${encodeURIComponent(data.token)}&user=${userInfo}`;
         window.location.href = deepLink;
 
         // Keep loading state as we're redirecting

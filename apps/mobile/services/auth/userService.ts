@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getDatabase } from '../database';
 import { exchangeCodeForToken, logoutFromKakao, getAuthSession, KakaoUser, getJwtToken } from './kakaoAuth';
-import { startTrialForUser } from '../subscription';
+
 import { migrateLegacyDataToUser } from './migrateLegacyData';
 
 const STORAGE_KEYS = {
@@ -39,7 +39,7 @@ export async function loginWithKakao(code: string): Promise<string> {
         } else {
             // New user - create and start trial
             await createUser(kakaoUser);
-            await startTrialForUser(kakaoUser.id);
+
             console.log('[UserService] New user created:', kakaoUser.id);
 
             // Migrate legacy data (data created before login)
