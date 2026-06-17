@@ -115,7 +115,7 @@ export default function CustomMetricInputSection() {
                 }
 
                 await addMetricRecord(targetMetricId, numValue);
-                Alert.alert(ALERT_TITLES.COMPLETE, SUCCESS_MESSAGES.METRIC_SAVED);
+                showToast(SUCCESS_MESSAGES.METRIC_SAVED);
 
                 // Reset form
                 setValue('');
