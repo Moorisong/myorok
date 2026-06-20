@@ -50,3 +50,12 @@ coverage/
 
 # Data
 .data/
+
+
+# AI agent working rules
+docs/
+.antigravity/
+
+.antigravity
+
+docs
