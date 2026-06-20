@@ -38,4 +38,7 @@ module.exports = {
   resetMocks: false,
   clearMocks: true,
   testTimeout: 30000,
+  transformIgnorePatterns: [
+    'node_modules/(?!(expo-linking|expo-modules-core)/)'
+  ],
 };

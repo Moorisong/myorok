@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 
-import { COLORS } from '../../../constants';
+import { COLORS, CONFIG } from '../../../constants';
 import { Card, Button } from '../../../components';
 import { getDeviceId } from '../../../services/device';
 import {
@@ -13,7 +13,7 @@ import {
     sendTokenToBackend
 } from '../../../services/NotificationService';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001';
+const API_URL = CONFIG.API_BASE_URL;
 
 export default function NotificationTestScreen() {
     const router = useRouter();

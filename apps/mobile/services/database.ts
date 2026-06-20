@@ -128,15 +128,6 @@ async function initializeTables(db: SQLite.SQLiteDatabase) {
       deletedAt TEXT
     );
 
-    CREATE TABLE IF NOT EXISTS subscription_state (
-      id INTEGER PRIMARY KEY CHECK (id = 1),
-      trialStartDate TEXT NOT NULL,
-      subscriptionStatus TEXT NOT NULL,
-      subscriptionStartDate TEXT,
-      subscriptionExpiryDate TEXT,
-      createdAt TEXT NOT NULL,
-      updatedAt TEXT NOT NULL
-    );
   `);
 }
 
@@ -257,7 +248,6 @@ export function getTodayDateString(): string {
  *
  * 유지 대상:
  * - pets (고양이 정보)
- * - subscription_state (구독 상태)
  * - schema_migrations (마이그레이션 이력)
  *
  * @param petId - 초기화할 고양이의 ID

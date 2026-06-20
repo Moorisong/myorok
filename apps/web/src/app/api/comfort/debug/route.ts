@@ -4,6 +4,7 @@ import { Post } from '@/lib/comfort';
 
 import NotificationState from '@/models/NotificationState';
 import Device from '@/models/Device';
+import RateLimit from '@/models/RateLimit';
 import { sendPushNotification } from '@/lib/notification';
 
 export const dynamic = 'force-dynamic';
@@ -50,6 +51,9 @@ export async function POST(request: NextRequest) {
         const { PostModel } = getModels();
 
         if (action === 'reset-cooldown') {
+            // 1. RateLimit 초기화 (포스트 레이트 리밋 삭제)
+            await RateLimit.deleteMany({ key: { $regex: `^post:${deviceId}:` } });
+
             // 해당 기기의 최근 게시글 시간을 24시간 전으로 돌림
             const lastPost = await PostModel.findOne({ deviceId }).sort({ createdAt: -1 });
             if (lastPost) {
@@ -57,9 +61,9 @@ export async function POST(request: NextRequest) {
                 const oneHourFiveMinAgo = new Date(Date.now() - 65 * 60 * 1000).toISOString();
                 lastPost.createdAt = oneHourFiveMinAgo;
                 await lastPost.save();
-                return NextResponse.json({ success: true, message: '쿨타임이 리셋되었습니다.' });
+                return NextResponse.json({ success: true, message: '쿨타임과 레이트 리밋이 리셋되었습니다.' });
             }
-            return NextResponse.json({ success: true, message: '작성한 게시글이 없어 쿨타임 리셋이 필요하지 않습니다.' });
+            return NextResponse.json({ success: true, message: '작성한 게시글이 없어 쿨타임 리셋이 필요하지 않습니다. (레이트 리밋은 초기화되었습니다.)' });
         }
 
         if (action === 'set-inactivity-3days') {
