@@ -76,7 +76,7 @@ myorok/
 - **언어**: TypeScript
 - **인증**: Kakao OAuth 2.0
 - **토큰**: JWT (JSON Web Token)
-- **배포**: https://myorok.haroo.site
+- **배포**: https://myorok.harooo.co.kr
 - **주요 기능**:
   - Kakao OAuth 인증 처리
   - JWT 토큰 발급 및 검증

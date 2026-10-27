@@ -46,7 +46,7 @@
       "eas": {
         "projectId": "c0924bda-9321-4092-987b-bfef72708ed3"
       },
-      "EXPO_PUBLIC_SERVER_URL": "https://myorok.haroo.site"
+      "EXPO_PUBLIC_SERVER_URL": "https://myorok.harooo.co.kr"
     },
     "ios": {
       "bundleIdentifier": "com.myorok.app"

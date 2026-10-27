@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 
 const getDevApiUrl = () => {
-    if (process.env.EXPO_PUBLIC_API_URL && !process.env.EXPO_PUBLIC_API_URL.includes('haroo.site')) {
+    if (process.env.EXPO_PUBLIC_API_URL && !process.env.EXPO_PUBLIC_API_URL.includes('harooo.co.kr')) {
         return process.env.EXPO_PUBLIC_API_URL;
     }
     const hostUri = Constants.expoConfig?.hostUri;
@@ -22,5 +22,5 @@ export const CONFIG = {
     PIN_LENGTH: 4,                  // PIN 길이
 
     // API 설정
-    API_BASE_URL: __DEV__ ? getDevApiUrl() : 'https://myorok.haroo.site',
+    API_BASE_URL: __DEV__ ? getDevApiUrl() : 'https://myorok.harooo.co.kr',
 } as const;
