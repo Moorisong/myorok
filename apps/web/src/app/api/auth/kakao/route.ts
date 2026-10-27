@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
         // Validate environment variables
         const KAKAO_REST_API_KEY = process.env.KAKAO_REST_API_KEY;
         const KAKAO_CLIENT_SECRET = process.env.KAKAO_CLIENT_SECRET;
-        const KAKAO_REDIRECT_URI = process.env.KAKAO_REDIRECT_URI || 'https://myorok.haroo.site/auth/kakao';
+        const KAKAO_REDIRECT_URI = process.env.KAKAO_REDIRECT_URI || 'https://myorok.harooo.co.kr/auth/kakao';
         const JWT_SECRET = process.env.JWT_SECRET;
 
         if (!KAKAO_REST_API_KEY || !KAKAO_CLIENT_SECRET || !JWT_SECRET) {

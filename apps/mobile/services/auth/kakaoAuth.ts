@@ -12,7 +12,7 @@ export const KAKAO_CLIENT_ID = Constants.expoConfig?.extra?.EXPO_KAKAO_REST_API_
 const KAKAO_REST_API_KEY = KAKAO_CLIENT_ID;
 
 // Server-based redirect URI
-export const KAKAO_REDIRECT_URI = 'https://myorok.haroo.site/auth/kakao';
+export const KAKAO_REDIRECT_URI = 'https://myorok.harooo.co.kr/auth/kakao';
 
 export const KAKAO_DISCOVERY = {
     authorizationEndpoint: 'https://kauth.kakao.com/oauth/authorize',
@@ -26,7 +26,7 @@ const STORAGE_KEYS = {
     JWT_TOKEN: 'jwt_token',
 };
 
-const SERVER_URL = process.env.EXPO_PUBLIC_SERVER_URL || 'https://myorok.haroo.site';
+const SERVER_URL = process.env.EXPO_PUBLIC_SERVER_URL || 'https://myorok.harooo.co.kr';
 
 export interface KakaoUser {
     id: string;
